@@ -24,14 +24,14 @@ export class BidInvitation {
   @JoinColumn({ name: 'project_id' })
   project: Project;
 
-  @Column({ name: 'project_id' })
+  @Column({ type: 'int', name: 'project_id' })
   projectId: number;
 
   @ManyToOne(() => BidderProfile, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'bidder_profile_id' })
   bidderProfile: BidderProfile;
 
-  @Column({ name: 'bidder_profile_id' })
+  @Column({ type: 'int', name: 'bidder_profile_id' })
   bidderProfileId: number;
 
   @Column({ type: 'varchar', default: InvitationStatus.INVITED })
@@ -41,7 +41,7 @@ export class BidInvitation {
   @JoinColumn({ name: 'invited_by' })
   invitedBy: User;
 
-  @Column({ name: 'invited_by' })
+  @Column({ type: 'int', name: 'invited_by' })
   invitedById: number;
 
   @CreateDateColumn()

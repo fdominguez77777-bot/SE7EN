@@ -31,6 +31,10 @@ export class BidderProfilesService {
       this.profiles.create({
         name: dto.name.trim(),
         legalName: dto.legalName?.trim() ?? null,
+        contactName: dto.contactName?.trim() ?? null,
+        email: dto.email?.trim().toLowerCase() ?? null,
+        phone: dto.phone?.trim() ?? null,
+        address: dto.address?.trim() ?? null,
       }),
     );
 
@@ -77,6 +81,18 @@ export class BidderProfilesService {
     }
     if (dto.legalName !== undefined) {
       profile.legalName = dto.legalName.trim();
+    }
+    if (dto.contactName !== undefined) {
+      profile.contactName = dto.contactName.trim();
+    }
+    if (dto.email !== undefined) {
+      profile.email = dto.email.trim().toLowerCase();
+    }
+    if (dto.phone !== undefined) {
+      profile.phone = dto.phone.trim();
+    }
+    if (dto.address !== undefined) {
+      profile.address = dto.address.trim();
     }
     if (dto.status !== undefined) {
       profile.status = dto.status;

@@ -12,13 +12,13 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   email: string;
 
-  @Column({ select: false })
+  @Column({ type: 'varchar', select: false })
   password: string;
 
   @Column({ type: 'varchar', default: UserRole.BIDDER })

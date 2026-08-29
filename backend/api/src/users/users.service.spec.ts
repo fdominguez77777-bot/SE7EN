@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { UsersService } from './users.service';
 import { User } from './user.entity';
 
@@ -18,6 +19,13 @@ describe('UsersService', () => {
             create: jest.fn(),
             save: jest.fn(),
             createQueryBuilder: jest.fn(),
+            update: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(BidderProfile),
+          useValue: {
+            findOne: jest.fn(),
           },
         },
       ],

@@ -1,7 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
-
-import { ProjectStatus } from '../project-status.enum';
+import { Type } from 'class-transformer';
+import { IsDate, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateProjectDto {
   @ApiPropertyOptional()
@@ -17,8 +16,15 @@ export class UpdateProjectDto {
   @MaxLength(5000)
   description?: string;
 
-  @ApiPropertyOptional({ enum: ProjectStatus })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(ProjectStatus)
-  status?: ProjectStatus;
+  @Type(() => Date)
+  @IsDate()
+  opensAt?: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  closesAt?: Date;
 }

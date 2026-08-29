@@ -1,5 +1,6 @@
 export enum SubmissionStatus {
-  DRAFT = 'DRAFT',
   SUBMITTED = 'SUBMITTED',
-  WITHDRAWN = 'WITHDRAWN',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED',
+  AWARDED = 'AWARDED',
 }

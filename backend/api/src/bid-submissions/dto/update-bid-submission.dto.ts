@@ -1,7 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
-
-import { SubmissionStatus } from '../submission-status.enum';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class UpdateBidSubmissionDto {
   @ApiPropertyOptional()
@@ -10,8 +9,10 @@ export class UpdateBidSubmissionDto {
   @MaxLength(5000)
   notes?: string;
 
-  @ApiPropertyOptional({ enum: SubmissionStatus })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(SubmissionStatus)
-  status?: SubmissionStatus;
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  amount?: number;
 }

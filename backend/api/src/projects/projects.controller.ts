@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
+import { AwardProjectDto } from './dto/award-project.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectsService } from './projects.service';
@@ -31,7 +32,7 @@ export class ProjectsController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
-  @ApiOperation({ summary: 'Create a project' })
+  @ApiOperation({ summary: 'Create a project (DRAFT)' })
   create(@Body() dto: CreateProjectDto, @CurrentUser() user: User) {
     return this.projectsService.create(dto, user);
   }
@@ -40,6 +41,42 @@ export class ProjectsController {
   @ApiOperation({ summary: 'List projects' })
   findAll(@CurrentUser() user: User) {
     return this.projectsService.findAll(user);
+  }
+
+  @Post(':id/open')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({ summary: 'Open a DRAFT project for bidding' })
+  open(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.projectsService.open(id, user);
+  }
+
+  @Post(':id/close')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({ summary: 'Close an OPEN project' })
+  close(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.projectsService.close(id, user);
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({ summary: 'Cancel a DRAFT or OPEN project' })
+  cancel(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.projectsService.cancel(id, user);
+  }
+
+  @Post(':id/award')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({ summary: 'Award a project to a submission' })
+  award(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AwardProjectDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.projectsService.award(id, dto, user);
   }
 
   @Get(':id')

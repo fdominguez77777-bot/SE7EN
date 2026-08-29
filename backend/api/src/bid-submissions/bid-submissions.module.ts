@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { BidInvitation } from '../bid-invitations/bid-invitation.entity';
 import { Project } from '../projects/project.entity';
@@ -12,6 +13,7 @@ import { BidSubmissionsService } from './bid-submissions.service';
   imports: [
     TypeOrmModule.forFeature([BidSubmission, BidInvitation, Project]),
     AuthModule,
+    AuditModule,
   ],
   controllers: [BidSubmissionsController],
   providers: [BidSubmissionsService],

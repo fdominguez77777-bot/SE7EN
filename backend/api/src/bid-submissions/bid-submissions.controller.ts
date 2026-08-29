@@ -57,6 +57,22 @@ export class BidSubmissionsController {
     return this.bidSubmissionsService.findOne(id, user);
   }
 
+  @Post(':id/accept')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({ summary: 'Accept a submitted bid' })
+  accept(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.bidSubmissionsService.accept(id, user);
+  }
+
+  @Post(':id/reject')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({ summary: 'Reject a submitted or accepted bid' })
+  reject(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.bidSubmissionsService.reject(id, user);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update a bid submission' })
   update(

@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Length,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateBidSubmissionDto {
   @ApiProperty()
@@ -8,6 +16,18 @@ export class CreateBidSubmissionDto {
   @IsInt()
   @Min(1)
   projectId: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @ApiPropertyOptional({ default: 'USD' })
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currency?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

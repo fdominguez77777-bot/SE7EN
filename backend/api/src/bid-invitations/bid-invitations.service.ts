@@ -10,11 +10,15 @@ import { Repository } from 'typeorm';
 import { isBidder, isStaff } from '../auth/role-utils';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { Project } from '../projects/project.entity';
+import { ProjectStatus } from '../projects/project-status.enum';
 import { User } from '../users/user.entity';
 import { BidInvitation } from './bid-invitation.entity';
 import { CreateBidInvitationDto } from './dto/create-bid-invitation.dto';
 import { UpdateBidInvitationDto } from './dto/update-bid-invitation.dto';
+import { toInvitationDto } from './invitation.mapper';
 import { InvitationStatus } from './invitation-status.enum';
+
+const INVITE_RELATIONS = { project: true, bidderProfile: true } as const;
 
 @Injectable()
 export class BidInvitationsService {
@@ -27,15 +31,20 @@ export class BidInvitationsService {
     private readonly profiles: Repository<BidderProfile>,
   ) {}
 
-  async create(
-    dto: CreateBidInvitationDto,
-    actor: User,
-  ): Promise<BidInvitation> {
+  async create(dto: CreateBidInvitationDto, actor: User) {
     const project = await this.projects.findOne({
       where: { id: dto.projectId },
     });
     if (!project) {
       throw new NotFoundException('Project not found');
+    }
+    if (
+      project.status !== ProjectStatus.DRAFT &&
+      project.status !== ProjectStatus.OPEN
+    ) {
+      throw new ForbiddenException(
+        'Invitations can only be sent for DRAFT or OPEN projects',
+      );
     }
 
     const profile = await this.profiles.findOne({
@@ -55,7 +64,7 @@ export class BidInvitationsService {
       throw new ConflictException('Bidder is already invited to this project');
     }
 
-    return this.invitations.save(
+    const saved = await this.invitations.save(
       this.invitations.create({
         projectId: dto.projectId,
         bidderProfileId: dto.bidderProfileId,
@@ -63,55 +72,69 @@ export class BidInvitationsService {
         status: InvitationStatus.INVITED,
       }),
     );
+    return this.findOne(saved.id, actor);
   }
 
-  async findAll(actor: User, projectId?: number): Promise<BidInvitation[]> {
-    if (isStaff(actor)) {
-      return this.invitations.find({
-        where: projectId ? { projectId } : {},
-        order: { id: 'ASC' },
-      });
-    }
-
-    if (!actor.bidderProfileId) {
+  async findAll(actor: User, projectId?: number) {
+    const where = isStaff(actor)
+      ? projectId
+        ? { projectId }
+        : {}
+      : actor.bidderProfileId
+        ? projectId
+          ? { projectId, bidderProfileId: actor.bidderProfileId }
+          : { bidderProfileId: actor.bidderProfileId }
+        : null;
+    if (where === null) {
       return [];
     }
-
-    return this.invitations.find({
-      where: projectId
-        ? { projectId, bidderProfileId: actor.bidderProfileId }
-        : { bidderProfileId: actor.bidderProfileId },
+    const rows = await this.invitations.find({
+      where,
+      relations: INVITE_RELATIONS,
       order: { id: 'ASC' },
     });
+    return rows.map(toInvitationDto);
   }
 
-  async findOne(id: number, actor: User): Promise<BidInvitation> {
-    const invitation = await this.invitations.findOne({ where: { id } });
+  async findOne(id: number, actor: User) {
+    const invitation = await this.invitations.findOne({
+      where: { id },
+      relations: INVITE_RELATIONS,
+    });
     if (!invitation) {
       throw new NotFoundException('Bid invitation not found');
     }
     this.assertCanAccess(invitation, actor);
-    return invitation;
+    return toInvitationDto(invitation);
   }
 
-  async update(
-    id: number,
-    dto: UpdateBidInvitationDto,
-    actor: User,
-  ): Promise<BidInvitation> {
-    const invitation = await this.findOne(id, actor);
+  async update(id: number, dto: UpdateBidInvitationDto, actor: User) {
+    const invitation = await this.invitations.findOne({
+      where: { id },
+      relations: INVITE_RELATIONS,
+    });
+    if (!invitation) {
+      throw new NotFoundException('Bid invitation not found');
+    }
+    this.assertCanAccess(invitation, actor);
 
-    if (isBidder(actor) && dto.status === InvitationStatus.INVITED) {
-      throw new ForbiddenException();
+    if (isBidder(actor)) {
+      if (
+        dto.status !== InvitationStatus.ACCEPTED &&
+        dto.status !== InvitationStatus.DECLINED
+      ) {
+        throw new ForbiddenException('Bidders can only accept or decline');
+      }
     }
 
     invitation.status = dto.status;
-    return this.invitations.save(invitation);
+    await this.invitations.save(invitation);
+    return this.findOne(id, actor);
   }
 
   async remove(id: number, actor: User): Promise<void> {
     if (!isStaff(actor)) {
-      throw new ForbiddenException();
+      throw new ForbiddenException('Only staff can delete invitations');
     }
     const invitation = await this.invitations.findOne({ where: { id } });
     if (!invitation) {
@@ -127,6 +150,6 @@ export class BidInvitationsService {
     if (isBidder(actor) && actor.bidderProfileId === invitation.bidderProfileId) {
       return;
     }
-    throw new ForbiddenException();
+    throw new ForbiddenException('You cannot access this invitation');
   }
 }

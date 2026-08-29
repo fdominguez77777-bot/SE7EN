@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -7,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 
+import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { User } from './user.entity';
@@ -26,6 +28,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(BidderProfile)
+    private readonly profiles: Repository<BidderProfile>,
   ) {}
 
   toPublicUser(user: User): UserResponseDto {
@@ -99,5 +103,30 @@ export class UsersService {
 
   async assignBidderProfile(userId: number, bidderProfileId: number): Promise<void> {
     await this.usersRepository.update(userId, { bidderProfileId });
+  }
+
+  async attachBidderProfile(
+    userId: number,
+    bidderProfileId: number,
+  ): Promise<UserResponseDto> {
+    const user = await this.findByIdOrFail(userId);
+    if (user.role !== UserRole.BIDDER) {
+      throw new BadRequestException('Only BIDDER accounts can be linked to a profile');
+    }
+    const profile = await this.profiles.findOne({
+      where: { id: bidderProfileId },
+    });
+    if (!profile) {
+      throw new NotFoundException('Bidder profile not found');
+    }
+    const taken = await this.usersRepository.findOne({
+      where: { bidderProfileId },
+    });
+    if (taken && taken.id !== userId) {
+      throw new ConflictException('This bidder profile is already linked to another user');
+    }
+    user.bidderProfileId = bidderProfileId;
+    await this.usersRepository.save(user);
+    return this.toPublicUser(user);
   }
 }
