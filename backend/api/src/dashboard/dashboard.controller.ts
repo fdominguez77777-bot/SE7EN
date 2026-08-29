@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -14,8 +14,12 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Role-specific dashboard counts' })
-  summary(@CurrentUser() user: User) {
-    return this.dashboardService.getSummary(user);
+  @ApiOperation({ summary: 'Role-specific activity dashboard' })
+  summary(
+    @CurrentUser() user: User,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.dashboardService.getSummary(user, from, to);
   }
 }

@@ -6,23 +6,18 @@ import { useAuth } from '../auth/AuthContext'
 const NAV: Record<Role, { to: string; label: string }[]> = {
   ADMIN: [
     { to: '/', label: 'Dashboard' },
-    { to: '/projects', label: 'Projects' },
-    { to: '/bidders', label: 'Bidders' },
-    { to: '/invitations', label: 'Invitations' },
-    { to: '/submissions', label: 'Submissions' },
+    { to: '/candidates', label: 'Candidates' },
+    { to: '/interviews', label: 'Interviews' },
   ],
   BID_MANAGER: [
     { to: '/', label: 'Dashboard' },
-    { to: '/projects', label: 'Projects' },
-    { to: '/bidders', label: 'Bidders' },
-    { to: '/invitations', label: 'Invitations' },
-    { to: '/submissions', label: 'Submissions' },
+    { to: '/candidates', label: 'Candidates' },
+    { to: '/interviews', label: 'Interviews' },
   ],
   BIDDER: [
-    { to: '/', label: 'Dashboard' },
-    { to: '/invitations', label: 'Invitations' },
-    { to: '/submit-bid', label: 'Submit Bid' },
-    { to: '/my-submissions', label: 'My Submissions' },
+    { to: '/', label: 'My Dashboard' },
+    { to: '/profile', label: 'My Profile' },
+    { to: '/interviews', label: 'My Interviews' },
   ],
 }
 
@@ -36,7 +31,7 @@ export function DashboardLayout() {
       <aside className="flex w-60 shrink-0 flex-col border-r border-stone-300 bg-stone-900 text-stone-100">
         <div className="border-b border-stone-700 px-5 py-5">
           <p className="text-xs tracking-[0.2em] text-stone-400 uppercase">
-            BidderPlatform
+            Job Operations
           </p>
           <p className="mt-2 text-sm text-stone-300">{user?.name}</p>
           <p className="mt-1 text-xs text-stone-500">{user?.role}</p>

@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 
+import { AuditService } from '../audit/audit.service';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -30,6 +31,7 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
     @InjectRepository(BidderProfile)
     private readonly profiles: Repository<BidderProfile>,
+    private readonly audit: AuditService,
   ) {}
 
   toPublicUser(user: User): UserResponseDto {
@@ -90,6 +92,12 @@ export class UsersService {
     return user;
   }
 
+  async findByBidderProfileId(bidderProfileId: number): Promise<User | null> {
+    return this.usersRepository.findOne({
+      where: { bidderProfileId },
+    });
+  }
+
   async findAll(): Promise<User[]> {
     return this.usersRepository.find({
       order: { id: 'ASC' },
@@ -108,6 +116,7 @@ export class UsersService {
   async attachBidderProfile(
     userId: number,
     bidderProfileId: number,
+    actor: User,
   ): Promise<UserResponseDto> {
     const user = await this.findByIdOrFail(userId);
     if (user.role !== UserRole.BIDDER) {
@@ -127,6 +136,10 @@ export class UsersService {
     }
     user.bidderProfileId = bidderProfileId;
     await this.usersRepository.save(user);
+    await this.audit.record('candidate_profile', bidderProfileId, 'assign', actor.id, {
+      userId,
+      profileId: bidderProfileId,
+    });
     return this.toPublicUser(user);
   }
 }

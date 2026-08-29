@@ -51,7 +51,8 @@ export class UsersController {
   attachProfile(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AttachBidderProfileDto,
+    @CurrentUser() actor: User,
   ) {
-    return this.usersService.attachBidderProfile(id, dto.bidderProfileId);
+    return this.usersService.attachBidderProfile(id, dto.bidderProfileId, actor);
   }
 }

@@ -188,7 +188,7 @@ export function BiddersPage() {
               <option value="">Select profile</option>
               {profiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
-                  {profile.name}
+                  {profile.profileName}
                 </option>
               ))}
             </select>
@@ -215,8 +215,11 @@ export function BiddersPage() {
           <tbody>
             {profiles.map((profile) => (
               <tr key={profile.id} className="border-t border-stone-200">
-                <td className="px-4 py-2">{profile.name}</td>
-                <td className="px-4 py-2">{profile.contactName ?? '—'}</td>
+                <td className="px-4 py-2">{profile.profileName}</td>
+                <td className="px-4 py-2">
+                  {[profile.firstName, profile.lastName].filter(Boolean).join(' ') ||
+                    '—'}
+                </td>
                 <td className="px-4 py-2">{profile.email ?? '—'}</td>
                 <td className="px-4 py-2">{profile.status}</td>
               </tr>

@@ -8,13 +8,15 @@ import {
   EnvironmentVariables,
   validateEnvironment,
 } from './config/env.validation';
+import { ActivityModule } from './activity/activity.module';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { BidInvitationsModule } from './bid-invitations/bid-invitations.module';
 import { BidSubmissionsModule } from './bid-submissions/bid-submissions.module';
 import { BidderProfilesModule } from './bidder-profiles/bidder-profiles.module';
 import { HealthModule } from './health/health.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { AuditModule } from './audit/audit.module';
+import { InterviewsModule } from './interviews/interviews.module';
 import { ProjectsModule } from './projects/projects.module';
 import { UsersModule } from './users/users.module';
 
@@ -46,6 +48,8 @@ import { UsersModule } from './users/users.module';
     ProjectsModule,
     BidInvitationsModule,
     BidSubmissionsModule,
+    ActivityModule,
+    InterviewsModule,
     DashboardModule,
   ],
   controllers: [AppController],

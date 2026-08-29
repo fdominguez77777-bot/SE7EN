@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,102 +6,352 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { AuditService } from '../audit/audit.service';
 import { isBidder, isStaff } from '../auth/role-utils';
 import { User } from '../users/user.entity';
+import { UserRole } from '../users/user-role.enum';
 import { UsersService } from '../users/users.service';
 import { BidderProfile } from './bidder-profile.entity';
 import { CreateBidderProfileDto } from './dto/create-bidder-profile.dto';
+import { CreateEducationDto } from './dto/create-education.dto';
+import { CreateWorkExperienceDto } from './dto/create-work-experience.dto';
 import { UpdateBidderProfileDto } from './dto/update-bidder-profile.dto';
+import { UpdateEducationDto } from './dto/update-education.dto';
+import { UpdateWorkExperienceDto } from './dto/update-work-experience.dto';
+import { Education } from './education.entity';
+import { toCandidateDto } from './profile.mapper';
+import { WorkExperience } from './work-experience.entity';
+
+const PROFILE_RELATIONS = {
+  experiences: true,
+  educations: true,
+} as const;
 
 @Injectable()
 export class BidderProfilesService {
   constructor(
     @InjectRepository(BidderProfile)
     private readonly profiles: Repository<BidderProfile>,
+    @InjectRepository(WorkExperience)
+    private readonly experiences: Repository<WorkExperience>,
+    @InjectRepository(Education)
+    private readonly educations: Repository<Education>,
     private readonly usersService: UsersService,
+    private readonly audit: AuditService,
   ) {}
 
-  async create(dto: CreateBidderProfileDto, actor: User): Promise<BidderProfile> {
-    if (isBidder(actor) && actor.bidderProfileId) {
-      throw new ConflictException('Bidder already has a profile');
-    }
-
-    const profile = await this.profiles.save(
+  async create(dto: CreateBidderProfileDto, actor: User) {
+    this.assertAdmin(actor);
+    const profileName = dto.profileName.trim();
+    const saved = await this.profiles.save(
       this.profiles.create({
-        name: dto.name.trim(),
-        legalName: dto.legalName?.trim() ?? null,
-        contactName: dto.contactName?.trim() ?? null,
-        email: dto.email?.trim().toLowerCase() ?? null,
-        phone: dto.phone?.trim() ?? null,
-        address: dto.address?.trim() ?? null,
+        name: profileName,
+        firstName: dto.firstName.trim(),
+        middleName: dto.middleName?.trim() || null,
+        lastName: dto.lastName.trim(),
+        contactName: `${dto.firstName.trim()} ${dto.lastName.trim()}`,
+        email: dto.email.trim().toLowerCase(),
+        phone: dto.phoneNumber.trim(),
+        phoneNumber: dto.phoneNumber.trim(),
+        gender: dto.gender?.trim() || null,
+        dateOfBirth: dto.dateOfBirth || null,
+        streetAddress: dto.streetAddress?.trim() || null,
+        address: dto.streetAddress?.trim() || null,
+        city: dto.city?.trim() || null,
+        stateRegion: dto.stateRegion?.trim() || null,
+        zipPostalCode: dto.zipPostalCode?.trim() || null,
+        linkedinUrl: dto.linkedinUrl?.trim() || null,
+        githubUrl: dto.githubUrl?.trim() || null,
+        portfolioUrl: dto.portfolioUrl?.trim() || null,
+        raceEthnicity: dto.raceEthnicity?.trim() || null,
+        veteranStatus: dto.veteranStatus?.trim() || null,
+        disabilityStatus: dto.disabilityStatus?.trim() || null,
       }),
     );
-
-    if (isBidder(actor)) {
-      await this.usersService.assignBidderProfile(actor.id, profile.id);
-      actor.bidderProfileId = profile.id;
-    }
-
-    return profile;
+    await this.audit.record('candidate_profile', saved.id, 'create', actor.id, {
+      profileId: saved.id,
+    });
+    return this.toDto(await this.requireProfile(saved.id), actor);
   }
 
-  async findAll(actor: User): Promise<BidderProfile[]> {
+  async findAll(actor: User) {
     if (isStaff(actor)) {
-      return this.profiles.find({ order: { id: 'ASC' } });
+      const rows = await this.profiles.find({
+        relations: PROFILE_RELATIONS,
+        order: { id: 'ASC' },
+      });
+      return Promise.all(rows.map((row) => this.toDto(row, actor)));
     }
-
     if (!actor.bidderProfileId) {
       return [];
     }
-
     const profile = await this.profiles.findOne({
       where: { id: actor.bidderProfileId },
+      relations: PROFILE_RELATIONS,
     });
-    return profile ? [profile] : [];
+    return profile ? [await this.toDto(profile, actor)] : [];
   }
 
-  async findOne(id: number, actor: User): Promise<BidderProfile> {
-    const profile = await this.profiles.findOne({ where: { id } });
-    if (!profile) {
-      throw new NotFoundException('Bidder profile not found');
-    }
+  async findOne(id: number, actor: User) {
+    const profile = await this.requireProfile(id);
     this.assertCanAccess(profile, actor);
-    return profile;
+    return this.toDto(profile, actor);
   }
 
-  async update(
-    id: number,
-    dto: UpdateBidderProfileDto,
-    actor: User,
-  ): Promise<BidderProfile> {
-    const profile = await this.findOne(id, actor);
-    if (dto.name !== undefined) {
-      profile.name = dto.name.trim();
+  async update(id: number, dto: UpdateBidderProfileDto, actor: User) {
+    this.assertAdmin(actor);
+    const profile = await this.requireProfile(id);
+    if (dto.profileName !== undefined) {
+      profile.name = dto.profileName.trim();
     }
-    if (dto.legalName !== undefined) {
-      profile.legalName = dto.legalName.trim();
+    if (dto.firstName !== undefined) {
+      profile.firstName = dto.firstName.trim();
     }
-    if (dto.contactName !== undefined) {
-      profile.contactName = dto.contactName.trim();
+    if (dto.middleName !== undefined) {
+      profile.middleName = dto.middleName?.trim() || null;
+    }
+    if (dto.lastName !== undefined) {
+      profile.lastName = dto.lastName.trim();
     }
     if (dto.email !== undefined) {
       profile.email = dto.email.trim().toLowerCase();
     }
-    if (dto.phone !== undefined) {
-      profile.phone = dto.phone.trim();
+    if (dto.phoneNumber !== undefined) {
+      profile.phoneNumber = dto.phoneNumber.trim();
+      profile.phone = dto.phoneNumber.trim();
     }
-    if (dto.address !== undefined) {
-      profile.address = dto.address.trim();
+    if (dto.gender !== undefined) {
+      profile.gender = dto.gender?.trim() || null;
     }
-    if (dto.status !== undefined) {
-      profile.status = dto.status;
+    if (dto.dateOfBirth !== undefined) {
+      profile.dateOfBirth = dto.dateOfBirth || null;
     }
-    return this.profiles.save(profile);
+    if (dto.streetAddress !== undefined) {
+      profile.streetAddress = dto.streetAddress?.trim() || null;
+      profile.address = dto.streetAddress?.trim() || null;
+    }
+    if (dto.city !== undefined) {
+      profile.city = dto.city?.trim() || null;
+    }
+    if (dto.stateRegion !== undefined) {
+      profile.stateRegion = dto.stateRegion?.trim() || null;
+    }
+    if (dto.zipPostalCode !== undefined) {
+      profile.zipPostalCode = dto.zipPostalCode?.trim() || null;
+    }
+    if (dto.linkedinUrl !== undefined) {
+      profile.linkedinUrl = dto.linkedinUrl?.trim() || null;
+    }
+    if (dto.githubUrl !== undefined) {
+      profile.githubUrl = dto.githubUrl?.trim() || null;
+    }
+    if (dto.portfolioUrl !== undefined) {
+      profile.portfolioUrl = dto.portfolioUrl?.trim() || null;
+    }
+    if (dto.raceEthnicity !== undefined) {
+      profile.raceEthnicity = dto.raceEthnicity?.trim() || null;
+    }
+    if (dto.veteranStatus !== undefined) {
+      profile.veteranStatus = dto.veteranStatus?.trim() || null;
+    }
+    if (dto.disabilityStatus !== undefined) {
+      profile.disabilityStatus = dto.disabilityStatus?.trim() || null;
+    }
+    if (profile.firstName && profile.lastName) {
+      profile.contactName = `${profile.firstName} ${profile.lastName}`;
+    }
+    await this.profiles.save(profile);
+    await this.audit.record('candidate_profile', id, 'update', actor.id, {
+      profileId: id,
+    });
+    return this.toDto(await this.requireProfile(id), actor);
   }
 
   async remove(id: number, actor: User): Promise<void> {
-    const profile = await this.findOne(id, actor);
+    this.assertAdmin(actor);
+    const profile = await this.requireProfile(id);
     await this.profiles.remove(profile);
+    await this.audit.record('candidate_profile', id, 'delete', actor.id, {
+      profileId: id,
+    });
+  }
+
+  async addExperience(profileId: number, dto: CreateWorkExperienceDto, actor: User) {
+    this.assertAdmin(actor);
+    await this.requireProfile(profileId);
+    const currentlyWorksHere = dto.currentlyWorksHere === true;
+    const endDate = currentlyWorksHere ? null : dto.endDate || null;
+    const max = await this.experiences
+      .createQueryBuilder('row')
+      .select('MAX(row.sortOrder)', 'max')
+      .where('row.candidateProfileId = :profileId', { profileId })
+      .getRawOne<{ max: string | null }>();
+    await this.experiences.save(
+      this.experiences.create({
+        candidateProfileId: profileId,
+        companyName: dto.companyName.trim(),
+        industry: dto.industry?.trim() || null,
+        city: dto.city?.trim() || null,
+        state: dto.state?.trim() || null,
+        startDate: dto.startDate,
+        endDate,
+        currentlyWorksHere,
+        sortOrder: Number(max?.max ?? 0) + 1,
+      }),
+    );
+    return this.toDto(await this.requireProfile(profileId), actor);
+  }
+
+  async updateExperience(
+    profileId: number,
+    experienceId: number,
+    dto: UpdateWorkExperienceDto,
+    actor: User,
+  ) {
+    this.assertAdmin(actor);
+    const row = await this.experiences.findOne({
+      where: { id: experienceId, candidateProfileId: profileId },
+    });
+    if (!row) {
+      throw new NotFoundException('Work experience not found');
+    }
+    if (dto.companyName !== undefined) {
+      row.companyName = dto.companyName.trim();
+    }
+    if (dto.industry !== undefined) {
+      row.industry = dto.industry?.trim() || null;
+    }
+    if (dto.city !== undefined) {
+      row.city = dto.city?.trim() || null;
+    }
+    if (dto.state !== undefined) {
+      row.state = dto.state?.trim() || null;
+    }
+    if (dto.startDate !== undefined) {
+      row.startDate = dto.startDate;
+    }
+    if (dto.currentlyWorksHere !== undefined) {
+      row.currentlyWorksHere = dto.currentlyWorksHere;
+    }
+    if (dto.endDate !== undefined) {
+      row.endDate = dto.endDate || null;
+    }
+    if (row.currentlyWorksHere) {
+      row.endDate = null;
+    }
+    await this.experiences.save(row);
+    return this.toDto(await this.requireProfile(profileId), actor);
+  }
+
+  async removeExperience(profileId: number, experienceId: number, actor: User) {
+    this.assertAdmin(actor);
+    const row = await this.experiences.findOne({
+      where: { id: experienceId, candidateProfileId: profileId },
+    });
+    if (!row) {
+      throw new NotFoundException('Work experience not found');
+    }
+    await this.experiences.remove(row);
+    return this.toDto(await this.requireProfile(profileId), actor);
+  }
+
+  async addEducation(profileId: number, dto: CreateEducationDto, actor: User) {
+    this.assertAdmin(actor);
+    await this.requireProfile(profileId);
+    const max = await this.educations
+      .createQueryBuilder('row')
+      .select('MAX(row.sortOrder)', 'max')
+      .where('row.candidateProfileId = :profileId', { profileId })
+      .getRawOne<{ max: string | null }>();
+    await this.educations.save(
+      this.educations.create({
+        candidateProfileId: profileId,
+        institutionName: dto.institutionName.trim(),
+        degree: dto.degree?.trim() || null,
+        fromDate: dto.fromDate || null,
+        toDate: dto.toDate || null,
+        sortOrder: Number(max?.max ?? 0) + 1,
+      }),
+    );
+    return this.toDto(await this.requireProfile(profileId), actor);
+  }
+
+  async updateEducation(
+    profileId: number,
+    educationId: number,
+    dto: UpdateEducationDto,
+    actor: User,
+  ) {
+    this.assertAdmin(actor);
+    const row = await this.educations.findOne({
+      where: { id: educationId, candidateProfileId: profileId },
+    });
+    if (!row) {
+      throw new NotFoundException('Education record not found');
+    }
+    if (dto.institutionName !== undefined) {
+      row.institutionName = dto.institutionName.trim();
+    }
+    if (dto.degree !== undefined) {
+      row.degree = dto.degree?.trim() || null;
+    }
+    if (dto.fromDate !== undefined) {
+      row.fromDate = dto.fromDate || null;
+    }
+    if (dto.toDate !== undefined) {
+      row.toDate = dto.toDate || null;
+    }
+    await this.educations.save(row);
+    return this.toDto(await this.requireProfile(profileId), actor);
+  }
+
+  async removeEducation(profileId: number, educationId: number, actor: User) {
+    this.assertAdmin(actor);
+    const row = await this.educations.findOne({
+      where: { id: educationId, candidateProfileId: profileId },
+    });
+    if (!row) {
+      throw new NotFoundException('Education record not found');
+    }
+    await this.educations.remove(row);
+    return this.toDto(await this.requireProfile(profileId), actor);
+  }
+
+  private includeSensitive(actor: User, profile: BidderProfile): boolean {
+    if (actor.role === UserRole.ADMIN) {
+      return true;
+    }
+    if (isBidder(actor) && actor.bidderProfileId === profile.id) {
+      return true;
+    }
+    return false;
+  }
+
+  private async toDto(profile: BidderProfile, actor: User) {
+    const assigned = await this.usersService.findByBidderProfileId(profile.id);
+    return toCandidateDto(profile, {
+      includeSensitive: this.includeSensitive(actor, profile),
+      assignedUser: assigned
+        ? { id: assigned.id, name: assigned.name, email: assigned.email }
+        : null,
+    });
+  }
+
+  private async requireProfile(id: number): Promise<BidderProfile> {
+    const profile = await this.profiles.findOne({
+      where: { id },
+      relations: PROFILE_RELATIONS,
+    });
+    if (!profile) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+    return profile;
+  }
+
+  private assertAdmin(actor: User) {
+    if (actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only ADMIN can change candidate profiles');
+    }
   }
 
   private assertCanAccess(profile: BidderProfile, actor: User): void {
@@ -112,6 +361,6 @@ export class BidderProfilesService {
     if (isBidder(actor) && actor.bidderProfileId === profile.id) {
       return;
     }
-    throw new ForbiddenException();
+    throw new ForbiddenException('You cannot access this profile');
   }
 }

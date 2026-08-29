@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { AuditService } from '../audit/audit.service';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { UsersService } from './users.service';
 import { User } from './user.entity';
@@ -27,6 +28,10 @@ describe('UsersService', () => {
           useValue: {
             findOne: jest.fn(),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: { record: jest.fn() },
         },
       ],
     }).compile();

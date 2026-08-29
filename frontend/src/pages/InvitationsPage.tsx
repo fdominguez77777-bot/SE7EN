@@ -106,7 +106,7 @@ export function InvitationsPage() {
               <option value="">Select bidder</option>
               {profiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
-                  {profile.name}
+                  {profile.profileName}
                 </option>
               ))}
             </select>
