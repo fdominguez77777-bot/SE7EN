@@ -205,15 +205,12 @@ export class ProjectsService {
     if (isStaff(actor)) {
       return project;
     }
-    if (!actor.bidderProfileId) {
-      throw new ForbiddenException('Bidder profile required');
-    }
-    const invited = await this.invitations.exists({
-      where: {
-        projectId: id,
-        bidderProfileId: actor.bidderProfileId,
-      },
-    });
+    const invited = await this.invitations
+      .createQueryBuilder('invite')
+      .innerJoin('invite.bidderProfile', 'profile')
+      .where('invite.projectId = :id', { id })
+      .andWhere('profile.assignedBidderId = :bidderId', { bidderId: actor.id })
+      .getExists();
     if (!invited) {
       throw new ForbiddenException('You are not invited to this project');
     }
@@ -224,13 +221,12 @@ export class ProjectsService {
     if (isStaff(actor)) {
       return this.projects.find({ order: { id: 'ASC' } });
     }
-    if (!actor.bidderProfileId) {
-      return [];
-    }
-    const invites = await this.invitations.find({
-      where: { bidderProfileId: actor.bidderProfileId },
-      select: { projectId: true },
-    });
+    const invites = await this.invitations
+      .createQueryBuilder('invite')
+      .innerJoin('invite.bidderProfile', 'profile')
+      .where('profile.assignedBidderId = :bidderId', { bidderId: actor.id })
+      .select(['invite.projectId'])
+      .getMany();
     const projectIds = invites.map((invite) => invite.projectId);
     if (projectIds.length === 0) {
       return [];

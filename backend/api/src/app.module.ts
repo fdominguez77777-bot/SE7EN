@@ -11,14 +11,22 @@ import {
 import { ActivityModule } from './activity/activity.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { StorageModule } from './storage/storage.module';
 import { BidInvitationsModule } from './bid-invitations/bid-invitations.module';
 import { BidSubmissionsModule } from './bid-submissions/bid-submissions.module';
 import { BidderProfilesModule } from './bidder-profiles/bidder-profiles.module';
 import { HealthModule } from './health/health.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { InterviewsModule } from './interviews/interviews.module';
+import { JobApplicationsModule } from './job-applications/job-applications.module';
+import { TalynIngestModule } from './integrations/talyn/talyn.module';
+import { JiracodersModule } from './integrations/jiracoders/jiracoders.module';
+import { CalendarModule } from './calendar/calendar.module';
+import { CompensationModule } from './compensation/compensation.module';
 import { ProjectsModule } from './projects/projects.module';
 import { UsersModule } from './users/users.module';
+import { DailySubmissionsModule } from './daily-submissions/daily-submissions.module';
+import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
 
 @Module({
   imports: [
@@ -41,8 +49,11 @@ import { UsersModule } from './users/users.module';
       }),
     }),
     HealthModule,
+    StorageModule,
     AuditModule,
     UsersModule,
+    DailySubmissionsModule,
+    WeeklyInvoicesModule,
     AuthModule,
     BidderProfilesModule,
     ProjectsModule,
@@ -50,6 +61,11 @@ import { UsersModule } from './users/users.module';
     BidSubmissionsModule,
     ActivityModule,
     InterviewsModule,
+    JobApplicationsModule,
+    TalynIngestModule,
+    JiracodersModule,
+    CalendarModule,
+    CompensationModule,
     DashboardModule,
   ],
   controllers: [AppController],

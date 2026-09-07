@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+
+import { InterviewMethod, InterviewStatus } from '../interview.rules';
 
 export class UpdateInterviewDto {
   @ApiPropertyOptional()
@@ -27,6 +29,16 @@ export class UpdateInterviewDto {
   @MaxLength(80)
   round?: string | null;
 
+  @ApiPropertyOptional({ enum: Object.values(InterviewMethod) })
+  @IsOptional()
+  @IsIn(Object.values(InterviewMethod))
+  method?: string | null;
+
+  @ApiPropertyOptional({ enum: Object.values(InterviewStatus) })
+  @IsOptional()
+  @IsIn(Object.values(InterviewStatus))
+  status?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -36,7 +48,7 @@ export class UpdateInterviewDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(80)
+  @MaxLength(200)
   result?: string | null;
 
   @ApiPropertyOptional()

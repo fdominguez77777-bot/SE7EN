@@ -2,11 +2,15 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
+import { User } from '../users/user.entity';
 import { BidderProfileStatus } from './bidder-profile-status.enum';
 import { Education } from './education.entity';
 import { WorkExperience } from './work-experience.entity';
@@ -84,6 +88,17 @@ export class BidderProfile {
 
   @Column({ type: 'varchar', default: BidderProfileStatus.ACTIVE })
   status: string;
+
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  assignedBidderId: number | null;
+
+  @ManyToOne(() => User, (user) => user.assignedCandidateProfiles, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'assignedBidderId' })
+  assignedBidder: User | null;
 
   @OneToMany(() => WorkExperience, (row) => row.candidateProfile)
   experiences: WorkExperience[];

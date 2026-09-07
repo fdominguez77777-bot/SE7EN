@@ -1,6 +1,7 @@
 import { BidderProfile } from './bidder-profile.entity';
 import { Education } from './education.entity';
 import { WorkExperience } from './work-experience.entity';
+import { avatarPublicUrl } from '../storage/image-kind';
 
 const SENSITIVE_KEYS = [
   'dateOfBirth',
@@ -41,7 +42,12 @@ export function toCandidateDto(
   profile: BidderProfile,
   options: {
     includeSensitive: boolean;
-    assignedUser?: { id: number; name: string; email: string } | null;
+    assignedUser?: {
+      id: number;
+      name: string;
+      email: string;
+      avatarUrl?: string | null;
+    } | null;
   },
 ) {
   const dto: Record<string, unknown> = {
@@ -60,6 +66,7 @@ export function toCandidateDto(
     githubUrl: profile.githubUrl,
     portfolioUrl: profile.portfolioUrl,
     status: profile.status,
+    assignedBidderId: profile.assignedBidderId ?? null,
     assignedUser: options.assignedUser ?? null,
     experiences: (profile.experiences ?? [])
       .slice()

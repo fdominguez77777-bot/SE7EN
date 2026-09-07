@@ -21,6 +21,8 @@ describe('validateEnvironment', () => {
     expect(env.DB_SYNCHRONIZE).toBe(false);
     expect(env.SWAGGER_ENABLED).toBe(true);
     expect(env.PORT).toBe(3000);
+    expect(env.JIRACODERS_API_BASE_URL).toBe('https://api.jiracoders.com');
+    expect(env.JIRACODERS_API_TOKEN).toBe('');
   });
 
   it('treats the string "false" as boolean false', () => {

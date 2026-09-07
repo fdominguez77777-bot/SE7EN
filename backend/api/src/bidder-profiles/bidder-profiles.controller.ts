@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { BidderProfilesService } from './bidder-profiles.service';
+import { AssignCandidateDto } from './dto/assign-candidate.dto';
 import { CreateBidderProfileDto } from './dto/create-bidder-profile.dto';
 import { CreateEducationDto } from './dto/create-education.dto';
 import { CreateWorkExperienceDto } from './dto/create-work-experience.dto';
@@ -50,6 +51,18 @@ export class BidderProfilesController {
   @ApiOperation({ summary: 'Get a candidate profile' })
   findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     return this.bidderProfilesService.findOne(id, user);
+  }
+
+  @Patch(':id/assignment')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Assign or unassign a member (ADMIN)' })
+  assign(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignCandidateDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.bidderProfilesService.assignBidder(id, dto.bidderId, user);
   }
 
   @Patch(':id')

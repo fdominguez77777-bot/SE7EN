@@ -5,9 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { isBidder, isStaff } from '../auth/role-utils';
+import { assignedProfileIds } from '../bidder-profiles/assigned-profiles';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { Project } from '../projects/project.entity';
 import { ProjectStatus } from '../projects/project-status.enum';
@@ -76,18 +77,22 @@ export class BidInvitationsService {
   }
 
   async findAll(actor: User, projectId?: number) {
-    const where = isStaff(actor)
-      ? projectId
-        ? { projectId }
-        : {}
-      : actor.bidderProfileId
-        ? projectId
-          ? { projectId, bidderProfileId: actor.bidderProfileId }
-          : { bidderProfileId: actor.bidderProfileId }
-        : null;
-    if (where === null) {
+    if (isStaff(actor)) {
+      const where = projectId ? { projectId } : {};
+      const rows = await this.invitations.find({
+        where,
+        relations: INVITE_RELATIONS,
+        order: { id: 'ASC' },
+      });
+      return rows.map(toInvitationDto);
+    }
+    const ids = await assignedProfileIds(this.profiles, actor.id);
+    if (ids.length === 0) {
       return [];
     }
+    const where = projectId
+      ? { projectId, bidderProfileId: In(ids) }
+      : { bidderProfileId: In(ids) };
     const rows = await this.invitations.find({
       where,
       relations: INVITE_RELATIONS,
@@ -147,7 +152,10 @@ export class BidInvitationsService {
     if (isStaff(actor)) {
       return;
     }
-    if (isBidder(actor) && actor.bidderProfileId === invitation.bidderProfileId) {
+    if (
+      isBidder(actor) &&
+      invitation.bidderProfile?.assignedBidderId === actor.id
+    ) {
       return;
     }
     throw new ForbiddenException('You cannot access this invitation');

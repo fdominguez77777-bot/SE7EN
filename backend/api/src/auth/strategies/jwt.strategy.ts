@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 import { EnvironmentVariables } from '../../config/env.validation';
+import { MEMBER_MESSAGES } from '../../users/member-admin.rules';
 import { UsersService } from '../../users/users.service';
 import { JwtPayload } from '../jwt-payload';
 
@@ -25,6 +26,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
+    if (user.isActive === false) {
+      throw new UnauthorizedException(MEMBER_MESSAGES.accountDisabled);
+    }
+    delete (user as { password?: string }).password;
     return user;
   }
 }

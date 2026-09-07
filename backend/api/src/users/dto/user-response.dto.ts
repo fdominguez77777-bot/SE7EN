@@ -3,6 +3,11 @@ export class UserResponseDto {
   name: string;
   email: string;
   role: string;
-  bidderProfileId: number | null;
+  isActive: boolean;
+  avatarUrl: string | null;
   created_at: Date;
+}
+
+export class MemberDetailDto extends UserResponseDto {
+  assignedProfileCount: number;
 }

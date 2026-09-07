@@ -6,12 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { AuditService } from '../audit/audit.service';
 import { isBidder, isStaff } from '../auth/role-utils';
 import { BidInvitation } from '../bid-invitations/bid-invitation.entity';
 import { InvitationStatus } from '../bid-invitations/invitation-status.enum';
+import { assignedProfileIds } from '../bidder-profiles/assigned-profiles';
+import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { Project } from '../projects/project.entity';
 import { bidWindowMessage, isWithinBidWindow } from '../projects/project-window';
 import { User } from '../users/user.entity';
@@ -32,11 +34,19 @@ export class BidSubmissionsService {
     private readonly invitations: Repository<BidInvitation>,
     @InjectRepository(Project)
     private readonly projects: Repository<Project>,
+    @InjectRepository(BidderProfile)
+    private readonly profiles: Repository<BidderProfile>,
     private readonly audit: AuditService,
   ) {}
 
   async create(dto: CreateBidSubmissionDto, actor: User) {
-    if (!isBidder(actor) || !actor.bidderProfileId) {
+    if (!isBidder(actor)) {
+      throw new ForbiddenException(
+        'A linked bidder profile is required to submit a bid',
+      );
+    }
+    const profileIds = await assignedProfileIds(this.profiles, actor.id);
+    if (profileIds.length === 0) {
       throw new ForbiddenException(
         'A linked bidder profile is required to submit a bid',
       );
@@ -55,7 +65,8 @@ export class BidSubmissionsService {
     const invitation = await this.invitations.findOne({
       where: {
         projectId: dto.projectId,
-        bidderProfileId: actor.bidderProfileId,
+        bidderProfileId: In(profileIds),
+        status: InvitationStatus.ACCEPTED,
       },
     });
     if (!invitation || invitation.status !== InvitationStatus.ACCEPTED) {
@@ -67,7 +78,7 @@ export class BidSubmissionsService {
     const existing = await this.submissions.findOne({
       where: {
         projectId: dto.projectId,
-        bidderProfileId: actor.bidderProfileId,
+        bidderProfileId: invitation.bidderProfileId,
       },
     });
     if (existing) {
@@ -77,7 +88,7 @@ export class BidSubmissionsService {
     const saved = await this.submissions.save(
       this.submissions.create({
         projectId: dto.projectId,
-        bidderProfileId: actor.bidderProfileId,
+        bidderProfileId: invitation.bidderProfileId,
         invitationId: invitation.id,
         amount: dto.amount.toFixed(2),
         currency: (dto.currency ?? 'USD').toUpperCase(),
@@ -90,18 +101,22 @@ export class BidSubmissionsService {
   }
 
   async findAll(actor: User, projectId?: number) {
-    const where = isStaff(actor)
-      ? projectId
-        ? { projectId }
-        : {}
-      : actor.bidderProfileId
-        ? projectId
-          ? { projectId, bidderProfileId: actor.bidderProfileId }
-          : { bidderProfileId: actor.bidderProfileId }
-        : null;
-    if (where === null) {
+    if (isStaff(actor)) {
+      const where = projectId ? { projectId } : {};
+      const rows = await this.submissions.find({
+        where,
+        relations: SUB_RELATIONS,
+        order: { id: 'ASC' },
+      });
+      return rows.map(toSubmissionDto);
+    }
+    const ids = await assignedProfileIds(this.profiles, actor.id);
+    if (ids.length === 0) {
       return [];
     }
+    const where = projectId
+      ? { projectId, bidderProfileId: In(ids) }
+      : { bidderProfileId: In(ids) };
     const rows = await this.submissions.find({
       where,
       relations: SUB_RELATIONS,
@@ -204,7 +219,10 @@ export class BidSubmissionsService {
     if (isStaff(actor)) {
       return;
     }
-    if (isBidder(actor) && actor.bidderProfileId === submission.bidderProfileId) {
+    if (
+      isBidder(actor) &&
+      submission.bidderProfile?.assignedBidderId === actor.id
+    ) {
       return;
     }
     throw new ForbiddenException('You cannot access this submission');

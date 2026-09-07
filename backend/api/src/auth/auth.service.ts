@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 
 import { EnvironmentVariables } from '../config/env.validation';
+import { MEMBER_MESSAGES } from '../users/member-admin.rules';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { UsersService } from '../users/users.service';
@@ -39,6 +40,10 @@ export class AuthService {
     const matches = await bcrypt.compare(dto.password, user.password);
     if (!matches) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (user.isActive === false) {
+      throw new UnauthorizedException(MEMBER_MESSAGES.accountDisabled);
     }
 
     return this.buildAuthResponse(user);

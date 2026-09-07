@@ -75,6 +75,50 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   JWT_EXPIRES_IN: string = '1d';
+
+  /**
+   * BidderPlatform internal ingest key. Not Talyn native authentication.
+   * Leave unset to keep the machine ingest endpoint fail-closed.
+   */
+  @IsOptional()
+  @IsString()
+  TALYN_INGEST_API_KEY: string = '';
+
+  /** Local directory for uploaded files. Swap FileStorageService for object storage later. */
+  @IsOptional()
+  @IsString()
+  UPLOAD_DIR: string = 'uploads';
+
+  /** JiraCoders API origin. Paths are appended as /api/pju/... */
+  @IsOptional()
+  @IsString()
+  JIRACODERS_API_BASE_URL: string = 'https://api.jiracoders.com';
+
+  /** Bearer token for JiraCoders PJU endpoints. Leave empty to fail closed. */
+  @IsOptional()
+  @IsString()
+  JIRACODERS_API_TOKEN: string = '';
+
+  /** Browser origin used in calendar connect links and OAuth redirects. */
+  @IsOptional()
+  @IsString()
+  APP_PUBLIC_URL: string = '';
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_CLIENT_ID: string = '';
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_CLIENT_SECRET: string = '';
+
+  @IsOptional()
+  @IsString()
+  MICROSOFT_CLIENT_ID: string = '';
+
+  @IsOptional()
+  @IsString()
+  MICROSOFT_CLIENT_SECRET: string = '';
 }
 
 export function validateEnvironment(

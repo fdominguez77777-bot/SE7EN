@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -32,6 +33,15 @@ export class ActivityEvent {
   @Column({ type: 'int', name: 'candidate_profile_id' })
   candidateProfileId: number;
 
+  /** BIDDER responsible when this event was recorded. Does not follow later reassignment. */
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  bidderId: number | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'bidderId' })
+  bidder: User | null;
+
   @Column({ type: 'varchar' })
   type: string;
 
@@ -47,12 +57,16 @@ export class ActivityEvent {
   @Column({ type: 'timestamptz' })
   occurredAt: Date;
 
-  @ManyToOne(() => User, { nullable: false })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'created_by' })
-  createdBy: User;
+  createdBy: User | null;
 
-  @Column({ type: 'int', name: 'created_by' })
-  createdById: number;
+  @Column({ type: 'int', name: 'created_by', nullable: true })
+  createdById: number | null;
+
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  jobApplicationId: number | null;
 
   @CreateDateColumn()
   created_at: Date;

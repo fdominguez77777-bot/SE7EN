@@ -1,25 +1,45 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
+
+import { InterviewMethod, InterviewStatus } from '../interview.rules';
 
 export class CreateInterviewDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  candidateProfileId: number;
+  jobApplicationId?: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  candidateProfileId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(200)
-  company: string;
+  company?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(200)
-  jobTitle: string;
+  jobTitle?: string;
 
   @ApiProperty()
   @IsString()
@@ -31,6 +51,15 @@ export class CreateInterviewDto {
   @MaxLength(80)
   round?: string;
 
+  @ApiProperty({ enum: Object.values(InterviewMethod) })
+  @IsIn(Object.values(InterviewMethod))
+  method: string;
+
+  @ApiPropertyOptional({ enum: Object.values(InterviewStatus) })
+  @IsOptional()
+  @IsIn(Object.values(InterviewStatus))
+  status?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -40,7 +69,7 @@ export class CreateInterviewDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(80)
+  @MaxLength(200)
   result?: string;
 
   @ApiPropertyOptional()

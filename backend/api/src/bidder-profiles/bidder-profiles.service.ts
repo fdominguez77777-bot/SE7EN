@@ -1,15 +1,20 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { AuditService } from '../audit/audit.service';
+import { ActivityEvent } from '../activity/activity-event.entity';
 import { isBidder, isStaff } from '../auth/role-utils';
+import { Interview } from '../interviews/interview.entity';
+import { JobApplication } from '../job-applications/job-application.entity';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
+import { avatarPublicUrl } from '../storage/image-kind';
 import { UsersService } from '../users/users.service';
 import { BidderProfile } from './bidder-profile.entity';
 import { CreateBidderProfileDto } from './dto/create-bidder-profile.dto';
@@ -19,12 +24,14 @@ import { UpdateBidderProfileDto } from './dto/update-bidder-profile.dto';
 import { UpdateEducationDto } from './dto/update-education.dto';
 import { UpdateWorkExperienceDto } from './dto/update-work-experience.dto';
 import { Education } from './education.entity';
+import { assignmentRejectedReason } from './assignment.rules';
 import { toCandidateDto } from './profile.mapper';
 import { WorkExperience } from './work-experience.entity';
 
 const PROFILE_RELATIONS = {
   experiences: true,
   educations: true,
+  assignedBidder: true,
 } as const;
 
 @Injectable()
@@ -38,6 +45,7 @@ export class BidderProfilesService {
     private readonly educations: Repository<Education>,
     private readonly usersService: UsersService,
     private readonly audit: AuditService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(dto: CreateBidderProfileDto, actor: User) {
@@ -82,20 +90,65 @@ export class BidderProfilesService {
       });
       return Promise.all(rows.map((row) => this.toDto(row, actor)));
     }
-    if (!actor.bidderProfileId) {
-      return [];
-    }
-    const profile = await this.profiles.findOne({
-      where: { id: actor.bidderProfileId },
+    const rows = await this.profiles.find({
+      where: { assignedBidderId: actor.id },
       relations: PROFILE_RELATIONS,
+      order: { id: 'ASC' },
     });
-    return profile ? [await this.toDto(profile, actor)] : [];
+    return Promise.all(rows.map((row) => this.toDto(row, actor)));
   }
 
   async findOne(id: number, actor: User) {
     const profile = await this.requireProfile(id);
     this.assertCanAccess(profile, actor);
     return this.toDto(profile, actor);
+  }
+
+  async assignBidder(
+    id: number,
+    bidderId: number | null,
+    actor: User,
+  ) {
+    this.assertAdmin(actor);
+    const profile = await this.requireProfile(id);
+    if (bidderId === null) {
+      profile.assignedBidderId = null;
+      profile.assignedBidder = null;
+      await this.profiles.save(profile);
+      await this.audit.record('candidate_profile', id, 'unassign', actor.id, {
+        profileId: id,
+      });
+      return this.toDto(await this.requireProfile(id), actor);
+    }
+    const bidder = await this.usersService.findByIdOrFail(bidderId);
+    const rejected = assignmentRejectedReason(bidder);
+    if (rejected) {
+      throw new BadRequestException(rejected);
+    }
+    await this.dataSource.transaction(async (manager) => {
+      profile.assignedBidderId = bidder.id;
+      await manager.save(profile);
+      await manager.update(
+        JobApplication,
+        { candidateProfileId: id, bidderId: IsNull() },
+        { bidderId: bidder.id },
+      );
+      await manager.update(
+        Interview,
+        { candidateProfileId: id, bidderId: IsNull() },
+        { bidderId: bidder.id },
+      );
+      await manager.update(
+        ActivityEvent,
+        { candidateProfileId: id, bidderId: IsNull() },
+        { bidderId: bidder.id },
+      );
+    });
+    await this.audit.record('candidate_profile', id, 'assign', actor.id, {
+      userId: bidder.id,
+      profileId: id,
+    });
+    return this.toDto(await this.requireProfile(id), actor);
   }
 
   async update(id: number, dto: UpdateBidderProfileDto, actor: User) {
@@ -170,7 +223,10 @@ export class BidderProfilesService {
   async remove(id: number, actor: User): Promise<void> {
     this.assertAdmin(actor);
     const profile = await this.requireProfile(id);
-    await this.profiles.remove(profile);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(JobApplication, { candidateProfileId: id });
+      await manager.remove(profile);
+    });
     await this.audit.record('candidate_profile', id, 'delete', actor.id, {
       profileId: id,
     });
@@ -321,19 +377,24 @@ export class BidderProfilesService {
     if (actor.role === UserRole.ADMIN) {
       return true;
     }
-    if (isBidder(actor) && actor.bidderProfileId === profile.id) {
+    if (isBidder(actor) && profile.assignedBidderId === actor.id) {
       return true;
     }
     return false;
   }
 
   private async toDto(profile: BidderProfile, actor: User) {
-    const assigned = await this.usersService.findByBidderProfileId(profile.id);
+      const assigned = profile.assignedBidder
+      ? {
+          id: profile.assignedBidder.id,
+          name: profile.assignedBidder.name,
+          email: profile.assignedBidder.email,
+          avatarUrl: avatarPublicUrl(profile.assignedBidder.avatarPath),
+        }
+      : null;
     return toCandidateDto(profile, {
       includeSensitive: this.includeSensitive(actor, profile),
-      assignedUser: assigned
-        ? { id: assigned.id, name: assigned.name, email: assigned.email }
-        : null,
+      assignedUser: assigned,
     });
   }
 
@@ -358,7 +419,7 @@ export class BidderProfilesService {
     if (isStaff(actor)) {
       return;
     }
-    if (isBidder(actor) && actor.bidderProfileId === profile.id) {
+    if (isBidder(actor) && profile.assignedBidderId === actor.id) {
       return;
     }
     throw new ForbiddenException('You cannot access this profile');

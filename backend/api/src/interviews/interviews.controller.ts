@@ -24,14 +24,13 @@ import { InterviewsService } from './interviews.service';
 
 @ApiTags('interviews')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER)
 @Controller('interviews')
 export class InterviewsController {
   constructor(private readonly interviewsService: InterviewsService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
   @ApiOperation({ summary: 'Create an interview' })
   create(@Body() dto: CreateInterviewDto, @CurrentUser() user: User) {
     return this.interviewsService.create(dto, user);
@@ -43,17 +42,23 @@ export class InterviewsController {
     @CurrentUser() user: User,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('applicationId') applicationId?: string,
   ) {
-    return this.interviewsService.findAll(
-      user,
-      from ? new Date(from) : undefined,
-      to ? new Date(to) : undefined,
-    );
+    const parsed = Number(applicationId);
+    return this.interviewsService.findAll(user, {
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      applicationId: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+    });
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get an interview' })
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.interviewsService.findOne(id, user);
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
   @ApiOperation({ summary: 'Update an interview' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -64,7 +69,6 @@ export class InterviewsController {
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
   @ApiOperation({ summary: 'Delete an interview' })
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
