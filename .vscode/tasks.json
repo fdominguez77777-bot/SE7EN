@@ -26,7 +26,7 @@
       "label": "Web",
       "type": "npm",
       "script": "dev",
-      "path": "frontend",
+      "path": ".",
       "isBackground": true,
       "presentation": {
         "reveal": "always",
