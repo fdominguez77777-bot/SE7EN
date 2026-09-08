@@ -1,4 +1,4 @@
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 
 import logoSrc from '../assets/brand/deseven-logo.png'
 

@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from '../routing'
+import { Link, useSearchParams } from '@/lib/navigation'
 
 import { useAuth } from '../auth/AuthContext'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { NavLink, useNavigate, usePathname } from '../routing'
+import { NavLink, useNavigate, usePathname } from '@/lib/navigation'
 import {
   ClipboardCheck,
   CalendarClock,

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 import { Plus, Search, Shield, UserRound, UsersRound } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'

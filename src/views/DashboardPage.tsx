@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type { DashboardSummary, DashboardTeamBidder } from '../api/types'

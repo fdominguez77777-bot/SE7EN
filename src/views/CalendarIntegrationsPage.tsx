@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 import { CalendarDays, Copy, RefreshCw, Trash2 } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'

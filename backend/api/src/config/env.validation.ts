@@ -10,6 +10,8 @@ import {
   validateSync,
 } from 'class-validator';
 
+import { applyDatabaseUrl } from './database-url';
+
 function toBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') {
     return value;
@@ -41,6 +43,10 @@ export class EnvironmentVariables {
 
   @IsString()
   CORS_ORIGIN: string;
+
+  @IsOptional()
+  @IsString()
+  DATABASE_URL: string = '';
 
   @IsString()
   DATABASE_HOST: string;
@@ -124,9 +130,13 @@ export class EnvironmentVariables {
 export function validateEnvironment(
   config: Record<string, unknown>,
 ): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
-    exposeDefaultValues: true,
-  });
+  const validated = plainToInstance(
+    EnvironmentVariables,
+    applyDatabaseUrl(config),
+    {
+      exposeDefaultValues: true,
+    },
+  );
 
   const errors = validateSync(validated, {
     skipMissingProperties: false,

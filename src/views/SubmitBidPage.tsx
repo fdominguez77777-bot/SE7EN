@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { useNavigate } from '../routing'
+import { useNavigate } from '@/lib/navigation'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type { BidInvitation } from '../api/types'

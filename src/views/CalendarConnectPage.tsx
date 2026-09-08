@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useParams } from '../routing'
+import { useParams } from '@/lib/navigation'
 
 export function CalendarConnectPage() {
   const { token = '' } = useParams()

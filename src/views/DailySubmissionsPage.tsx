@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from '../routing'
+import { Link, useNavigate, useParams } from '@/lib/navigation'
 import { ClipboardCheck } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'

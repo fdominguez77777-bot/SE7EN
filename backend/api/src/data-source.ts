@@ -23,16 +23,22 @@ import { JiracodersApplicationStatus1771400000000 } from './migrations/177140000
 import { DropJiracodersApplicationStatus1771410000000 } from './migrations/1771410000000-DropJiracodersApplicationStatus';
 import { CalendarIntegration1771500000000 } from './migrations/1771500000000-CalendarIntegration';
 import { CalendarAssignedBidder1771600000000 } from './migrations/1771600000000-CalendarAssignedBidder';
+import { applyDatabaseUrl, isManagedPostgresSsl } from './config/database-url';
 
 config({ path: resolve(process.cwd(), '.env') });
 
+const db = applyDatabaseUrl(process.env as Record<string, unknown>);
+
 export default new DataSource({
   type: 'postgres',
-  host: process.env.DATABASE_HOST,
-  port: Number(process.env.DATABASE_PORT ?? 5432),
-  username: process.env.DATABASE_USER,
-  password: process.env.DATABASE_PASSWORD,
-  database: process.env.DATABASE_NAME,
+  host: String(db.DATABASE_HOST ?? ''),
+  port: Number(db.DATABASE_PORT ?? 5432),
+  username: String(db.DATABASE_USER ?? ''),
+  password: String(db.DATABASE_PASSWORD ?? ''),
+  database: String(db.DATABASE_NAME ?? ''),
+  ssl: isManagedPostgresSsl(process.env.NODE_ENV)
+    ? { rejectUnauthorized: false }
+    : false,
   migrations: [
     Phase4Procurement1767129600000,
     PhaseAJobOps1769800000000,

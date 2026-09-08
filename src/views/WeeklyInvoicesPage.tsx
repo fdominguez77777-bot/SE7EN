@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from '../routing'
+import { useNavigate, useParams } from '@/lib/navigation'
 import {
   Check,
   FileSpreadsheet,

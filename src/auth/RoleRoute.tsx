@@ -1,6 +1,6 @@
 'use client'
 
-import { Navigate } from '../routing'
+import { Navigate } from '@/lib/navigation'
 import type { ReactNode } from 'react'
 
 import type { Role } from '../api/types'

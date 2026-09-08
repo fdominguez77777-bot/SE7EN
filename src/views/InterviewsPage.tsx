@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react'
-import { Link } from '../routing'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from '@/lib/navigation'
 import { Check, ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'

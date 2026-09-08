@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 import { ChevronRight } from 'lucide-react'
 
 export type WorkflowStage = {

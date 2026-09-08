@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Navigate } from '../routing'
+import { Navigate } from '@/lib/navigation'
 
 import { useAuth } from './AuthContext'
 import { AppLoadingScreen } from '../ui/loading/AppLoadingScreen'

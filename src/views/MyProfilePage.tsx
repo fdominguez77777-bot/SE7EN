@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type { CandidateProfile, Interview, JobApplication } from '../api/types'

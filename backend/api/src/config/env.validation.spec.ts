@@ -43,4 +43,16 @@ describe('validateEnvironment', () => {
       }),
     ).toThrow(/Environment validation failed/);
   });
+
+  it('accepts DATABASE_URL in place of split database fields', () => {
+    const env = validateEnvironment({
+      CORS_ORIGIN: 'https://se7en-beta.vercel.app',
+      DATABASE_URL: 'postgres://app:secret@db.internal:5432/se7en',
+      DB_SYNCHRONIZE: 'false',
+      SWAGGER_ENABLED: 'false',
+      JWT_SECRET: 'local-dev-jwt-secret-key',
+    });
+    expect(env.DATABASE_HOST).toBe('db.internal');
+    expect(env.DATABASE_NAME).toBe('se7en');
+  });
 });

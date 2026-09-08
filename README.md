@@ -7,10 +7,20 @@ npm install
 npm run dev
 ```
 
-The UI listens on port 80 and proxies `/api/*` to `API_REWRITE_TARGET` (default `http://127.0.0.1:3000`). Start the Nest API from `backend/api` separately.
+In another terminal:
 
-## Vercel
+```bash
+cd backend/api
+npm run start:dev
+```
 
-Import the GitHub repo. Framework is Next.js at the repository root.
+The UI is [http://localhost](http://localhost) and proxies `/api` to `http://127.0.0.1:3000`.
 
-Add env var `API_REWRITE_TARGET` pointing at the hosted Nest API (no trailing slash). On the API, set `CORS_ORIGIN` and `APP_PUBLIC_URL` to the Vercel URL.
+## Production
+
+Vercel only hosts the Next.js UI. The Nest API and Postgres must run on a Node host (Render is wired in `render.yaml`).
+
+1. [Deploy to Render](https://render.com) from this repo (`render.yaml` creates `se7en-api` + Postgres).
+2. Set `CORS_ORIGIN` and `APP_PUBLIC_URL` to `https://se7en-beta.vercel.app` (and any other Vercel domain, comma-separated).
+3. In Vercel → Environment Variables, set `API_REWRITE_TARGET` to the Render API origin (no trailing slash).
+4. Redeploy the Vercel project so the rewrite is baked into the build.

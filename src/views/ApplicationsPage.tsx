@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
-import { Link, useSearchParams } from '../routing'
+import { Link, useSearchParams } from '@/lib/navigation'
 import { ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, GripVertical, Search } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'

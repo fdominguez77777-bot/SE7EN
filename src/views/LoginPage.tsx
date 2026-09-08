@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { Navigate, useNavigate } from '../routing'
+import { Navigate, useNavigate } from '@/lib/navigation'
 
 import { getApiErrorMessage } from '../api/client'
 import { homePathForRole, useAuth } from '../auth/AuthContext'

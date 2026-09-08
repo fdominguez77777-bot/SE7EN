@@ -8,6 +8,7 @@ import {
   EnvironmentVariables,
   validateEnvironment,
 } from './config/env.validation';
+import { isManagedPostgresSsl } from './config/database-url';
 import { ActivityModule } from './activity/activity.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -37,16 +38,22 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<EnvironmentVariables, true>) => ({
-        type: 'postgres' as const,
-        host: config.get('DATABASE_HOST', { infer: true }),
-        port: config.get('DATABASE_PORT', { infer: true }),
-        username: config.get('DATABASE_USER', { infer: true }),
-        password: config.get('DATABASE_PASSWORD', { infer: true }),
-        database: config.get('DATABASE_NAME', { infer: true }),
-        autoLoadEntities: true,
-        synchronize: config.get('DB_SYNCHRONIZE', { infer: true }),
-      }),
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) => {
+        const nodeEnv = config.get('NODE_ENV', { infer: true });
+        return {
+          type: 'postgres' as const,
+          host: config.get('DATABASE_HOST', { infer: true }),
+          port: config.get('DATABASE_PORT', { infer: true }),
+          username: config.get('DATABASE_USER', { infer: true }),
+          password: config.get('DATABASE_PASSWORD', { infer: true }),
+          database: config.get('DATABASE_NAME', { infer: true }),
+          autoLoadEntities: true,
+          synchronize: config.get('DB_SYNCHRONIZE', { infer: true }),
+          ssl: isManagedPostgresSsl(nodeEnv)
+            ? { rejectUnauthorized: false }
+            : false,
+        };
+      },
     }),
     HealthModule,
     StorageModule,

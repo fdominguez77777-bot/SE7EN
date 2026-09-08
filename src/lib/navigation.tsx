@@ -1,7 +1,12 @@
 'use client'
 
 import NextLink from 'next/link'
-import { useRouter, useParams as useNextParams, usePathname as useNextPathname, useSearchParams as useNextSearchParams } from 'next/navigation'
+import {
+  useParams as useNextParams,
+  usePathname as useNextPathname,
+  useRouter,
+  useSearchParams as useNextSearchParams,
+} from 'next/navigation'
 import {
   useEffect,
   type ComponentProps,

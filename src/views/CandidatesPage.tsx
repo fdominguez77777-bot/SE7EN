@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 import { Loader2, Plus, Search } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'

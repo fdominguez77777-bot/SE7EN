@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link } from '../routing'
+import { Link } from '@/lib/navigation'
 
 export function PageHeader({
   eyebrow,

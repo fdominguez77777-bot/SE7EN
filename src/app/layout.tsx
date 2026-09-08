@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
-import { AuthProvider } from '../auth/AuthContext'
-import '../index.css'
+import { AuthProvider } from '@/auth/AuthContext'
+import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SE7EN',
+  title: {
+    default: 'SE7EN',
+    template: '%s · SE7EN',
+  },
+  description: 'Job operations platform',
   icons: {
     icon: [
       { url: '/favicon.png', sizes: '48x48', type: 'image/png' },
