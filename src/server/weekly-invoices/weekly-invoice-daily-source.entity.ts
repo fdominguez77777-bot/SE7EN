@@ -9,7 +9,8 @@ import {
 } from 'typeorm';
 
 import { DailySubmission } from '../daily-submissions/daily-submission.entity';
-import { WeeklyInvoice } from './weekly-invoice.entity';
+import type { WeeklyInvoice } from './weekly-invoice.entity';
+import * as weeklyInvoiceEntity from './weekly-invoice.entity';
 
 @Entity('weekly_invoice_daily_source')
 @Unique(['weeklyInvoiceId', 'reportingDate'])
@@ -17,9 +18,13 @@ export class WeeklyInvoiceDailySource {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => WeeklyInvoice, (invoice) => invoice.dailySources, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(
+    () => weeklyInvoiceEntity.WeeklyInvoice,
+    (invoice) => invoice.dailySources,
+    {
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'weeklyInvoiceId' })
   weeklyInvoice: WeeklyInvoice;
 

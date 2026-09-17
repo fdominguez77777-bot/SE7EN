@@ -6,16 +6,21 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-import { BidderProfile } from './bidder-profile.entity';
+import type { BidderProfile } from './bidder-profile.entity';
+import * as bidderProfileEntity from './bidder-profile.entity';
 
 @Entity('education')
 export class Education {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => BidderProfile, (profile) => profile.educations, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(
+    () => bidderProfileEntity.BidderProfile,
+    (profile) => profile.educations,
+    {
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'candidate_profile_id' })
   candidateProfile: BidderProfile;
 

@@ -10,7 +10,8 @@ import {
 } from 'typeorm';
 
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
-import { JobApplication } from '../job-applications/job-application.entity';
+import type { JobApplication } from '../job-applications/job-application.entity';
+import * as jobApplicationEntity from '../job-applications/job-application.entity';
 import { User } from '../users/user.entity';
 import { InterviewStatus } from './interview.rules';
 
@@ -30,10 +31,14 @@ export class Interview {
   @Column({ type: 'int', name: 'candidate_profile_id' })
   candidateProfileId: number;
 
-  @ManyToOne(() => JobApplication, (application) => application.interviews, {
-    nullable: true,
-    onDelete: 'SET NULL',
-  })
+  @ManyToOne(
+    () => jobApplicationEntity.JobApplication,
+    (application) => application.interviews,
+    {
+      nullable: true,
+      onDelete: 'SET NULL',
+    },
+  )
   @JoinColumn({ name: 'jobApplicationId' })
   jobApplication: JobApplication | null;
 

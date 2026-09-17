@@ -11,7 +11,8 @@ import {
 } from 'typeorm';
 
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
-import { Interview } from '../interviews/interview.entity';
+import type { Interview } from '../interviews/interview.entity';
+import * as interviewEntity from '../interviews/interview.entity';
 import { User } from '../users/user.entity';
 import {
   JobApplicationSource,
@@ -86,7 +87,10 @@ export class JobApplication {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
-  @OneToMany(() => Interview, (interview) => interview.jobApplication)
+  @OneToMany(
+    () => interviewEntity.Interview,
+    (interview) => interview.jobApplication,
+  )
   interviews: Interview[];
 
   @CreateDateColumn()

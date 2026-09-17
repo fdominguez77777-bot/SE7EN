@@ -13,7 +13,8 @@ import {
 
 import { User } from '../users/user.entity';
 import { DailySubmissionStatus } from './daily-submission.rules';
-import { DailySubmissionBidder } from './daily-submission-bidder.entity';
+import type { DailySubmissionBidder } from './daily-submission-bidder.entity';
+import * as dailySubmissionBidderEntity from './daily-submission-bidder.entity';
 
 @Entity('daily_submission')
 @Unique(['managerId', 'reportingDate'])
@@ -52,9 +53,13 @@ export class DailySubmission {
   @Column({ type: 'timestamptz', nullable: true })
   contentChangedAt: Date | null;
 
-  @OneToMany(() => DailySubmissionBidder, (row) => row.dailySubmission, {
-    cascade: true,
-  })
+  @OneToMany(
+    () => dailySubmissionBidderEntity.DailySubmissionBidder,
+    (row) => row.dailySubmission,
+    {
+      cascade: true,
+    },
+  )
   rows: DailySubmissionBidder[];
 
   @CreateDateColumn()

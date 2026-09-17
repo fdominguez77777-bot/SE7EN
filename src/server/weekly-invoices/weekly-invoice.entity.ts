@@ -13,9 +13,12 @@ import {
 
 import { User } from '../users/user.entity';
 import { WeeklyInvoiceStatus } from './weekly-invoice.rules';
-import { WeeklyInvoiceBidder } from './weekly-invoice-bidder.entity';
-import { WeeklyInvoiceDailyBidder } from './weekly-invoice-daily-bidder.entity';
-import { WeeklyInvoiceDailySource } from './weekly-invoice-daily-source.entity';
+import type { WeeklyInvoiceBidder } from './weekly-invoice-bidder.entity';
+import * as weeklyInvoiceBidderEntity from './weekly-invoice-bidder.entity';
+import type { WeeklyInvoiceDailyBidder } from './weekly-invoice-daily-bidder.entity';
+import * as weeklyInvoiceDailyBidderEntity from './weekly-invoice-daily-bidder.entity';
+import type { WeeklyInvoiceDailySource } from './weekly-invoice-daily-source.entity';
+import * as weeklyInvoiceDailySourceEntity from './weekly-invoice-daily-source.entity';
 
 @Entity('weekly_invoice')
 @Unique(['managerId', 'periodStart', 'periodEnd'])
@@ -73,22 +76,30 @@ export class WeeklyInvoice {
   @Column({ type: 'text', nullable: true })
   missingDayAcknowledgement: string | null;
 
-  @OneToMany(() => WeeklyInvoiceBidder, (row) => row.weeklyInvoice, {
-    cascade: true,
-  })
+  @OneToMany(
+    () => weeklyInvoiceBidderEntity.WeeklyInvoiceBidder,
+    (row) => row.weeklyInvoice,
+    {
+      cascade: true,
+    },
+  )
   rows: WeeklyInvoiceBidder[];
 
   @OneToMany(
-    () => WeeklyInvoiceDailySource,
+    () => weeklyInvoiceDailySourceEntity.WeeklyInvoiceDailySource,
     (source) => source.weeklyInvoice,
-    { cascade: true },
+    {
+      cascade: true,
+    },
   )
   dailySources: WeeklyInvoiceDailySource[];
 
   @OneToMany(
-    () => WeeklyInvoiceDailyBidder,
+    () => weeklyInvoiceDailyBidderEntity.WeeklyInvoiceDailyBidder,
     (bidder) => bidder.weeklyInvoice,
-    { cascade: true },
+    {
+      cascade: true,
+    },
   )
   dailyBidders: WeeklyInvoiceDailyBidder[];
 
