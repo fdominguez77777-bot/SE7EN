@@ -10,10 +10,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import type { User } from '../users/user.entity';
+import { User } from '../users/user.entity';
 import { BidderProfileStatus } from './bidder-profile-status.enum';
-import type { Education } from './education.entity';
-import type { WorkExperience } from './work-experience.entity';
+import { Education } from './education.entity';
+import { WorkExperience } from './work-experience.entity';
 
 @Entity()
 export class BidderProfile {
@@ -93,17 +93,17 @@ export class BidderProfile {
   @Column({ type: 'int', nullable: true })
   assignedBidderId: number | null;
 
-  @ManyToOne('User', 'assignedCandidateProfiles', {
+  @ManyToOne(() => User, (user) => user.assignedCandidateProfiles, {
     nullable: true,
     onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'assignedBidderId' })
   assignedBidder: User | null;
 
-  @OneToMany('WorkExperience', 'candidateProfile')
+  @OneToMany(() => WorkExperience, (experience) => experience.candidateProfile)
   experiences: WorkExperience[];
 
-  @OneToMany('Education', 'candidateProfile')
+  @OneToMany(() => Education, (education) => education.candidateProfile)
   educations: Education[];
 
   @CreateDateColumn()

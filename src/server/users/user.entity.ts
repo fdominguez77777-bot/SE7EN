@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-import type { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
+import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { UserRole } from './user-role.enum';
 
 @Entity()
@@ -42,7 +42,7 @@ export class User {
   @Column({ type: 'int', nullable: true })
   bidderProfileId: number | null;
 
-  @OneToMany('BidderProfile', 'assignedBidder')
+  @OneToMany(() => BidderProfile, (profile) => profile.assignedBidder)
   assignedCandidateProfiles: BidderProfile[];
 
   @CreateDateColumn()

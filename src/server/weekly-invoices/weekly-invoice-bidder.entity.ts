@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 
 import { User } from '../users/user.entity';
-import type { WeeklyInvoice } from './weekly-invoice.entity';
+import { WeeklyInvoice } from './weekly-invoice.entity';
 
 @Entity('weekly_invoice_bidder')
 @Unique(['weeklyInvoiceId', 'bidderId'])
@@ -18,7 +18,7 @@ export class WeeklyInvoiceBidder {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne('WeeklyInvoice', 'rows', {
+  @ManyToOne(() => WeeklyInvoice, (invoice) => invoice.rows, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'weeklyInvoiceId' })

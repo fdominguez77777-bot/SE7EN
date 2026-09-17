@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 
 import { User } from '../users/user.entity';
-import type { DailySubmission } from './daily-submission.entity';
+import { DailySubmission } from './daily-submission.entity';
 
 @Entity('daily_submission_bidder')
 @Unique(['dailySubmissionId', 'bidderId'])
@@ -18,7 +18,7 @@ export class DailySubmissionBidder {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne('DailySubmission', 'rows', {
+  @ManyToOne(() => DailySubmission, (submission) => submission.rows, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'dailySubmissionId' })

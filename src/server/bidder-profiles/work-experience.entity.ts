@@ -6,14 +6,14 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-import type { BidderProfile } from './bidder-profile.entity';
+import { BidderProfile } from './bidder-profile.entity';
 
 @Entity('work_experience')
 export class WorkExperience {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne('BidderProfile', 'experiences', {
+  @ManyToOne(() => BidderProfile, (profile) => profile.experiences, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'candidate_profile_id' })
