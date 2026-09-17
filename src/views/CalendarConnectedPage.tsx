@@ -16,7 +16,8 @@ export function CalendarConnectedPage() {
         </h1>
         <p className="mt-2 text-[13px] text-[var(--text-secondary)]">
           {failed
-            ? 'The link may have expired, or calendar access was denied. Generate a new link from Calendar integrations.'
+            ? params.get('detail')?.trim() ||
+              'The link may have expired, or calendar access was denied. Generate a new link from Calendar integrations.'
             : 'This Gmail is connected. Use the same link again to add another Gmail — pick a different Google account when Google asks.'}
         </p>
         <div className="mt-5 flex flex-col items-center gap-3">

@@ -1,0 +1,54 @@
+import 'reflect-metadata';
+import { validateEnvironment } from './env.validation';
+
+const validEnv = {
+  DATABASE_HOST: 'localhost',
+  DATABASE_PORT: '5432',
+  DATABASE_USER: 'postgres',
+  DATABASE_PASSWORD: 'secret',
+  DATABASE_NAME: 'bidder_platform',
+  DB_SYNCHRONIZE: 'false',
+  SWAGGER_ENABLED: 'true',
+  JWT_SECRET: 'local-dev-jwt-secret-key',
+};
+
+describe('validateEnvironment', () => {
+  it('accepts a complete configuration and coerces types', () => {
+    const env = validateEnvironment(validEnv);
+
+    expect(env.DATABASE_PORT).toBe(5432);
+    expect(env.DB_SYNCHRONIZE).toBe(false);
+    expect(env.SWAGGER_ENABLED).toBe(true);
+    expect(env.JIRACODERS_API_BASE_URL).toBe('https://api.jiracoders.com');
+    expect(env.JIRACODERS_API_TOKEN).toBe('');
+  });
+
+  it('treats the string "false" as boolean false', () => {
+    const env = validateEnvironment({
+      ...validEnv,
+      DB_SYNCHRONIZE: 'false',
+    });
+
+    expect(env.DB_SYNCHRONIZE).toBe(false);
+  });
+
+  it('rejects missing database settings', () => {
+    expect(() =>
+      validateEnvironment({
+        SWAGGER_ENABLED: 'true',
+        DB_SYNCHRONIZE: 'false',
+      }),
+    ).toThrow(/Environment validation failed/);
+  });
+
+  it('accepts DATABASE_URL in place of split database fields', () => {
+    const env = validateEnvironment({
+      DATABASE_URL: 'postgres://app:secret@db.internal:5432/se7en',
+      DB_SYNCHRONIZE: 'false',
+      SWAGGER_ENABLED: 'false',
+      JWT_SECRET: 'local-dev-jwt-secret-key',
+    });
+    expect(env.DATABASE_HOST).toBe('db.internal');
+    expect(env.DATABASE_NAME).toBe('se7en');
+  });
+});

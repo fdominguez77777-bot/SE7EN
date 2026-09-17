@@ -1,26 +1,30 @@
-# SE7EN (Next.js + Nest API)
+# SE7EN (Next.js)
+
+The UI and API run in one Next.js app. `/api/*` is the Nest API. Postgres stays external (Neon, Vercel Postgres, or any `DATABASE_URL`).
 
 ## Local
 
+Copy `.env.example` to `.env` and set at least `DATABASE_*` (or `DATABASE_URL`) and `JWT_SECRET`.
+
 ```bash
 npm install
+npm run migration:run
 npm run dev
 ```
 
-In another terminal:
+Open [http://localhost:3000](http://localhost:3000). Sign in as `admin` / `admin123`. Swagger (when `SWAGGER_ENABLED=true`): [http://localhost:3000/api/docs](http://localhost:3000/api/docs).
 
-```bash
-cd backend/api
-npm run start:dev
-```
+## Vercel
 
-The UI is [http://localhost](http://localhost) and proxies `/api` to `http://127.0.0.1:3000`.
+1. Create a hosted Postgres database (Neon or Vercel Postgres).
+2. Deploy this repo as a Next.js project.
+3. Set environment variables:
 
-## Production
+- `DATABASE_URL`
+- `JWT_SECRET` (16+ characters)
+- `APP_PUBLIC_URL` (your Vercel origin, e.g. `https://se7en-beta.vercel.app`)
+- Optional: `JIRACODERS_API_TOKEN`, `TALYN_INGEST_API_KEY`, Google/Microsoft calendar secrets
 
-Vercel only hosts the Next.js UI. The Nest API and Postgres must run on a Node host (Render is wired in `render.yaml`).
+`DB_SYNCHRONIZE` must stay `false` in production. Run `npm run migration:run` against that database before first login (local machine or a one-off CI step).
 
-1. [Deploy to Render](https://render.com) from this repo (`render.yaml` creates `se7en-api` + Postgres).
-2. Set `CORS_ORIGIN` and `APP_PUBLIC_URL` to `https://se7en-beta.vercel.app` (and any other Vercel domain, comma-separated).
-3. In Vercel → Environment Variables, set `API_REWRITE_TARGET` to the Render API origin (no trailing slash).
-4. Redeploy the Vercel project so the rewrite is baked into the build.
+Uploads use `/tmp` on Vercel and do not persist across deploys. Swap `FileStorageService` for object storage if you need durable files.

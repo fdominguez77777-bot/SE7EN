@@ -52,7 +52,7 @@ export function useNavigate() {
 }
 
 export function usePathname() {
-  return useNextPathname()
+  return useNextPathname() ?? ''
 }
 
 export function useParams<T extends Record<string, string | undefined>>() {
@@ -60,7 +60,7 @@ export function useParams<T extends Record<string, string | undefined>>() {
 }
 
 export function useSearchParams() {
-  return [useNextSearchParams()] as const
+  return [useNextSearchParams() ?? new URLSearchParams()] as const
 }
 
 export function NavLink({
@@ -77,7 +77,7 @@ export function NavLink({
   children?: ReactNode | ((state: { isActive: boolean }) => ReactNode)
   onClick?: (event: MouseEvent<HTMLAnchorElement>) => void
 } & Omit<ComponentProps<typeof NextLink>, 'href' | 'className' | 'children' | 'onClick'>) {
-  const pathname = useNextPathname()
+  const pathname = useNextPathname() ?? ''
   const isActive = end
     ? pathname === to
     : pathname === to || pathname.startsWith(`${to}/`)

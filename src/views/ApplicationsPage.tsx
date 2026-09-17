@@ -173,7 +173,7 @@ export function ApplicationsPage() {
   const [bidderFilter, setBidderFilter] = useState(urlBidderId)
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(100)
+  const [pageSize, setPageSize] = useState(25)
   const [sortKey, setSortKey] = useState<ColumnKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [viewing, setViewing] = useState<ApplicationTableRow | null>(null)
@@ -191,34 +191,37 @@ export function ApplicationsPage() {
   }, [urlBidderId])
 
   async function load() {
-    await api
-      .get<ApplicationTablePage>('/applications', {
-        params: {
-          page,
-          limit: pageSize,
-          keyword: keyword.length >= 2 ? keyword : undefined,
-          status: statusFilter || undefined,
-          bidderId: isStaff ? bidderFilter || undefined : undefined,
-          company: appliedColumnFilters.companyName.trim() || undefined,
-          position: appliedColumnFilters.jobTitle.trim() || undefined,
-          source: appliedColumnFilters.source.trim() || undefined,
-          statusContains: appliedColumnFilters.status.trim() || undefined,
-          applied: appliedColumnFilters.appliedAt.trim() || undefined,
-          bidderName: appliedColumnFilters.bidderName.trim() || undefined,
-        },
-      })
-      .then(({ data }) => {
-        setItems(data.items)
-        setCount(data.count)
-      })
+    const requests: Promise<void>[] = [
+      api
+        .get<ApplicationTablePage>('/applications', {
+          params: {
+            page,
+            limit: pageSize,
+            keyword: keyword.length >= 2 ? keyword : undefined,
+            status: statusFilter || undefined,
+            bidderId: isStaff ? bidderFilter || undefined : undefined,
+            company: appliedColumnFilters.companyName.trim() || undefined,
+            position: appliedColumnFilters.jobTitle.trim() || undefined,
+            source: appliedColumnFilters.source.trim() || undefined,
+            statusContains: appliedColumnFilters.status.trim() || undefined,
+            applied: appliedColumnFilters.appliedAt.trim() || undefined,
+            bidderName: appliedColumnFilters.bidderName.trim() || undefined,
+          },
+        })
+        .then(({ data }) => {
+          setItems(data.items)
+          setCount(data.count)
+        }),
+    ]
     if (isStaff) {
-      try {
-        const { data } = await api.get<ApplicationBidderOption[]>('/applications/bidders')
-        setBidders(data)
-      } catch {
-        setBidders([])
-      }
+      requests.push(
+        api
+          .get<ApplicationBidderOption[]>('/applications/bidders')
+          .then(({ data }) => setBidders(data))
+          .catch(() => setBidders([])),
+      )
     }
+    await Promise.all(requests)
   }
 
   useEffect(() => {

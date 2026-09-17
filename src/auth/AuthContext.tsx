@@ -22,6 +22,18 @@ import type { AuthResponse, Role, User } from '../api/types'
 
 const USER_KEY = 'bp_user'
 
+function readStoredUser(): User | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+  try {
+    const raw = localStorage.getItem(USER_KEY)
+    return raw ? (JSON.parse(raw) as User) : null
+  } catch {
+    return null
+  }
+}
+
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 type AuthState = {
@@ -40,7 +52,7 @@ const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(() => getStoredToken())
+  const [token, setToken] = useState<string | null>(null)
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [workspaceError, setWorkspaceError] = useState(false)
   const [message, setMessage] = useState('Preparing your workspace…')
@@ -85,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = getStoredToken()
+    const storedUser = readStoredUser()
     if (!stored) {
       setStatus('unauthenticated')
       setUser(null)
@@ -92,9 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setWorkspaceError(false)
       return
     }
+    if (storedUser) {
+      setToken(stored)
+      setUser(storedUser)
+      setStatus('authenticated')
+    } else {
+      setStatus('loading')
+      setMessage('Verifying access…')
+    }
     let cancelled = false
-    setStatus('loading')
-    setMessage('Verifying access…')
     api
       .get<User>('/users/me')
       .then(({ data }) => {

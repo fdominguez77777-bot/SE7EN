@@ -1,28 +1,57 @@
 {
-  "name": "frontend",
+  "name": "se7en",
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0 --port 80",
+    "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
-    "start": "next start --hostname 0.0.0.0 --port 80",
-    "lint": "oxlint"
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "oxlint",
+    "migration:run": "npx tsx src/server/run-migrations.ts",
+    "migration:revert": "npx tsx src/server/run-migrations.ts revert",
+    "test:api": "jest --config jest.api.config.ts"
   },
   "dependencies": {
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/config": "^12.0.0",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/jwt": "^12.0.1",
+    "@nestjs/passport": "^12.0.0",
+    "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/swagger": "^12.0.1",
+    "@nestjs/typeorm": "^12.0.1",
     "axios": "^1.20.0",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.1.0",
     "lucide-react": "^1.37.0",
     "next": "^15.5.9",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pg": "^8.23.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "typeorm": "^0.3.26"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.3",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.13.3",
+    "@types/passport-jwt": "^4.0.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "jest": "^30.0.0",
     "oxlint": "^1.79.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.3.3",
+    "ts-jest": "^29.4.1",
+    "tsx": "^4.23.12",
     "typescript": "~5.9.3"
   }
 }

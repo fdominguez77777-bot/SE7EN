@@ -11,10 +11,11 @@ node_modules
 .next
 out
 dist
-dist-ssr
 *.local
 .env
-frontend
+uploads
+coverage
+*.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
