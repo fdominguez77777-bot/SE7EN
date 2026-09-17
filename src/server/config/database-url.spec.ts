@@ -1,4 +1,8 @@
-import { applyDatabaseUrl, parseDatabaseUrl } from './database-url'
+import {
+  applyDatabaseUrl,
+  parseDatabaseUrl,
+  postgresUsesSsl,
+} from './database-url'
 
 describe('parseDatabaseUrl', () => {
   it('reads neon-style connection strings', () => {
@@ -26,5 +30,26 @@ describe('applyDatabaseUrl', () => {
     expect(next.DATABASE_USER).toBe('user')
     expect(next.DATABASE_PASSWORD).toBe('pass')
     expect(next.DATABASE_NAME).toBe('dbname')
+  })
+})
+
+describe('postgresUsesSsl', () => {
+  it('honors sslmode=require on Aiven-style URLs in development', () => {
+    expect(
+      postgresUsesSsl({
+        nodeEnv: 'development',
+        databaseUrl:
+          'postgres://avnadmin:secret@seven-seven.d.aivencloud.com:13803/defaultdb?sslmode=require',
+      }),
+    ).toBe(true)
+  })
+
+  it('keeps local Postgres on localhost without TLS', () => {
+    expect(
+      postgresUsesSsl({
+        nodeEnv: 'development',
+        host: 'localhost',
+      }),
+    ).toBe(false)
   })
 })

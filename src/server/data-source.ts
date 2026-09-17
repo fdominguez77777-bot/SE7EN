@@ -3,6 +3,7 @@ import { config } from 'dotenv';
 import { resolve } from 'node:path';
 import { DataSource } from 'typeorm';
 
+import { InitialSchema1760000000000 } from './migrations/1760000000000-InitialSchema';
 import { PhaseAJobOps1769800000000 } from './migrations/1769800000000-PhaseAJobOps';
 import { Phase4Procurement1767129600000 } from './migrations/1767129600000-Phase4Procurement';
 import { CandidateAssignedBidder1770000000000 } from './migrations/1770000000000-CandidateAssignedBidder';
@@ -36,10 +37,15 @@ export default new DataSource({
   username: String(db.DATABASE_USER ?? ''),
   password: String(db.DATABASE_PASSWORD ?? ''),
   database: String(db.DATABASE_NAME ?? ''),
-  ssl: isManagedPostgresSsl(process.env.NODE_ENV)
+  ssl: isManagedPostgresSsl(
+    process.env.NODE_ENV,
+    process.env.DATABASE_URL,
+    String(db.DATABASE_HOST ?? ''),
+  )
     ? { rejectUnauthorized: false }
     : false,
   migrations: [
+    InitialSchema1760000000000,
     Phase4Procurement1767129600000,
     PhaseAJobOps1769800000000,
     CandidateAssignedBidder1770000000000,

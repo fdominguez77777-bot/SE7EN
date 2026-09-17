@@ -51,7 +51,11 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
           synchronize: config.get('DB_SYNCHRONIZE', { infer: true }),
           retryAttempts: 1,
           retryDelay: 1000,
-          ssl: isManagedPostgresSsl(nodeEnv)
+          ssl: isManagedPostgresSsl(
+            nodeEnv,
+            config.get('DATABASE_URL', { infer: true }),
+            config.get('DATABASE_HOST', { infer: true }),
+          )
             ? { rejectUnauthorized: false }
             : false,
           extra: process.env.VERCEL ? { max: 1 } : undefined,
