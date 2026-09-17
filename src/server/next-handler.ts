@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import './preserve-entity-names'
 
 import { NestFactory } from '@nestjs/core'
 import { ExpressAdapter } from '@nestjs/platform-express'

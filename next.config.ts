@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.optimization.minimize = false
+    }
+    return config
+  },
   serverExternalPackages: [
     '@nestjs/common',
     '@nestjs/config',
