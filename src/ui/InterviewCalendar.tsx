@@ -7,6 +7,7 @@ import {
   HOUR_END,
   HOUR_HEIGHT,
   HOUR_START,
+  MIN_HOUR_HEIGHT,
   allDayOnChicagoDay,
   chicagoDateKey,
   chicagoMinutes,
@@ -55,7 +56,9 @@ export function InterviewCalendar({
     }
     const fit = () => {
       const next = node.clientHeight / CALENDAR_HOURS.length
-      setHourHeight(Number.isFinite(next) && next > 0 ? next : HOUR_HEIGHT)
+      setHourHeight(
+        Number.isFinite(next) && next > MIN_HOUR_HEIGHT ? next : MIN_HOUR_HEIGHT,
+      )
     }
     fit()
     const observer = new ResizeObserver(fit)
@@ -188,18 +191,20 @@ export function InterviewCalendar({
                     return null
                   }
                   const owner = bidderByAccount.get(event.accountId)
-                  const width = 100 / placed.colCount
+                  const unit = 100 / placed.colCount
+                  const compact = layout.height < 36
                   return (
                     <button
                       key={`${event.id}:${placed.startMin}`}
                       type="button"
-                      className={`iv-block ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
+                      className={`iv-block ${compact ? 'is-compact' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
                       style={{
                         ...blockTone(event.color),
                         top: layout.top,
                         height: layout.height,
-                        left: `calc(${placed.col * width}% + 3px)`,
-                        width: `calc(${width}% - 6px)`,
+                        left: `calc(${placed.col * unit}% + 2px)`,
+                        width: `calc(${placed.span * unit}% - 4px)`,
+                        zIndex: 2 + placed.col,
                       }}
                       title={`${event.title} · ${formatEventTime(event.start, event.end)}${owner ? ` · ${owner.name}` : ''}`}
                       onClick={(click) => {

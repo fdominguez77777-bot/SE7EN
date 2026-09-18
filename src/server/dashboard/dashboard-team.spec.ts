@@ -45,6 +45,23 @@ describe('dashboard team visibility', () => {
     ]);
   });
 
+  it('credits admin and bid manager applications onto the team rollup', () => {
+    const rows = rollupTeamBidderPerformance(
+      [
+        { id: 2, name: 'admin', email: 'admin727@gmail.com', isActive: true, role: 'ADMIN' },
+        { id: 9, name: 'Vincent', email: 'jacob@example.com', isActive: true, role: 'BID_MANAGER' },
+        { id: 4, name: 'Joe', email: 'joe@example.com', isActive: true, role: 'BIDDER' },
+      ],
+      [{ bidderId: 2 }, { bidderId: 9 }, { bidderId: 4 }, { bidderId: 4 }],
+      [],
+    );
+    expect(rows.map((row) => [row.name, row.applications])).toEqual([
+      ['admin', 1],
+      ['Vincent', 1],
+      ['Joe', 2],
+    ]);
+  });
+
   it('ranks bidders by count with ties sharing a dense rank', () => {
     expect(assignDenseRanks([10, 10, 4, 0])).toEqual([1, 1, 2, 3]);
     expect(assignDenseRanks([0, 3, 3])).toEqual([2, 1, 1]);

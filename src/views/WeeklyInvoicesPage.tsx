@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@/lib/navigation'
 import {
+  CalendarDays,
   Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
   FileSpreadsheet,
   Minus,
   Receipt,
@@ -36,6 +41,8 @@ import { StatusBadge } from '../ui/StatusBadge'
 
 const WEEK_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const WEEK_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+type AdminListFilter = 'all' | 'week' | 'pending' | 'approved'
 
 type RowPatch = Partial<
   Pick<
@@ -114,6 +121,66 @@ function formatDay(iso: string) {
   })
 }
 
+function currentMondayIso() {
+  return toIsoDate(weekRange('current').from)
+}
+
+function weekWindow(endMonday: string, count = 8) {
+  const end = parseLocalDate(endMonday)
+  return Array.from({ length: count }, (_, index) => {
+    const next = new Date(end)
+    next.setDate(end.getDate() - (count - 1 - index) * 7)
+    return toIsoDate(next)
+  })
+}
+
+function shiftMonday(monday: string, weeks: number) {
+  const next = parseLocalDate(monday)
+  next.setDate(next.getDate() + weeks * 7)
+  return toIsoDate(next)
+}
+
+function formatWeekSpan(monday: string) {
+  const from = parseLocalDate(monday)
+  const to = new Date(from)
+  to.setDate(from.getDate() + 6)
+  if (from.getMonth() === to.getMonth()) {
+    return `${from.toLocaleDateString('en-US', { month: 'short' })} ${from.getDate()}–${to.getDate()}`
+  }
+  return `${from.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })}–${to.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+}
+
+function isPendingInvoice(status: WeeklyInvoiceStatus) {
+  return status === 'SUBMITTED' || status === 'REVIEWED'
+}
+
+function invoiceWeekKey(item: WeeklyInvoiceListItem) {
+  return item.periodStart.slice(0, 10)
+}
+
+function groupByWeek(items: WeeklyInvoiceListItem[]) {
+  const groups: { start: string; end: string; items: WeeklyInvoiceListItem[] }[] = []
+  const index = new Map<string, WeeklyInvoiceListItem[]>()
+  for (const item of items) {
+    const start = invoiceWeekKey(item)
+    let bucket = index.get(start)
+    if (!bucket) {
+      bucket = []
+      index.set(start, bucket)
+      groups.push({ start, end: item.periodEnd.slice(0, 10), items: bucket })
+    }
+    bucket.push(item)
+  }
+  return groups
+}
+
+function sumUsd(items: WeeklyInvoiceListItem[]) {
+  return items.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0)
+}
+
 function rateChanged(invoice: string, configured: string) {
   return Number(invoice) !== Number(configured)
 }
@@ -147,6 +214,8 @@ export function WeeklyInvoicesPage() {
   const [preset, setPreset] = useState<'current' | 'previous'>('current')
   const week = weekRange(preset)
   const weekStart = toIsoDate(week.from)
+  const thisMonday = currentMondayIso()
+  const [focusWeek, setFocusWeek] = useState(thisMonday)
   const [detail, setDetail] = useState<WeeklyInvoiceDetail | null>(null)
   const [list, setList] = useState<WeeklyInvoiceListItem[]>([])
   const [error, setError] = useState('')
@@ -212,11 +281,50 @@ export function WeeklyInvoicesPage() {
   }
 
   useEffect(() => {
+    if (!isAdmin) {
+      return
+    }
+    let cancelled = false
     setLoading(true)
     setError('')
-    const run = isAdmin ? loadAdmin(weekStart, selectedId) : loadManager(weekStart)
-    run.catch((err) => setError(getApiErrorMessage(err))).finally(() => setLoading(false))
-  }, [preset, isAdmin, selectedId])
+    loadAdmin(weekStart, selectedId)
+      .catch((err) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(err))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, selectedId])
+
+  useEffect(() => {
+    if (isAdmin) {
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    loadManager(weekStart)
+      .catch((err) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(err))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, weekStart])
 
   function patchRow(bidderId: number, patch: RowPatch) {
     setDetail((current) => {
@@ -416,20 +524,17 @@ export function WeeklyInvoicesPage() {
         title="Weekly Invoice"
         description={
           isAdmin
-            ? 'Review Bid Manager weekly performance invoices before approval.'
+            ? 'One log of every weekly invoice — pending, approved, applications, interviews, and pay at a glance.'
             : 'Review verified bidder activity and submit the weekly performance invoice.'
         }
         actions={
+          isAdmin ? undefined : (
           <div className="flex gap-2">
             <Button
               variant={preset === 'current' ? 'primary' : 'secondary'}
               onClick={() => {
                 setPreset('current')
-                if (selectedId != null) {
-                  navigate('/weekly-invoices')
-                } else {
-                  setDetail(null)
-                }
+                setDetail(null)
               }}
             >
               This week
@@ -438,22 +543,21 @@ export function WeeklyInvoicesPage() {
               variant={preset === 'previous' ? 'primary' : 'secondary'}
               onClick={() => {
                 setPreset('previous')
-                if (selectedId != null) {
-                  navigate('/weekly-invoices')
-                } else {
-                  setDetail(null)
-                }
+                setDetail(null)
               }}
             >
               Previous week
             </Button>
           </div>
+          )
         }
       />
 
-      <p className="mt-2 text-sm font-medium text-[var(--text-secondary)]">
-        {formatRangeLabel(week.from, week.to)}
-      </p>
+      {!isAdmin ? (
+        <p className="mt-2 text-sm font-medium text-[var(--text-secondary)]">
+          {formatRangeLabel(week.from, week.to)}
+        </p>
+      ) : null}
 
       {error ? (
         <div className="mt-4">
@@ -475,8 +579,9 @@ export function WeeklyInvoicesPage() {
       {isAdmin && !loading && selectedId == null ? (
         <AdminList
           items={list}
-          weekStart={weekStart}
-          weekLabel={formatRangeLabel(week.from, week.to)}
+          weekStart={focusWeek}
+          thisMonday={thisMonday}
+          onWeekChange={setFocusWeek}
           onView={(id) => void openAdminInvoice(id)}
         />
       ) : null}
@@ -571,115 +676,321 @@ function invoiceWeekLabel(periodStart: string, periodEnd: string) {
 function AdminList({
   items,
   weekStart,
-  weekLabel,
+  thisMonday,
+  onWeekChange,
   onView,
 }: {
   items: WeeklyInvoiceListItem[]
   weekStart: string
-  weekLabel: string
+  thisMonday: string
+  onWeekChange: (next: string) => void
   onView: (id: number) => void
 }) {
-  const current = items.filter((item) => item.periodStart.slice(0, 10) === weekStart)
-  const history = items.filter((item) => item.periodStart.slice(0, 10) !== weekStart)
+  const [filter, setFilter] = useState<AdminListFilter>('all')
+  const [rangeEnd, setRangeEnd] = useState(thisMonday)
+  const pendingCount = items.filter((item) => isPendingInvoice(item.status)).length
+  const approvedCount = items.filter((item) => item.status === 'APPROVED').length
+  const selectedWeekItems = items.filter((item) => invoiceWeekKey(item) === weekStart)
+  const weeks = useMemo(() => weekWindow(rangeEnd, 8), [rangeEnd])
+  const byWeek = useMemo(() => {
+    const map = new Map<string, WeeklyInvoiceListItem[]>()
+    for (const item of items) {
+      const key = invoiceWeekKey(item)
+      const bucket = map.get(key) ?? []
+      bucket.push(item)
+      map.set(key, bucket)
+    }
+    return map
+  }, [items])
 
-  function InvoiceCard({ item }: { item: WeeklyInvoiceListItem }) {
-    return (
-        <article
-          key={item.id}
-          className="interactive-block flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-glass)] bg-[var(--bg-glass-solid)] px-5 py-4"
-          role="button"
-          tabIndex={0}
-          onClick={() => onView(item.id)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              onView(item.id)
-            }
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <EntityAvatar name={item.manager?.name ?? 'Bid Manager'} src={item.manager?.avatarUrl} />
-            <div>
-              <p className="font-medium text-[var(--text-primary)]">
-                {item.manager?.name ?? 'Bid Manager'}
-              </p>
-              <p className="text-sm text-[var(--text-muted)]">
-                {invoiceWeekLabel(item.periodStart, item.periodEnd)}
-                {' · '}
-                {item.applications.toLocaleString()} applications ·{' '}
-                {item.interviews} interviews
-                {item.submittedAt
-                  ? ` · Submitted ${formatTime(item.submittedAt)}`
-                  : ''}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <p
-              className={`num-metric text-lg ${
-                isPositiveUsd(item.totalAmount)
-                  ? 'text-[var(--semantic-success)]'
-                  : 'text-[var(--text-primary)]'
-              }`}
-            >
-              {formatUsd(item.totalAmount)}
-            </p>
-            <StatusBadge tone={statusTone(item.status)}>
-              {statusLabel(item.status)}
-            </StatusBadge>
-            <Button
-              variant="secondary"
-              onClick={(event) => {
-                event.stopPropagation()
-                onView(item.id)
-              }}
-            >
-              Review Invoice
-            </Button>
-          </div>
-        </article>
-    )
+  const visible = items.filter((item) => {
+    if (filter === 'week') {
+      return invoiceWeekKey(item) === weekStart
+    }
+    if (filter === 'pending') {
+      return isPendingInvoice(item.status)
+    }
+    if (filter === 'approved') {
+      return item.status === 'APPROVED'
+    }
+    return true
+  })
+  const groups = groupByWeek(visible)
+  const payTotal = sumUsd(items)
+
+  function moveRange(weeksDelta: number) {
+    const next = shiftMonday(rangeEnd, weeksDelta)
+    const end = next > thisMonday ? thisMonday : next
+    setRangeEnd(end)
+    if (filter === 'week' && !weekWindow(end, 8).includes(weekStart)) {
+      setFilter('all')
+    }
   }
 
-  if (current.length === 0 && history.length === 0) {
+  function jumpToThisWeek() {
+    setRangeEnd(thisMonday)
+    onWeekChange(thisMonday)
+    setFilter('week')
+  }
+
+  function selectWeek(monday: string) {
+    onWeekChange(monday)
+    setFilter('week')
+  }
+
+  if (items.length === 0) {
     return (
-      <div className="mt-6">
+      <div className="mt-5">
         <EmptyState
           title="No submitted weekly invoices"
-          description={`Bid Managers have not sent a weekly invoice for ${weekLabel} yet. Earlier submitted invoices will appear here.`}
+          description={`Bid Managers have not sent a weekly invoice for ${formatWeekSpan(weekStart)} yet. Submitted invoices will appear in this log.`}
         />
       </div>
     )
   }
 
   return (
-    <div className="mt-5 space-y-8">
-      <div className="space-y-3">
-        <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
-          {weekLabel}
-        </h2>
-        {current.length === 0 ? (
-          <EmptyState
-            title="Nothing submitted this week"
-            description="A Bid Manager has not sent this week's invoice yet."
-          />
-        ) : (
-          current.map((item) => <InvoiceCard key={item.id} item={item} />)
-        )}
+    <div className="ds-board mt-5">
+      <div className="ds-kpis">
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon ds-kpi-icon--warn">
+            <Clock className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Pending approval</p>
+            <p className="ds-kpi-value">{pendingCount.toLocaleString()}</p>
+          </div>
+        </article>
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon ds-kpi-icon--ok">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Approved</p>
+            <p className="ds-kpi-value">{approvedCount.toLocaleString()}</p>
+          </div>
+        </article>
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon">
+            <CalendarDays className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Selected week</p>
+            <p className="ds-kpi-value">{selectedWeekItems.length.toLocaleString()}</p>
+            <p className="ds-kpi-hint">{formatWeekSpan(weekStart)}</p>
+          </div>
+        </article>
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon ds-kpi-icon--ok">
+            <Receipt className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Invoice total</p>
+            <p className="ds-kpi-value">{formatUsd(payTotal)}</p>
+          </div>
+        </article>
       </div>
-      {history.length > 0 ? (
-        <div className="space-y-3">
-          <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
-            Submitted history
-          </h2>
-          <p className="text-sm text-[var(--text-muted)]">
-            Earlier weekly invoices Bid Managers have already sent.
-          </p>
-          {history.map((item) => (
-            <InvoiceCard key={item.id} item={item} />
+
+      <section className="ds-strip-panel" aria-label="Recent invoice weeks">
+        <div className="ds-strip-head">
+          <h2>Weekly log</h2>
+          <div className="ds-strip-nav">
+            <button
+              type="button"
+              className="ds-nav-btn"
+              aria-label="Previous weeks"
+              onClick={() => moveRange(-4)}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button type="button" className="ds-nav-btn ds-nav-today" onClick={jumpToThisWeek}>
+              This week
+            </button>
+            <button
+              type="button"
+              className="ds-nav-btn"
+              aria-label="Next weeks"
+              disabled={rangeEnd >= thisMonday}
+              onClick={() => moveRange(4)}
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          <p>{`${formatWeekSpan(weeks[0])} – ${formatWeekSpan(weeks[weeks.length - 1])}`}</p>
+        </div>
+        <div className="wi-strip">
+          {weeks.map((monday) => {
+            const weekItems = byWeek.get(monday) ?? []
+            const pending = weekItems.some((item) => isPendingInvoice(item.status))
+            const empty = weekItems.length === 0
+            const isCurrent = monday === thisMonday
+            const state = empty ? 'empty' : pending ? 'pending' : 'ok'
+            return (
+              <button
+                key={monday}
+                type="button"
+                className={`wi-week ${monday === weekStart ? 'is-on' : ''} ${
+                  isCurrent ? 'is-today' : ''
+                } is-${state}`}
+                onClick={() => selectWeek(monday)}
+              >
+                <span className="wi-week-kicker">
+                  {isCurrent ? 'This week' : monday === shiftMonday(thisMonday, -1) ? 'Last week' : 'Week of'}
+                </span>
+                <span className="wi-week-span">{formatWeekSpan(monday)}</span>
+                <span className="wi-week-c">
+                  {empty ? '—' : `${weekItems.length} sent`}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="ds-toolbar">
+        <div className="ds-filters" role="tablist" aria-label="Filter invoices">
+          {(
+            [
+              ['all', 'All invoices', items.length],
+              ['week', 'Selected week', selectedWeekItems.length],
+              ['pending', 'Pending', pendingCount],
+              ['approved', 'Approved', approvedCount],
+            ] as const
+          ).map(([id, label, count]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={filter === id}
+              className={`ds-filter ${filter === id ? 'is-on' : ''}`}
+              onClick={() => setFilter(id)}
+            >
+              {label}
+              <span>{count}</span>
+            </button>
           ))}
         </div>
-      ) : null}
+        {selectedWeekItems.length === 0 ? (
+          <p className="ds-missing">No invoice for {formatWeekSpan(weekStart)} yet.</p>
+        ) : null}
+      </div>
+
+      {groups.length === 0 ? (
+        <EmptyState title="No invoices match this filter." />
+      ) : (
+        <div className="table-wrap">
+          <table className="table-ui ds-log wi-log">
+            <thead>
+              <tr>
+                <th>Manager</th>
+                <th>Status</th>
+                <th className="num">Applications</th>
+                <th className="num">Interviews</th>
+                <th className="num">Amount</th>
+                <th>Submitted</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => {
+                const apps = group.items.reduce((sum, item) => sum + item.applications, 0)
+                const interviews = group.items.reduce((sum, item) => sum + item.interviews, 0)
+                const amount = sumUsd(group.items)
+                const pendingInGroup = group.items.filter((item) =>
+                  isPendingInvoice(item.status),
+                ).length
+                return (
+                  <Fragment key={group.start}>
+                    <tr className={`ds-group ${group.start === weekStart ? 'is-focus' : ''}`}>
+                      <td colSpan={7}>
+                        <div className="ds-group-line">
+                          <span>{invoiceWeekLabel(group.start, group.end)}</span>
+                          <span>
+                            {group.items.length === 1
+                              ? '1 invoice'
+                              : `${group.items.length} invoices`}
+                            {pendingInGroup > 0 ? ` · ${pendingInGroup} pending` : ''}
+                            {' · '}
+                            {apps.toLocaleString()} apps · {interviews.toLocaleString()}{' '}
+                            interviews · {formatUsd(amount)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    {group.items.map((item) => (
+                      <tr
+                        key={item.id}
+                        className={`interactive-row ${
+                          invoiceWeekKey(item) === weekStart ? 'is-today' : ''
+                        }`}
+                        tabIndex={0}
+                        onClick={() => onView(item.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            onView(item.id)
+                          }
+                        }}
+                      >
+                        <td>
+                          <div className="ds-manager">
+                            <EntityAvatar
+                              name={item.manager?.name ?? 'Bid Manager'}
+                              src={item.manager?.avatarUrl}
+                              size="sm"
+                            />
+                            <div className="min-w-0">
+                              <p className="ds-manager-name">
+                                {item.manager?.name ?? 'Bid Manager'}
+                              </p>
+                              <p className="ds-manager-meta">
+                                {item.bidderCount === 1
+                                  ? '1 bidder'
+                                  : `${item.bidderCount} bidders`}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <StatusBadge tone={statusTone(item.status)}>
+                            {statusLabel(item.status)}
+                          </StatusBadge>
+                        </td>
+                        <td className="num">{item.applications.toLocaleString()}</td>
+                        <td className="num">{item.interviews.toLocaleString()}</td>
+                        <td
+                          className={`num ${
+                            isPositiveUsd(item.totalAmount)
+                              ? 'text-[var(--semantic-success)]'
+                              : ''
+                          }`}
+                        >
+                          {formatUsd(item.totalAmount)}
+                        </td>
+                        <td className="ds-time">
+                          {item.submittedAt ? formatTime(item.submittedAt) : '—'}
+                        </td>
+                        <td
+                          className="ds-open"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Button
+                            variant="ghost"
+                            className="!h-8 !px-2.5 !text-xs"
+                            onClick={() => onView(item.id)}
+                          >
+                            Open
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
@@ -947,8 +1258,11 @@ function InvoiceWorkspace({
           <div className="mt-4 rounded-lg border border-[var(--border-glass)] bg-white/[0.04] px-4 py-3 text-sm text-[var(--text-secondary)]">
             <p className="font-medium text-[var(--text-primary)]">Weekend activity</p>
             <p className="mt-1">
-              {weekendTotals.apps} applications · {weekendTotals.interviews}{' '}
-              interview{weekendTotals.interviews === 1 ? '' : 's'} ·{' '}
+              {weekendTotals.apps.toLocaleString()} applications ·{' '}
+              {weekendTotals.interviews === 1
+                ? '1 interview'
+                : `${weekendTotals.interviews.toLocaleString()} interviews`}{' '}
+              ·{' '}
               {formatUsd(
                 weekendTotals.applicationAmount + weekendTotals.interviewAmount,
               )}{' '}

@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from '@/lib/navigation'
-import { ClipboardCheck } from 'lucide-react'
+import {
+  CalendarDays,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  Clock,
+  Mail,
+} from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type {
@@ -18,8 +26,10 @@ import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/page-header'
 import { formatMemberDate, ROLE_LABEL } from '../ui/roles'
-import { isWeekend, toIsoDate } from '../ui/reporting-period'
+import { isWeekend, parseLocalDate, toIsoDate } from '../ui/reporting-period'
 import { StatusBadge } from '../ui/StatusBadge'
+
+type AdminListFilter = 'all' | 'day' | 'pending' | 'approved' | 'unread'
 
 function statusLabel(status: DailySubmissionStatus) {
   if (status === 'SUBMITTED') {
@@ -66,6 +76,95 @@ function formatTime(value: string | null) {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function reportingDay(item: DailySubmissionListItem) {
+  return item.reportingDate.slice(0, 10)
+}
+
+function formatCount(value: number) {
+  return value.toLocaleString('en-US')
+}
+
+function formatReportDay(iso: string) {
+  return parseLocalDate(iso).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatShortDay(iso: string) {
+  return parseLocalDate(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function dayWindow(endIso: string, count = 14) {
+  const end = parseLocalDate(endIso)
+  return Array.from({ length: count }, (_, index) => {
+    const next = new Date(end)
+    next.setDate(end.getDate() - (count - 1 - index))
+    return toIsoDate(next)
+  })
+}
+
+function shiftIso(iso: string, days: number) {
+  const next = parseLocalDate(iso)
+  next.setDate(next.getDate() + days)
+  return toIsoDate(next)
+}
+
+function monthShort(iso: string) {
+  return parseLocalDate(iso).toLocaleDateString('en-US', { month: 'short' })
+}
+
+function groupByReportingDate(items: DailySubmissionListItem[]) {
+  const groups: { date: string; items: DailySubmissionListItem[] }[] = []
+  const index = new Map<string, DailySubmissionListItem[]>()
+  for (const item of items) {
+    const date = reportingDay(item)
+    let bucket = index.get(date)
+    if (!bucket) {
+      bucket = []
+      index.set(date, bucket)
+      groups.push({ date, items: bucket })
+    }
+    bucket.push(item)
+  }
+  return groups
+}
+
+function DeltaMark({ value }: { value: number }) {
+  if (value === 0) {
+    return <span className="ds-delta ds-delta--ok">matched</span>
+  }
+  if (value > 0) {
+    return <span className="ds-delta ds-delta--up">+{formatCount(value)}</span>
+  }
+  return <span className="ds-delta ds-delta--down">{formatCount(value)}</span>
+}
+
+function CompareCell({
+  system,
+  confirmed,
+  difference,
+}: {
+  system: number
+  confirmed: number
+  difference: number
+}) {
+  return (
+    <div className="ds-compare">
+      <p className="ds-compare-main">{formatCount(confirmed)}</p>
+      <p className="ds-compare-meta">
+        <span>sys {formatCount(system)}</span>
+        <DeltaMark value={difference} />
+      </p>
+    </div>
+  )
 }
 
 function countInput(value: number | null) {
@@ -164,11 +263,50 @@ export function DailySubmissionsPage() {
   }
 
   useEffect(() => {
+    if (!isAdmin) {
+      return
+    }
+    let cancelled = false
     setLoading(true)
     setError('')
-    const run = isAdmin ? loadAdmin(date, selectedId) : loadManager(date)
-    run.catch((err) => setError(getApiErrorMessage(err))).finally(() => setLoading(false))
-  }, [date, isAdmin, selectedId])
+    loadAdmin(date, selectedId)
+      .catch((err) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(err))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, selectedId])
+
+  useEffect(() => {
+    if (isAdmin) {
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    loadManager(date)
+      .catch((err) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(err))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, date])
 
   function patchRow(
     bidderId: number,
@@ -336,7 +474,7 @@ export function DailySubmissionsPage() {
         title="Daily Submission"
         description={
           isAdmin
-            ? 'Review daily team verification reports from Bid Managers.'
+            ? 'One log of every daily report — pending, approved, applications, and interviews at a glance.'
             : 'Verify each bidder, plus your own assigned profiles, before submitting the team report.'
         }
         actions={
@@ -386,6 +524,7 @@ export function DailySubmissionsPage() {
         <AdminList
           date={date}
           items={list}
+          onDateChange={setDate}
           onView={(id) => void openAdminReport(id)}
         />
       ) : null}
@@ -428,131 +567,352 @@ export function DailySubmissionsPage() {
 function AdminList({
   date,
   items,
+  onDateChange,
   onView,
 }: {
   date: string
   items: DailySubmissionListItem[]
+  onDateChange: (next: string) => void
   onView: (id: number) => void
 }) {
-  const current = items.filter((item) => item.reportingDate.slice(0, 10) === date)
-  const history = items.filter((item) => item.reportingDate.slice(0, 10) !== date)
+  const [filter, setFilter] = useState<AdminListFilter>('all')
+  const todayIso = toIsoDate(new Date())
+  const [rangeEnd, setRangeEnd] = useState(todayIso)
+  const lastDate = useRef(date)
+  const pendingCount = items.filter((item) => item.status === 'SUBMITTED').length
+  const approvedCount = items.filter((item) => item.status === 'REVIEWED').length
+  const unreadCount = items.filter((item) => item.unread).length
+  const selectedDayItems = items.filter((item) => reportingDay(item) === date)
+  const days = useMemo(() => dayWindow(rangeEnd, 14), [rangeEnd])
 
-  function ReportCard({ item }: { item: DailySubmissionListItem }) {
-    return (
-        <article
-          className={`interactive-block rounded-xl border bg-[var(--bg-glass-solid)] px-5 py-4 ${
-            item.unread
-              ? 'border-[var(--accent)]/35'
-              : 'border-[var(--border-glass)]'
-          }`}
-          role="button"
-          tabIndex={0}
-          onClick={() => onView(item.id)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              onView(item.id)
-            }
-          }}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-                {item.manager?.name ?? 'Bid Manager'}
-                {item.unread ? (
-                  <span
-                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#141518] px-1 text-[10px] font-semibold text-white"
-                    aria-label="Unread"
-                  >
-                    1
-                  </span>
-                ) : null}
-              </p>
-              <p className="text-sm text-[var(--text-muted)]">
-                {formatMemberDate(item.reportingDate)}
-                {item.submittedAt
-                  ? ` · Submitted ${formatTime(item.submittedAt)}`
-                  : ''}
-              </p>
-              <div className="mt-2">
-                <StatusBadge tone={statusTone(item.status)}>
-                  {statusLabel(item.status)}
-                </StatusBadge>
-              </div>
-            </div>
-            <Button
-              variant="secondary"
-              onClick={(event) => {
-                event.stopPropagation()
-                onView(item.id)
-              }}
-            >
-              View Report
-            </Button>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-            <div>
-              <p className="text-xs text-[var(--text-muted)]">System apps</p>
-              <p className="font-semibold">{item.systemApplications}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[var(--text-muted)]">Gmail confirmed</p>
-              <p className="font-semibold">{item.gmailConfirmed}</p>
-              <DiffBadge value={item.applicationDifference} />
-            </div>
-            <div>
-              <p className="text-xs text-[var(--text-muted)]">System interviews</p>
-              <p className="font-semibold">{item.systemInterviews}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[var(--text-muted)]">Verified interviews</p>
-              <p className="font-semibold">{item.verifiedInterviews}</p>
-              <DiffBadge value={item.interviewDifference} />
-            </div>
-          </div>
-        </article>
-    )
+  useEffect(() => {
+    if (lastDate.current === date) {
+      return
+    }
+    lastDate.current = date
+    if (!dayWindow(rangeEnd, 14).includes(date)) {
+      setRangeEnd(date > todayIso ? todayIso : date)
+    }
+  }, [date, rangeEnd, todayIso])
+  const byDay = useMemo(() => {
+    const map = new Map<string, DailySubmissionListItem[]>()
+    for (const item of items) {
+      const day = reportingDay(item)
+      const bucket = map.get(day) ?? []
+      bucket.push(item)
+      map.set(day, bucket)
+    }
+    return map
+  }, [items])
+
+  const visible = items.filter((item) => {
+    if (filter === 'day') {
+      return reportingDay(item) === date
+    }
+    if (filter === 'pending') {
+      return item.status === 'SUBMITTED'
+    }
+    if (filter === 'approved') {
+      return item.status === 'REVIEWED'
+    }
+    if (filter === 'unread') {
+      return item.unread
+    }
+    return true
+  })
+  const groups = groupByReportingDate(visible)
+
+  function openRow(id: number) {
+    onView(id)
   }
 
-  if (current.length === 0 && history.length === 0) {
+  function moveRange(daysDelta: number) {
+    const next = shiftIso(rangeEnd, daysDelta)
+    const end = next > todayIso ? todayIso : next
+    setRangeEnd(end)
+    if (filter === 'day' && !dayWindow(end, 14).includes(date)) {
+      setFilter('all')
+    }
+  }
+
+  function jumpToToday() {
+    setRangeEnd(todayIso)
+    onDateChange(todayIso)
+    setFilter('day')
+  }
+
+  function selectDay(day: string) {
+    onDateChange(day)
+    setFilter('day')
+  }
+
+  if (items.length === 0) {
     return (
       <div className="mt-5">
         <EmptyState
           title="No submitted daily reports"
-          description={`Bid Managers have not sent a daily report for ${formatMemberDate(date)} yet. Earlier submitted reports will appear here.`}
+          description={`Bid Managers have not sent a daily report for ${formatReportDay(date)} yet. Submitted reports will appear in this log.`}
         />
       </div>
     )
   }
 
   return (
-    <div className="mt-5 space-y-8">
-      <div className="space-y-3">
-        <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
-          {formatMemberDate(date)}
-        </h2>
-        {current.length === 0 ? (
-          <EmptyState
-            title="Nothing submitted for this date"
-            description="A Bid Manager has not sent a report for this date yet."
-          />
-        ) : (
-          current.map((item) => <ReportCard key={item.id} item={item} />)
-        )}
+    <div className="ds-board mt-5">
+      <div className="ds-kpis">
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon ds-kpi-icon--warn">
+            <Clock className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Pending approval</p>
+            <p className="ds-kpi-value">{formatCount(pendingCount)}</p>
+          </div>
+        </article>
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon ds-kpi-icon--ok">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Approved</p>
+            <p className="ds-kpi-value">{formatCount(approvedCount)}</p>
+          </div>
+        </article>
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon ds-kpi-icon--accent">
+            <Mail className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Unread</p>
+            <p className="ds-kpi-value">{formatCount(unreadCount)}</p>
+          </div>
+        </article>
+        <article className="ds-kpi">
+          <span className="ds-kpi-icon">
+            <CalendarDays className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="ds-kpi-label">Selected day</p>
+            <p className="ds-kpi-value">{formatCount(selectedDayItems.length)}</p>
+            <p className="ds-kpi-hint">{formatReportDay(date)}</p>
+          </div>
+        </article>
       </div>
-      {history.length > 0 ? (
-        <div className="space-y-3">
-          <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
-            Submitted history
-          </h2>
-          <p className="text-sm text-[var(--text-muted)]">
-            Earlier daily reports Bid Managers have already sent.
+
+      <section className="ds-strip-panel" aria-label="Recent reporting days">
+        <div className="ds-strip-head">
+          <h2>Daily log</h2>
+          <div className="ds-strip-nav">
+            <button
+              type="button"
+              className="ds-nav-btn"
+              aria-label="Previous 7 days"
+              onClick={() => moveRange(-7)}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button type="button" className="ds-nav-btn ds-nav-today" onClick={jumpToToday}>
+              Today
+            </button>
+            <button
+              type="button"
+              className="ds-nav-btn"
+              aria-label="Next 7 days"
+              disabled={rangeEnd >= todayIso}
+              onClick={() => moveRange(7)}
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          <p>
+            {`${formatShortDay(days[0])} – ${formatShortDay(days[days.length - 1])}`}
           </p>
-          {history.map((item) => (
-            <ReportCard key={item.id} item={item} />
+        </div>
+        <div className="ds-strip">
+          {days.map((day, index) => {
+            const dayItems = byDay.get(day) ?? []
+            const pending = dayItems.some((item) => item.status === 'SUBMITTED')
+            const empty = dayItems.length === 0
+            const weekend = isWeekend(day)
+            const parsed = parseLocalDate(day)
+            const showMonth = index === 0 || parsed.getDate() === 1
+            const state = empty ? 'empty' : pending ? 'pending' : 'ok'
+            return (
+              <button
+                key={day}
+                type="button"
+                className={`ds-day ${weekend ? 'is-weekend' : ''} ${
+                  day === date ? 'is-on' : ''
+                } ${day === todayIso ? 'is-today' : ''} is-${state}`}
+                onClick={() => selectDay(day)}
+              >
+                {showMonth ? <span className="ds-day-m">{monthShort(day)}</span> : null}
+                <span className="ds-day-w">
+                  {parsed.toLocaleDateString('en-US', { weekday: 'short' })}
+                </span>
+                <span className="ds-day-n">{parsed.getDate()}</span>
+                <span className="ds-day-c">
+                  {day === todayIso && empty
+                    ? 'today'
+                    : empty
+                      ? '—'
+                      : `${dayItems.length} sent`}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="ds-toolbar">
+        <div className="ds-filters" role="tablist" aria-label="Filter reports">
+          {(
+            [
+              ['all', 'All reports', items.length],
+              ['day', 'This date', selectedDayItems.length],
+              ['pending', 'Pending', pendingCount],
+              ['approved', 'Approved', approvedCount],
+              ['unread', 'Unread', unreadCount],
+            ] as const
+          ).map(([id, label, count]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={filter === id}
+              className={`ds-filter ${filter === id ? 'is-on' : ''}`}
+              onClick={() => setFilter(id)}
+            >
+              {label}
+              <span>{count}</span>
+            </button>
           ))}
         </div>
-      ) : null}
+        {selectedDayItems.length === 0 ? (
+          <p className="ds-missing">No report for {formatReportDay(date)} yet.</p>
+        ) : null}
+      </div>
+
+      {groups.length === 0 ? (
+        <EmptyState title="No reports match this filter." />
+      ) : (
+        <div className="table-wrap">
+          <table className="table-ui ds-log">
+            <thead>
+              <tr>
+                <th>Manager</th>
+                <th>Status</th>
+                <th className="num">Gmail apps</th>
+                <th className="num">Verified interviews</th>
+                <th>Submitted</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => {
+                const apps = group.items.reduce((sum, item) => sum + item.gmailConfirmed, 0)
+                const interviews = group.items.reduce(
+                  (sum, item) => sum + item.verifiedInterviews,
+                  0,
+                )
+                const pendingInGroup = group.items.filter(
+                  (item) => item.status === 'SUBMITTED',
+                ).length
+                return (
+                  <Fragment key={group.date}>
+                    <tr className={`ds-group ${group.date === date ? 'is-focus' : ''}`}>
+                      <td colSpan={6}>
+                        <div className="ds-group-line">
+                          <span>{formatReportDay(group.date)}</span>
+                          <span>
+                            {group.items.length === 1
+                              ? '1 report'
+                              : `${group.items.length} reports`}
+                            {pendingInGroup > 0 ? ` · ${pendingInGroup} pending` : ''}
+                            {' · '}
+                            {formatCount(apps)} apps · {formatCount(interviews)} interviews
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    {group.items.map((item) => (
+                      <tr
+                        key={item.id}
+                        className={`interactive-row ${item.unread ? 'is-unread' : ''} ${
+                          reportingDay(item) === date ? 'is-today' : ''
+                        }`}
+                        tabIndex={0}
+                        onClick={() => openRow(item.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            openRow(item.id)
+                          }
+                        }}
+                      >
+                        <td>
+                          <div className="ds-manager">
+                            <EntityAvatar
+                              name={item.manager?.name ?? 'Bid Manager'}
+                              src={item.manager?.avatarUrl}
+                              size="sm"
+                            />
+                            <div className="min-w-0">
+                              <p className="ds-manager-name">
+                                {item.manager?.name ?? 'Bid Manager'}
+                                {item.unread ? <span className="ds-new">New</span> : null}
+                              </p>
+                              <p className="ds-manager-meta">
+                                {item.bidderCount === 1
+                                  ? '1 bidder'
+                                  : `${item.bidderCount} bidders`}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <StatusBadge tone={statusTone(item.status)}>
+                            {statusLabel(item.status)}
+                          </StatusBadge>
+                        </td>
+                        <td className="num">
+                          <CompareCell
+                            system={item.systemApplications}
+                            confirmed={item.gmailConfirmed}
+                            difference={item.applicationDifference}
+                          />
+                        </td>
+                        <td className="num">
+                          <CompareCell
+                            system={item.systemInterviews}
+                            confirmed={item.verifiedInterviews}
+                            difference={item.interviewDifference}
+                          />
+                        </td>
+                        <td className="ds-time">
+                          {item.submittedAt ? formatTime(item.submittedAt) : '—'}
+                        </td>
+                        <td
+                          className="ds-open"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Button
+                            variant="ghost"
+                            className="!h-8 !px-2.5 !text-xs"
+                            onClick={() => openRow(item.id)}
+                          >
+                            Open
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

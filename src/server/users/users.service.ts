@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
@@ -12,25 +13,19 @@ import { randomUUID } from 'node:crypto';
 import { DataSource, Repository } from 'typeorm';
 
 import { AuditService } from '../audit/audit.service';
-import { BidInvitation } from '../bid-invitations/bid-invitation.entity';
-import { BidSubmission } from '../bid-submissions/bid-submission.entity';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { assignmentRejectedReason } from '../bidder-profiles/assignment.rules';
 import { BidManagerCompensation } from '../compensation/bid-manager-compensation.entity';
 import { BidManagerWeeklyPayment } from '../compensation/bid-manager-weekly-payment.entity';
-import { BidderIndividualCompensationRate } from '../compensation/bidder-individual-compensation-rate.entity';
-import { BidderWeeklyPayment } from '../compensation/bidder-weekly-payment.entity';
-import { DailySubmissionBidder } from '../daily-submissions/daily-submission-bidder.entity';
-import { Interview } from '../interviews/interview.entity';
-import { JobApplication } from '../job-applications/job-application.entity';
-import { Project } from '../projects/project.entity';
 import {
   AVATAR_MAX_BYTES,
   detectImageKind,
 } from '../storage/image-kind';
 import { FileStorageService } from '../storage/file-storage.service';
-import { WeeklyInvoiceBidder } from '../weekly-invoices/weekly-invoice-bidder.entity';
-import { WeeklyInvoiceDailyBidder } from '../weekly-invoices/weekly-invoice-daily-bidder.entity';
+import {
+  detachUserReferences,
+  isTransientDbError,
+} from './detach-user-references';
 import { CreateUserDto } from './dto/create-user.dto';
 import { MemberDetailDto, UserResponseDto } from './dto/user-response.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -40,6 +35,7 @@ import {
   deleteBlock,
   publicUserFields,
   roleChangeBlockReason,
+  shouldSeedDefaultAdmin,
   statusChangeBlockReason,
 } from './member-admin.rules';
 import { User } from './user.entity';
@@ -74,15 +70,15 @@ export class UsersService implements OnModuleInit {
   }
 
   async ensureDefaultAdmin(): Promise<void> {
+    const activeAdmins = await this.countActiveAdmins();
     const email = this.normalizeEmail(DEFAULT_ADMIN_EMAIL);
     const existing = await this.findByEmail(email);
-    if (existing) {
-      if (existing.role !== UserRole.ADMIN || existing.isActive === false) {
-        await this.usersRepository.update(existing.id, {
-          role: UserRole.ADMIN,
-          isActive: true,
-        });
-      }
+    if (
+      !shouldSeedDefaultAdmin({
+        activeAdminCount: activeAdmins,
+        defaultAdminExists: Boolean(existing),
+      })
+    ) {
       return;
     }
     await this.usersRepository.save(
@@ -164,6 +160,18 @@ export class UsersService implements OnModuleInit {
   async findBidders(): Promise<User[]> {
     return this.usersRepository.find({
       where: { role: UserRole.BIDDER },
+      order: { name: 'ASC' },
+    });
+  }
+
+  /** Admins, bid managers, and bidders — everyone whose Jira applications count for the team. */
+  async findTeamMembers(): Promise<User[]> {
+    return this.usersRepository.find({
+      where: [
+        { role: UserRole.ADMIN },
+        { role: UserRole.BID_MANAGER },
+        { role: UserRole.BIDDER },
+      ],
       order: { name: 'ASC' },
     });
   }
@@ -358,41 +366,21 @@ export class UsersService implements OnModuleInit {
       throw new BadRequestException(blocked.message);
     }
 
-    await this.dataSource.transaction(async (manager) => {
-      await manager.update(
-        BidderProfile,
-        { assignedBidderId: id },
-        { assignedBidderId: null },
-      );
-      await manager.update(
-        JobApplication,
-        { bidderId: id },
-        { bidderId: null },
-      );
-      await manager.update(
-        JobApplication,
-        { createdByUserId: id },
-        { createdByUserId: null },
-      );
-      await manager.update(Interview, { createdById: id }, { createdById: actor.id });
-      await manager.update(Project, { createdById: id }, { createdById: actor.id });
-      await manager.update(
-        BidInvitation,
-        { invitedById: id },
-        { invitedById: actor.id },
-      );
-      await manager.update(
-        BidSubmission,
-        { createdById: id },
-        { createdById: actor.id },
-      );
-      await manager.delete(DailySubmissionBidder, { bidderId: id });
-      await manager.delete(WeeklyInvoiceBidder, { bidderId: id });
-      await manager.delete(WeeklyInvoiceDailyBidder, { bidderId: id });
-      await manager.delete(BidderIndividualCompensationRate, { bidderId: id });
-      await manager.delete(BidderWeeklyPayment, { bidderId: id });
-      await manager.remove(user);
-    });
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        await manager.query(`SET LOCAL lock_timeout = '8s'`);
+        await manager.query(`SET LOCAL statement_timeout = '25s'`);
+        await detachUserReferences(manager, id, actor.id);
+        await manager.remove(user);
+      });
+    } catch (error) {
+      if (isTransientDbError(error)) {
+        throw new ServiceUnavailableException(
+          'Could not delete this member because the database was busy. Wait a moment and try again.',
+        );
+      }
+      throw error;
+    }
     await this.audit.record('user', id, 'delete', actor.id, {
       userId: id,
       role: user.role,

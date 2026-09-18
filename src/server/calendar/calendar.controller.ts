@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
@@ -44,6 +45,7 @@ export class CalendarController {
   }
 
   @Get('events')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   @ApiOperation({ summary: 'Interview events from connected calendars' })
   listEvents(
     @CurrentUser() user: User,

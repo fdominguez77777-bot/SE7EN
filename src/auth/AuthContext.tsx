@@ -15,7 +15,6 @@ import {
   clearStoredToken,
   getStoredToken,
   isAuthFailure,
-  isUnreachable,
   setStoredToken,
 } from '../api/client'
 import type { AuthResponse, Role, User } from '../api/types'
@@ -139,8 +138,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStatus('unauthenticated')
           return
         }
-        if (isUnreachable(error)) {
-          setWorkspaceError(true)
+        if (storedUser) {
+          setToken(stored)
+          setUser(storedUser)
+          setWorkspaceError(false)
+          setStatus('authenticated')
           return
         }
         setWorkspaceError(true)

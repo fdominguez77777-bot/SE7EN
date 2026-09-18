@@ -6,7 +6,8 @@ export const CALENDAR_HOURS = Array.from(
   { length: HOUR_END - HOUR_START },
   (_, index) => HOUR_START + index,
 )
-export const HOUR_HEIGHT = 48
+export const HOUR_HEIGHT = 72
+export const MIN_HOUR_HEIGHT = 64
 export const DAY_MINUTES = 24 * 60
 
 const WEEKDAY_INDEX: Record<string, number> = {
@@ -246,9 +247,10 @@ export function layoutFromMinutes(startMin: number, endMin: number, hourHeight =
   }
   const topMin = Math.max(startMin, rangeStart)
   const bottomMin = Math.min(Math.max(endMin, topMin + 15), rangeEnd)
+  const height = ((bottomMin - topMin) / 60) * hourHeight
   return {
     top: ((topMin - rangeStart) / 60) * hourHeight,
-    height: Math.max(18, ((bottomMin - topMin) / 60) * hourHeight),
+    height: Math.max(20, height - 2),
   }
 }
 
@@ -290,17 +292,28 @@ export type PlacedEvent<T> = {
   startMin: number
   endMin: number
   col: number
+  span: number
   colCount: number
+}
+
+function rangesOverlap(
+  left: { startMin: number; endMin: number },
+  right: { startMin: number; endMin: number },
+) {
+  return left.startMin < right.endMin && left.endMin > right.startMin
 }
 
 export function placeTimedEvents<T>(
   items: Array<{ item: T; startMin: number; endMin: number }>,
 ): PlacedEvent<T>[] {
   const sorted = [...items].sort(
-    (left, right) => left.startMin - right.startMin || right.endMin - left.endMin,
+    (left, right) =>
+      left.startMin - right.startMin ||
+      right.endMin - left.endMin ||
+      left.endMin - right.endMin,
   )
   const columnEnds: number[] = []
-  const placed = sorted.map((row) => {
+  const placed: PlacedEvent<T>[] = sorted.map((row) => {
     let col = columnEnds.findIndex((end) => end <= row.startMin)
     if (col === -1) {
       col = columnEnds.length
@@ -308,15 +321,48 @@ export function placeTimedEvents<T>(
     } else {
       columnEnds[col] = row.endMin
     }
-    return { ...row, col, colCount: 1 }
+    return { ...row, col, span: 1, colCount: 1 }
   })
-  return placed.map((event) => {
-    const overlapping = placed.filter(
-      (other) => other.startMin < event.endMin && other.endMin > event.startMin,
-    )
-    const colCount = Math.max(...overlapping.map((row) => row.col), event.col) + 1
-    return { ...event, colCount }
-  })
+
+  const seen = new Set<PlacedEvent<T>>()
+  for (const event of placed) {
+    if (seen.has(event)) {
+      continue
+    }
+    const cluster: PlacedEvent<T>[] = []
+    const stack = [event]
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (!current || seen.has(current)) {
+        continue
+      }
+      seen.add(current)
+      cluster.push(current)
+      for (const other of placed) {
+        if (!seen.has(other) && rangesOverlap(current, other)) {
+          stack.push(other)
+        }
+      }
+    }
+    const colCount = Math.max(...cluster.map((row) => row.col)) + 1
+    for (const member of cluster) {
+      let span = 1
+      while (
+        member.col + span < colCount &&
+        cluster.every(
+          (other) =>
+            other === member ||
+            other.col !== member.col + span ||
+            !rangesOverlap(member, other),
+        )
+      ) {
+        span += 1
+      }
+      member.span = span
+      member.colCount = colCount
+    }
+  }
+  return placed
 }
 
 export function toDateInput(date: Date) {

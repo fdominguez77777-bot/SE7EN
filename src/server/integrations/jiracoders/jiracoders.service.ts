@@ -6,7 +6,11 @@ import {
   hasApplicationColumnFilters,
   matchesApplicationColumnFilters,
 } from './application-column-filter';
-import { countsTowardApplicationTotal, countApplicationsByBidderName, matchBidderIdByName } from './bidder-name';
+import {
+  countApplicationsByBidderName,
+  countsFromBidderStats,
+  countsTowardApplicationTotal,
+} from './bidder-name';
 import { JiracodersClient } from './jiracoders.client';
 import {
   ApplicationBidderOption,
@@ -139,14 +143,7 @@ export class JiracodersApplicationsService {
     try {
       const envelope = await this.client.listBidderStats();
       const stats = Array.isArray(envelope.data) ? envelope.data : [];
-      const counts = new Map<number, number>();
-      for (const row of stats) {
-        const id = matchBidderIdByName(row.name ?? null, bidders);
-        if (id == null) {
-          continue;
-        }
-        counts.set(id, Number(row.applicationsCount) || 0);
-      }
+      const counts = countsFromBidderStats(stats, bidders);
       return bidders
         .map((bidder) => ({
           ...bidder,
@@ -180,6 +177,7 @@ export class JiracodersApplicationsService {
     const bidders = await this.loadLocalBidders();
     const mapped = await this.collectMapped(
       {
+        status: 'applied',
         fromDate: from ? queryDate(from) : undefined,
         toDate: to ? queryDate(new Date(to.getTime() - 1)) : undefined,
       },
@@ -291,7 +289,7 @@ export class JiracodersApplicationsService {
   }
 
   private async loadLocalBidders(): Promise<ApplicationBidderOption[]> {
-    const users = await this.users.findBidders();
+    const users = await this.users.findTeamMembers();
     return users.map((user) => ({
       id: user.id,
       name: user.name,

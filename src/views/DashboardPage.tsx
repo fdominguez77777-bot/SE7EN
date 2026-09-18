@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from '@/lib/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type { DashboardSummary, DashboardTeamBidder } from '../api/types'
@@ -18,10 +17,13 @@ import {
   percentChange,
 } from './dashboard/metrics'
 import { Sparkline } from './dashboard/Sparkline'
+import { TeamRanking } from './dashboard/TeamRanking'
 
 type RankMetric = 'applications' | 'interviews'
 type RankPeriod = 'day' | 'week' | 'custom'
 type ChartMode = 'total' | 'average'
+
+const DASHBOARD_REFRESH_MS = 90_000
 
 function metricForPeriod(
   bidder: DashboardTeamBidder,
@@ -41,29 +43,6 @@ function metricForPeriod(
   return metric === 'applications' ? bidder.applications : bidder.interviews
 }
 
-function relativeTime(iso: string) {
-  const delta = Date.now() - new Date(iso).getTime()
-  const minutes = Math.round(delta / 60000)
-  if (minutes < 1) {
-    return 'Just now'
-  }
-  if (minutes < 60) {
-    return `${minutes} min ago`
-  }
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) {
-    return `${hours} hr ago`
-  }
-  const days = Math.round(hours / 24)
-  if (days < 7) {
-    return `${days}d ago`
-  }
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 export function DashboardPage() {
   const { user } = useAuth()
   const isStaff = user?.role === 'ADMIN' || user?.role === 'BID_MANAGER'
@@ -76,20 +55,56 @@ export function DashboardPage() {
   const [rankPeriod, setRankPeriod] = useState<RankPeriod>('day')
   const [chartMode, setChartMode] = useState<ChartMode>('total')
 
-  async function load() {
+  const load = useCallback(async () => {
     const { data } = await api.get<DashboardSummary>('/dashboard', {
       params: rangeQuery(range),
     })
     setSummary(data)
-  }
+  }, [period.applied])
 
   useEffect(() => {
-    setLoading(true)
-    setError('')
-    load()
-      .catch((err) => setError(getApiErrorMessage(err)))
-      .finally(() => setLoading(false))
-  }, [period.applied])
+    let cancelled = false
+    let inFlight = false
+
+    async function refresh(showLoading: boolean) {
+      if (inFlight) {
+        return
+      }
+      inFlight = true
+      if (showLoading) {
+        setLoading(true)
+      }
+      setError('')
+      try {
+        await load()
+      } catch (err) {
+        if (!cancelled) {
+          setError(getApiErrorMessage(err))
+        }
+      } finally {
+        inFlight = false
+        if (!cancelled && showLoading) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void refresh(true)
+    const timer = window.setInterval(() => {
+      void refresh(false)
+    }, DASHBOARD_REFRESH_MS)
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        void refresh(false)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [load])
 
   const periodApps = summary?.applications ?? 0
   const periodInts = summary?.interviews ?? 0
@@ -133,11 +148,9 @@ export function DashboardPage() {
       .sort((a, b) => a.rank - b.rank || a.bidder.name.localeCompare(b.bidder.name))
   }, [summary, rankMetric, rankPeriod])
 
-  const barMax = Math.max(...performance.map((row) => row.value), 0)
   const weekRate = interviewRate(weekInts, weekApps)
   const appsPerBidder =
     activeBidderCount > 0 ? weekApps / activeBidderCount : null
-  const recent = summary?.recent ?? []
 
   return (
     <section>
@@ -337,7 +350,7 @@ export function DashboardPage() {
 
           <SectionCard
             className="mt-6"
-            title="Bidder ranking"
+            title="Team ranking"
             description={`${rankMetric === 'interviews' ? 'Interviews' : 'Applications'} · ${
               rankPeriod === 'day'
                 ? 'Today'
@@ -368,117 +381,18 @@ export function DashboardPage() {
             }
           >
             {performance.length === 0 ? (
-              <EmptyState title="No bidders to rank." />
+              <EmptyState title="No teammates to rank." />
             ) : (
-              <div>
-                <div className="mb-2 hidden grid-cols-[3rem_minmax(0,1fr)_6.5rem] gap-4 px-1 text-[11px] font-medium tracking-[0.12em] text-[var(--text-muted)] uppercase md:grid">
-                  <span>Rank</span>
-                  <span>Bidder</span>
-                  <span className="text-right">
-                    {rankMetric === 'interviews' ? 'Interviews' : 'Applications'}
-                  </span>
-                </div>
-                <ul className="divide-y divide-white/[0.06]">
-                  {performance.map((row) => (
-                    <li
-                      key={row.bidder.id}
-                      className="grid grid-cols-[3rem_minmax(0,1fr)_6.5rem] items-center gap-4 py-3"
-                    >
-                      <p className="num-metric text-sm text-[var(--text-muted)]">
-                        #{row.rank}
-                      </p>
-                      <div className="min-w-0">
-                        {isStaff ? (
-                          <Link
-                            to={`/bidders?bidderId=${row.bidder.id}`}
-                            className="block truncate font-semibold text-[var(--text-primary)] no-underline hover:text-[var(--accent)]"
-                          >
-                            {row.bidder.name}
-                          </Link>
-                        ) : (
-                          <p className="truncate font-semibold text-[var(--text-primary)]">
-                            {row.bidder.name}
-                          </p>
-                        )}
-                        <p className="truncate text-[13px] text-[var(--text-secondary)]">
-                          {row.bidder.email}
-                          {row.bidder.isActive === false ? ' · Disabled' : ''}
-                        </p>
-                      </div>
-                      <p className="num-metric text-right text-base">
-                        {row.value.toLocaleString()}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <TeamRanking
+                rows={performance}
+                metricLabel={
+                  rankMetric === 'interviews' ? 'Interviews' : 'Applications'
+                }
+                currentUserId={user?.role === 'BIDDER' ? user.id : undefined}
+                isStaff={isStaff}
+              />
             )}
           </SectionCard>
-
-          <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-5">
-            <SectionCard
-              className="lg:col-span-3"
-              title={
-                rankMetric === 'interviews'
-                  ? 'Interviews by Bidder'
-                  : 'Applications by Bidder'
-              }
-              description={
-                rankPeriod === 'day'
-                  ? 'Today'
-                  : rankPeriod === 'week'
-                    ? 'This week'
-                    : range.label
-              }
-            >
-              {performance.length === 0 ? (
-                <EmptyState title="No bidders to compare." />
-              ) : (
-                <ul className="space-y-3">
-                  {performance.map((row) => (
-                    <li key={row.bidder.id} className="flex items-center gap-3">
-                      <span className="w-28 shrink-0 truncate text-sm font-medium text-[var(--text-primary)] md:w-36">
-                        {row.bidder.name}
-                      </span>
-                      <span className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
-                        <span
-                          className="block h-full rounded-full bg-[var(--accent)]/80 transition-[width] duration-150"
-                          style={{
-                            width: `${barMax <= 0 ? 0 : Math.max(row.value > 0 ? 4 : 0, Math.round((row.value / barMax) * 100))}%`,
-                          }}
-                        />
-                      </span>
-                      <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                        {row.value.toLocaleString()}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </SectionCard>
-
-            <SectionCard className="lg:col-span-2" title="Recent Activity">
-              {recent.length === 0 ? (
-                <EmptyState title="No recent application or interview activity." />
-              ) : (
-                <ul className="space-y-3">
-                  {recent.map((item) => (
-                    <li key={item.id}>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">
-                        {item.title}
-                      </p>
-                      <p className="mt-0.5 truncate text-[13px] text-[var(--text-secondary)]">
-                        {item.detail}
-                      </p>
-                      <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">
-                        {relativeTime(item.at)}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </SectionCard>
-          </div>
         </>
       )}
     </section>

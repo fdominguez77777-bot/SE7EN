@@ -29,6 +29,7 @@ export function resolveApiBaseUrl() {
 
 export const api = axios.create({
   baseURL: resolveApiBaseUrl(),
+  timeout: 90_000,
 })
 
 api.interceptors.request.use((config) => {
@@ -36,6 +37,8 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  config.headers['Cache-Control'] = 'no-cache'
+  config.headers.Pragma = 'no-cache'
   return config
 })
 

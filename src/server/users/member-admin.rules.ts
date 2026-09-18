@@ -4,6 +4,14 @@ import { assignmentRejectedReason } from '../bidder-profiles/assignment.rules';
 
 export const MEMBER_ADMIN_ROLES = [UserRole.ADMIN] as const;
 
+/** Only seed the bootstrap admin on a true empty install. Never revive a deleted account. */
+export function shouldSeedDefaultAdmin(input: {
+  activeAdminCount: number;
+  defaultAdminExists: boolean;
+}): boolean {
+  return input.activeAdminCount === 0 && !input.defaultAdminExists;
+}
+
 /** ADMIN-only known password used when a member forgets their sign-in. Hashed on save. */
 export const DEFAULT_MEMBER_PASSWORD = '12345678';
 

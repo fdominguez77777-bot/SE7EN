@@ -8,10 +8,38 @@ import {
   deleteBlock,
   publicUserFields,
   roleChangeBlockReason,
+  shouldSeedDefaultAdmin,
   statusChangeBlockReason,
 } from './member-admin.rules';
 
 describe('member-admin.rules', () => {
+  it('does not recreate a deleted admin when other admins still exist', () => {
+    expect(
+      shouldSeedDefaultAdmin({
+        activeAdminCount: 1,
+        defaultAdminExists: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('does not reactivate a leftover disabled admin row', () => {
+    expect(
+      shouldSeedDefaultAdmin({
+        activeAdminCount: 0,
+        defaultAdminExists: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('seeds bootstrap admin only on an empty install', () => {
+    expect(
+      shouldSeedDefaultAdmin({
+        activeAdminCount: 0,
+        defaultAdminExists: false,
+      }),
+    ).toBe(true);
+  });
+
   it('uses 12345678 as the ADMIN default password for forgotten sign-in', () => {
     expect(DEFAULT_MEMBER_PASSWORD).toBe('12345678');
     expect(DEFAULT_MEMBER_PASSWORD.length).toBeGreaterThanOrEqual(8);

@@ -5,6 +5,7 @@ export type TeamBidderInput = {
   name: string;
   email: string;
   isActive: boolean;
+  role?: string;
 };
 
 export type TeamCountInput = {
