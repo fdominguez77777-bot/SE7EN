@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { ActivityService } from '../activity/activity.service';
 import { CalendarService } from '../calendar/calendar.service';
+import { singleflight, TtlCache } from '../cache/singleflight';
 import {
   creditInterviewBidderId,
 } from '../integrations/jiracoders/bidder-name';
@@ -24,10 +24,14 @@ import {
   type TeamBidderInput,
 } from './dashboard-team';
 
+const SUMMARY_CACHE_MS = 25_000;
+
 @Injectable()
 export class DashboardService {
+  private readonly summaryCache: TtlCache<any>;
+  private readonly summaryInflight: Map<string, Promise<any>>;
+
   constructor(
-    private readonly activity: ActivityService,
     private readonly jiraApplications: JiracodersApplicationsService,
     @InjectRepository(User)
     private readonly users: Repository<User>,
@@ -36,18 +40,43 @@ export class DashboardService {
     @InjectRepository(Interview)
     private readonly interviews: Repository<Interview>,
     private readonly calendar: CalendarService,
-  ) {}
+  ) {
+    this.summaryCache = new TtlCache(SUMMARY_CACHE_MS);
+    this.summaryInflight = new Map();
+  }
 
   async getSummary(actor: User, from?: string, to?: string) {
+    const key = `${actor.id}:${actor.role}:${from ?? ''}:${to ?? ''}`;
+    const cached = this.summaryCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    return singleflight(this.summaryInflight, key, async () => {
+      const again = this.summaryCache.get(key);
+      if (again) {
+        return again;
+      }
+      const value = await this.computeSummary(actor, from, to);
+      this.summaryCache.set(key, value);
+      return value;
+    });
+  }
+
+  private async computeSummary(actor: User, from?: string, to?: string) {
     const week = mondaySundayWeek();
     const end = to ? new Date(to) : week.to;
     const start = from ? new Date(from) : week.from;
-    const byCandidate = await this.activity.summarize(actor, start, end);
     const base = {
       role: actor.role,
       from: start.toISOString(),
       to: end.toISOString(),
-      byCandidate,
+      byCandidate: [] as {
+        candidateProfileId: number;
+        profileName: string;
+        resumesGenerated: number;
+        applications: number;
+        interviews: number;
+      }[],
     };
     if (!canSeeTeamDashboard(actor.role)) {
       return {

@@ -1,4 +1,25 @@
-import axios, { type AxiosError } from 'axios'
+import axios, {
+  type AxiosError,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
+
+const inflightGets = new Map<string, Promise<AxiosResponse>>()
+
+function serializeParams(params: unknown) {
+  if (!params || typeof params !== 'object') {
+    return ''
+  }
+  return Object.entries(params as Record<string, unknown>)
+    .filter(([, value]) => value !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+    .join('&')
+}
+
+function requestKey(config: InternalAxiosRequestConfig) {
+  return `${(config.method ?? 'get').toLowerCase()} ${config.url ?? ''}?${serializeParams(config.params)}`
+}
 
 const TOKEN_KEY = 'bp_access_token'
 
@@ -31,6 +52,24 @@ export const api = axios.create({
   baseURL: resolveApiBaseUrl(),
   timeout: 90_000,
 })
+
+const dispatch = axios.getAdapter(axios.defaults.adapter)
+
+api.defaults.adapter = (config) => {
+  if ((config.method ?? 'get').toLowerCase() !== 'get') {
+    return dispatch(config)
+  }
+  const key = requestKey(config)
+  const existing = inflightGets.get(key)
+  if (existing) {
+    return existing
+  }
+  const pending = Promise.resolve(dispatch(config)).finally(() => {
+    inflightGets.delete(key)
+  }) as Promise<AxiosResponse>
+  inflightGets.set(key, pending)
+  return pending
+}
 
 api.interceptors.request.use((config) => {
   const token = getStoredToken()

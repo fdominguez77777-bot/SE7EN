@@ -24,6 +24,7 @@ import { TalynIngestModule } from './integrations/talyn/talyn.module';
 import { JiracodersModule } from './integrations/jiracoders/jiracoders.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { CompensationModule } from './compensation/compensation.module';
+import { WalletModule } from './wallet/wallet.module';
 import { ProjectsModule } from './projects/projects.module';
 import { UsersModule } from './users/users.module';
 import { DailySubmissionsModule } from './daily-submissions/daily-submissions.module';
@@ -58,7 +59,13 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
           )
             ? { rejectUnauthorized: false }
             : false,
-          extra: process.env.VERCEL ? { max: 1 } : undefined,
+          extra: process.env.VERCEL
+            ? { max: 1 }
+            : {
+                max: 10,
+                keepAlive: true,
+                keepAliveInitialDelayMillis: 10_000,
+              },
         };
       },
     }),
@@ -80,6 +87,7 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
     JiracodersModule,
     CalendarModule,
     CompensationModule,
+    WalletModule,
     DashboardModule,
   ],
   controllers: [AppController],

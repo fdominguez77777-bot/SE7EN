@@ -12,6 +12,7 @@ import { Repository } from 'typeorm';
 import { EnvironmentVariables } from '../config/env.validation';
 import { User } from '../users/user.entity';
 import { UsersService } from '../users/users.service';
+import { singleflight, TtlCache } from '../cache/singleflight';
 import { CalendarAccount } from './calendar-account.entity';
 import { CalendarConnectLink } from './calendar-connect-link.entity';
 import { decryptSecret, encryptSecret } from './calendar-crypto';
@@ -46,6 +47,9 @@ import {
 function cleanEnv(value: string | undefined) {
   return (value ?? '').trim().replace(/^["']|["']$/g, '');
 }
+
+const EVENTS_CACHE_MS = 45_000;
+const AUTO_ASSIGN_MS = 60_000;
 
 export type CalendarAccountDto = {
   id: number;
@@ -97,6 +101,11 @@ export type CalendarEventDto = {
 
 @Injectable()
 export class CalendarService {
+  private readonly eventsCache: TtlCache<CalendarEventDto[]>;
+  private readonly eventsInflight: Map<string, Promise<CalendarEventDto[]>>;
+  private readonly biddersInflight: Map<string, Promise<CalendarBidderDto[]>>;
+  private lastAutoAssignAt: number;
+
   constructor(
     @InjectRepository(CalendarAccount)
     private readonly accounts: Repository<CalendarAccount>,
@@ -104,7 +113,12 @@ export class CalendarService {
     private readonly links: Repository<CalendarConnectLink>,
     private readonly users: UsersService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
-  ) {}
+  ) {
+    this.eventsCache = new TtlCache(EVENTS_CACHE_MS);
+    this.eventsInflight = new Map();
+    this.biddersInflight = new Map();
+    this.lastAutoAssignAt = 0;
+  }
 
   async listAccounts(): Promise<CalendarAccountDto[]> {
     const [rows, people] = await Promise.all([
@@ -121,12 +135,14 @@ export class CalendarService {
   }
 
   async listBidders(actor: User): Promise<CalendarBidderDto[]> {
-    await this.autoAssignByEmail();
-    const people = (await this.users.findCalendarPeople()).filter((person) =>
-      canSeeCalendarPerson(actor.role, person.role),
-    );
-    const accounts = await this.accounts.find({ order: { id: 'ASC' } });
-    return people.map((person) => this.toPersonDto(person, accounts));
+    return singleflight(this.biddersInflight, String(actor.id), async () => {
+      await this.maybeAutoAssignByEmail();
+      const people = (await this.users.findCalendarPeople()).filter((person) =>
+        canSeeCalendarPerson(actor.role, person.role),
+      );
+      const accounts = await this.accounts.find({ order: { id: 'ASC' } });
+      return people.map((person) => this.toPersonDto(person, accounts));
+    });
   }
 
   async createConnectLink(
@@ -227,6 +243,7 @@ export class CalendarService {
     await this.accounts.save(saved);
     link.usedAt = new Date();
     await this.links.save(link);
+    this.clearEventsCache();
     return `${this.origin()}/calendar/connected?token=${encodeURIComponent(token)}`;
   }
 
@@ -242,6 +259,7 @@ export class CalendarService {
       account.assignedBidderId = null;
     }
     await this.accounts.save(account);
+    this.clearEventsCache();
     return this.listAccounts();
   }
 
@@ -251,10 +269,12 @@ export class CalendarService {
       throw new NotFoundException('Calendar not found.');
     }
     await this.accounts.remove(account);
+    this.clearEventsCache();
   }
 
   async resetAll() {
     await this.accounts.clear();
+    this.clearEventsCache();
   }
 
   async listEvents(
@@ -267,7 +287,28 @@ export class CalendarService {
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
       throw new BadRequestException('Provide a valid from and to range.');
     }
-    await this.autoAssignByEmail();
+    const key = `${actor?.id ?? 0}:${actor?.role ?? ''}:${fromIso}:${toIso}`;
+    const cached = this.eventsCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    return singleflight(this.eventsInflight, key, async () => {
+      const again = this.eventsCache.get(key);
+      if (again) {
+        return again;
+      }
+      const events = await this.fetchEvents(from, to, actor);
+      this.eventsCache.set(key, events);
+      return events;
+    });
+  }
+
+  private async fetchEvents(
+    from: Date,
+    to: Date,
+    actor?: User,
+  ): Promise<CalendarEventDto[]> {
+    await this.maybeAutoAssignByEmail();
     const people = await this.users.findCalendarPeople();
     const hiddenOwnerIds = new Set(
       people
@@ -424,6 +465,18 @@ export class CalendarService {
       color: calendarColor(person.id),
       initials: calendarInitials(person.name, emails[0] || person.email),
     };
+  }
+
+  private async maybeAutoAssignByEmail() {
+    if (Date.now() - this.lastAutoAssignAt < AUTO_ASSIGN_MS) {
+      return;
+    }
+    this.lastAutoAssignAt = Date.now();
+    await this.autoAssignByEmail();
+  }
+
+  private clearEventsCache() {
+    this.eventsCache.clear();
   }
 
   private async autoAssignByEmail() {

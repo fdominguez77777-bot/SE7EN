@@ -37,6 +37,17 @@ export function formatUsdRate(value: string | number) {
   return `$${formatted}`
 }
 
+export function formatUsdDelta(value: string | number) {
+  const amount = Number(value)
+  if (!Number.isFinite(amount) || amount === 0) {
+    return formatUsd(0)
+  }
+  if (amount > 0) {
+    return `+${formatUsd(amount)}`
+  }
+  return formatUsd(amount)
+}
+
 export function paymentStatusLabel(status: string) {
   if (status === 'PAID') {
     return 'Paid'

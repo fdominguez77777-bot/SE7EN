@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { UsersService } from '../../users/users.service';
+import { singleflight } from '../../cache/singleflight';
 import {
   ApplicationColumnFilters,
   hasApplicationColumnFilters,
@@ -35,15 +36,19 @@ export type CreditedApplication = {
 
 @Injectable()
 export class JiracodersApplicationsService {
-  private readonly listCache = new Map<
+  private readonly listCache: Map<
     string,
     { at: number; items: ApplicationTableRow[] }
-  >();
+  >;
+  private readonly listInflight: Map<string, Promise<ApplicationTableRow[]>>;
 
   constructor(
     private readonly client: JiracodersClient,
     private readonly users: UsersService,
-  ) {}
+  ) {
+    this.listCache = new Map();
+    this.listInflight = new Map();
+  }
 
   async list(query: {
     page?: number;
@@ -228,64 +233,70 @@ export class JiracodersApplicationsService {
     if (cached && Date.now() - cached.at < CACHE_MS) {
       return cached.items;
     }
+    return singleflight(this.listInflight, cacheKey, async () => {
+      const again = this.listCache.get(cacheKey);
+      if (again && Date.now() - again.at < CACHE_MS) {
+        return again.items;
+      }
 
-    const first = await this.client.listApplications({
-      page: 1,
-      limit: PAGE_SIZE,
-      keyword: query.keyword,
-      status: query.status,
-      fromDate: query.fromDate,
-      toDate: query.toDate,
-      includeCount: true,
-    });
-    const firstRows = Array.isArray(first.data) ? first.data : [];
-    const items: ApplicationTableRow[] = [];
-    pushMapped(firstRows, bidders, items);
+      const first = await this.client.listApplications({
+        page: 1,
+        limit: PAGE_SIZE,
+        keyword: query.keyword,
+        status: query.status,
+        fromDate: query.fromDate,
+        toDate: query.toDate,
+        includeCount: true,
+      });
+      const firstRows = Array.isArray(first.data) ? first.data : [];
+      const items: ApplicationTableRow[] = [];
+      pushMapped(firstRows, bidders, items);
 
-    const total = typeof first.count === 'number' ? first.count : null;
-    const pageCount =
-      total != null
-        ? Math.min(MAX_PAGES, Math.max(1, Math.ceil(total / PAGE_SIZE)))
-        : MAX_PAGES;
-    const fromBound = query.fromDate ? startOfQueryDate(query.fromDate) : null;
+      const total = typeof first.count === 'number' ? first.count : null;
+      const pageCount =
+        total != null
+          ? Math.min(MAX_PAGES, Math.max(1, Math.ceil(total / PAGE_SIZE)))
+          : MAX_PAGES;
+      const fromBound = query.fromDate ? startOfQueryDate(query.fromDate) : null;
 
-    if (
-      firstRows.length === PAGE_SIZE &&
-      pageCount > 1 &&
-      !pageIsOlderThan(firstRows, fromBound)
-    ) {
-      const remaining = Array.from({ length: pageCount - 1 }, (_, index) => index + 2);
-      for (let offset = 0; offset < remaining.length; offset += FETCH_BATCH) {
-        const batch = remaining.slice(offset, offset + FETCH_BATCH);
-        const pages = await Promise.all(
-          batch.map((page) =>
-            this.client.listApplications({
-              page,
-              limit: PAGE_SIZE,
-              keyword: query.keyword,
-              status: query.status,
-              fromDate: query.fromDate,
-              toDate: query.toDate,
-            }),
-          ),
-        );
-        let stop = false;
-        for (const page of pages) {
-          const rows = Array.isArray(page.data) ? page.data : [];
-          pushMapped(rows, bidders, items);
-          if (rows.length < PAGE_SIZE || pageIsOlderThan(rows, fromBound)) {
-            stop = true;
+      if (
+        firstRows.length === PAGE_SIZE &&
+        pageCount > 1 &&
+        !pageIsOlderThan(firstRows, fromBound)
+      ) {
+        const remaining = Array.from({ length: pageCount - 1 }, (_, index) => index + 2);
+        for (let offset = 0; offset < remaining.length; offset += FETCH_BATCH) {
+          const batch = remaining.slice(offset, offset + FETCH_BATCH);
+          const pages = await Promise.all(
+            batch.map((page) =>
+              this.client.listApplications({
+                page,
+                limit: PAGE_SIZE,
+                keyword: query.keyword,
+                status: query.status,
+                fromDate: query.fromDate,
+                toDate: query.toDate,
+              }),
+            ),
+          );
+          let stop = false;
+          for (const page of pages) {
+            const rows = Array.isArray(page.data) ? page.data : [];
+            pushMapped(rows, bidders, items);
+            if (rows.length < PAGE_SIZE || pageIsOlderThan(rows, fromBound)) {
+              stop = true;
+              break;
+            }
+          }
+          if (stop) {
             break;
           }
         }
-        if (stop) {
-          break;
-        }
       }
-    }
 
-    this.listCache.set(cacheKey, { at: Date.now(), items });
-    return items;
+      this.listCache.set(cacheKey, { at: Date.now(), items });
+      return items;
+    });
   }
 
   private async loadLocalBidders(): Promise<ApplicationBidderOption[]> {

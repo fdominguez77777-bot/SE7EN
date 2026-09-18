@@ -599,4 +599,72 @@ export type CalendarConnectLink = {
   provider: string
 }
 
+export type WalletTransactionType =
+  | 'RECEIVED'
+  | 'PAYMENT'
+  | 'BILLING'
+  | 'PAYROLL'
+  | 'ADJUSTMENT'
+
+export type WalletDirection = 'IN' | 'OUT'
+export type WalletMethod = 'BANK' | 'WIRE' | 'CASH' | 'CARD' | 'CHECK' | 'OTHER'
+export type WalletStatus = 'POSTED' | 'VOID'
+
+export type WalletTransaction = {
+  id: number
+  occurredOn: string
+  type: WalletTransactionType
+  direction: WalletDirection
+  amount: string
+  signedAmount: string
+  counterparty: string
+  method: WalletMethod
+  reference: string | null
+  notes: string | null
+  status: WalletStatus
+  balanceAfter: string | null
+  createdByName: string | null
+  voidedByName: string | null
+  voidedAt: string | null
+  voidReason: string | null
+  createdAt: string
+}
+
+export type WalletSparkPoint = {
+  date: string
+  net: string
+  netCents: number
+}
+
+export type WalletMonthPoint = {
+  ym: string
+  in: string
+  out: string
+  net: string
+  netCents: number
+  count: number
+}
+
+export type WalletLedger = {
+  summary: {
+    balance: string
+    postedCount: number
+    periodCount: number
+    periodIn: string
+    periodOut: string
+    periodNet: string
+    received: string
+    payment: string
+    billing: string
+    payroll: string
+    adjustment: string
+    previousPeriodIn: string | null
+    previousPeriodOut: string | null
+    previousPeriodNet: string | null
+  }
+  spark: WalletSparkPoint[]
+  months: WalletMonthPoint[]
+  items: WalletTransaction[]
+}
+
 

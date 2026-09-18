@@ -22,6 +22,7 @@ import {
   detectImageKind,
 } from '../storage/image-kind';
 import { FileStorageService } from '../storage/file-storage.service';
+import { singleflight } from '../cache/singleflight';
 import {
   detachUserReferences,
   isTransientDbError,
@@ -42,6 +43,10 @@ import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
 
 const BCRYPT_ROUNDS = 10;
+const USER_CACHE_MS = 45_000;
+const PEOPLE_CACHE_MS = 30_000;
+
+type PeopleCache = { at: number; team: User[]; calendar: User[] };
 
 export const DEFAULT_ADMIN_EMAIL = 'admin';
 export const DEFAULT_ADMIN_PASSWORD = 'admin123';
@@ -55,6 +60,11 @@ export type CreateUserInput = {
 
 @Injectable()
 export class UsersService implements OnModuleInit {
+  private readonly byIdCache: Map<number, { at: number; user: User }>;
+  private readonly byIdInflight: Map<string, Promise<User | null>>;
+  private peopleCache: PeopleCache | null;
+  private peopleInflight: Promise<PeopleCache> | null;
+
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
@@ -63,7 +73,12 @@ export class UsersService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly dataSource: DataSource,
     private readonly files: FileStorageService,
-  ) {}
+  ) {
+    this.byIdCache = new Map();
+    this.byIdInflight = new Map();
+    this.peopleCache = null;
+    this.peopleInflight = null;
+  }
 
   async onModuleInit() {
     await this.ensureDefaultAdmin();
@@ -115,7 +130,9 @@ export class UsersService implements OnModuleInit {
       isActive: true,
     });
 
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+    this.forgetUserCaches(saved.id);
+    return saved;
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -133,7 +150,21 @@ export class UsersService implements OnModuleInit {
   }
 
   async findById(id: number): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { id } });
+    const hit = this.byIdCache.get(id);
+    if (hit && Date.now() - hit.at < USER_CACHE_MS) {
+      return hit.user;
+    }
+    return singleflight(this.byIdInflight, String(id), async () => {
+      const cached = this.byIdCache.get(id);
+      if (cached && Date.now() - cached.at < USER_CACHE_MS) {
+        return cached.user;
+      }
+      const user = await this.usersRepository.findOne({ where: { id } });
+      if (user) {
+        this.byIdCache.set(id, { at: Date.now(), user });
+      }
+      return user;
+    });
   }
 
   async findByIdOrFail(id: number): Promise<User> {
@@ -166,25 +197,11 @@ export class UsersService implements OnModuleInit {
 
   /** Admins, bid managers, and bidders — everyone whose Jira applications count for the team. */
   async findTeamMembers(): Promise<User[]> {
-    return this.usersRepository.find({
-      where: [
-        { role: UserRole.ADMIN },
-        { role: UserRole.BID_MANAGER },
-        { role: UserRole.BIDDER },
-      ],
-      order: { name: 'ASC' },
-    });
+    return (await this.loadPeople()).team;
   }
 
   async findCalendarPeople(): Promise<User[]> {
-    return this.usersRepository.find({
-      where: [
-        { role: UserRole.ADMIN, isActive: true },
-        { role: UserRole.BID_MANAGER, isActive: true },
-        { role: UserRole.BIDDER, isActive: true },
-      ],
-      order: { name: 'ASC' },
-    });
+    return (await this.loadPeople()).calendar;
   }
 
   async findManagers(): Promise<User[]> {
@@ -279,6 +296,8 @@ export class UsersService implements OnModuleInit {
     }
 
     const saved = await this.usersRepository.save(user);
+    this.forgetUserCaches(id);
+    this.byIdCache.set(id, { at: Date.now(), user: saved });
     await this.audit.record('user', id, 'update', actor.id, {
       role: saved.role,
       isActive: saved.isActive,
@@ -301,6 +320,7 @@ export class UsersService implements OnModuleInit {
     }
     const password = await bcrypt.hash(plain, BCRYPT_ROUNDS);
     await this.usersRepository.update(id, { password });
+    this.forgetUserCaches(id);
     await this.audit.record('user', id, 'reset_password', actor.id, {
       userId: id,
       usedDefault: dto.useDefault === true,
@@ -381,6 +401,7 @@ export class UsersService implements OnModuleInit {
       }
       throw error;
     }
+    this.forgetUserCaches(id);
     await this.audit.record('user', id, 'delete', actor.id, {
       userId: id,
       role: user.role,
@@ -417,6 +438,8 @@ export class UsersService implements OnModuleInit {
     await this.files.put(nextPath, file.buffer);
     user.avatarPath = nextPath;
     const saved = await this.usersRepository.save(user);
+    this.forgetUserCaches(user.id);
+    this.byIdCache.set(user.id, { at: Date.now(), user: saved });
     if (previous && previous !== nextPath) {
       await this.files.delete(previous);
     }
@@ -432,6 +455,8 @@ export class UsersService implements OnModuleInit {
     const previous = user.avatarPath;
     user.avatarPath = null;
     const saved = await this.usersRepository.save(user);
+    this.forgetUserCaches(user.id);
+    this.byIdCache.set(user.id, { at: Date.now(), user: saved });
     await this.files.delete(previous);
     await this.audit.record('user', user.id, 'avatar_remove', actor.id, {
       userId: user.id,
@@ -449,6 +474,46 @@ export class UsersService implements OnModuleInit {
     throw new ForbiddenException(
       'You can only change your own profile photo.',
     );
+  }
+
+  private forgetUserCaches(id?: number) {
+    if (id != null) {
+      this.byIdCache.delete(id);
+    } else {
+      this.byIdCache.clear();
+    }
+    this.peopleCache = null;
+  }
+
+  private async loadPeople(): Promise<PeopleCache> {
+    if (this.peopleCache && Date.now() - this.peopleCache.at < PEOPLE_CACHE_MS) {
+      return this.peopleCache;
+    }
+    if (this.peopleInflight) {
+      return this.peopleInflight;
+    }
+    this.peopleInflight = this.usersRepository
+      .find({
+        where: [
+          { role: UserRole.ADMIN },
+          { role: UserRole.BID_MANAGER },
+          { role: UserRole.BIDDER },
+        ],
+        order: { name: 'ASC' },
+      })
+      .then((rows) => {
+        const cache: PeopleCache = {
+          at: Date.now(),
+          team: rows,
+          calendar: rows.filter((row) => row.isActive !== false),
+        };
+        this.peopleCache = cache;
+        return cache;
+      })
+      .finally(() => {
+        this.peopleInflight = null;
+      });
+    return this.peopleInflight;
   }
 
   private async hasManagerHistory(id: number): Promise<boolean> {

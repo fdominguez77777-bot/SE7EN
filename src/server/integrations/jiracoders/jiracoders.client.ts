@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '../../config/env.validation';
+import { singleflight } from '../../cache/singleflight';
 import {
   JiracodersApplicationDetails,
   JiracodersApplicationListItem,
@@ -23,11 +24,15 @@ type UpstreamError = {
 
 @Injectable()
 export class JiracodersClient {
-  private readonly getCache = new Map<string, { at: number; value: unknown }>();
+  private readonly getCache: Map<string, { at: number; value: unknown }>;
+  private readonly getInflight: Map<string, Promise<unknown>>;
 
   constructor(
     private readonly config: ConfigService<EnvironmentVariables, true>,
-  ) {}
+  ) {
+    this.getCache = new Map();
+    this.getInflight = new Map();
+  }
 
   listApplications(query: JiracodersListQuery) {
     const params = new URLSearchParams();
@@ -108,30 +113,37 @@ export class JiracodersClient {
       return cached.value as JiracodersEnvelope<T>;
     }
 
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl()}${path}`, {
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        signal: AbortSignal.timeout(8_000),
+    return singleflight(this.getInflight, path, async () => {
+      const again = this.getCache.get(path);
+      if (again && Date.now() - again.at < 45_000) {
+        return again.value as JiracodersEnvelope<T>;
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(`${this.baseUrl()}${path}`, {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          signal: AbortSignal.timeout(8_000),
+        });
+      } catch {
+        throw new BadGatewayException('Could not reach JiraCoders.');
+      }
+
+      const envelope = await readEnvelope(response);
+      if (response.ok && envelope.success !== false) {
+        const value = envelope as JiracodersEnvelope<T>;
+        this.getCache.set(path, { at: Date.now(), value });
+        return value;
+      }
+
+      throw mapUpstreamError({
+        status: response.status,
+        message:
+          envelope.message || `JiraCoders request failed (${response.status}).`,
       });
-    } catch {
-      throw new BadGatewayException('Could not reach JiraCoders.');
-    }
-
-    const envelope = await readEnvelope(response);
-    if (response.ok && envelope.success !== false) {
-      const value = envelope as JiracodersEnvelope<T>;
-      this.getCache.set(path, { at: Date.now(), value });
-      return value;
-    }
-
-    throw mapUpstreamError({
-      status: response.status,
-      message:
-        envelope.message || `JiraCoders request failed (${response.status}).`,
     });
   }
 }

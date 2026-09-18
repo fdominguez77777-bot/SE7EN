@@ -23,6 +23,7 @@ import { WeeklyInvoiceBidder } from './weekly-invoices/weekly-invoice-bidder.ent
 import { WeeklyInvoiceDailyBidder } from './weekly-invoices/weekly-invoice-daily-bidder.entity'
 import { WeeklyInvoiceDailySource } from './weekly-invoices/weekly-invoice-daily-source.entity'
 import { WeeklyInvoice } from './weekly-invoices/weekly-invoice.entity'
+import { WalletTransaction } from './wallet/wallet-transaction.entity'
 
 /**
  * TypeORM uses `constructor.name` as the entity graph id. Vercel minifies
@@ -58,3 +59,4 @@ freezeName(WeeklyInvoice, 'WeeklyInvoice')
 freezeName(WeeklyInvoiceBidder, 'WeeklyInvoiceBidder')
 freezeName(WeeklyInvoiceDailyBidder, 'WeeklyInvoiceDailyBidder')
 freezeName(WeeklyInvoiceDailySource, 'WeeklyInvoiceDailySource')
+freezeName(WalletTransaction, 'WalletTransaction')

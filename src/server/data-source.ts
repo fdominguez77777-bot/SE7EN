@@ -24,6 +24,8 @@ import { JiracodersApplicationStatus1771400000000 } from './migrations/177140000
 import { DropJiracodersApplicationStatus1771410000000 } from './migrations/1771410000000-DropJiracodersApplicationStatus';
 import { CalendarIntegration1771500000000 } from './migrations/1771500000000-CalendarIntegration';
 import { CalendarAssignedBidder1771600000000 } from './migrations/1771600000000-CalendarAssignedBidder';
+import { WalletTransaction1771700000000 } from './migrations/1771700000000-WalletTransaction';
+import { WalletOwner1771800000000 } from './migrations/1771800000000-WalletOwner';
 import { applyDatabaseUrl, isManagedPostgresSsl } from './config/database-url';
 
 config({ path: resolve(process.cwd(), '.env') });
@@ -66,6 +68,8 @@ export default new DataSource({
     DropJiracodersApplicationStatus1771410000000,
     CalendarIntegration1771500000000,
     CalendarAssignedBidder1771600000000,
+    WalletTransaction1771700000000,
+    WalletOwner1771800000000,
   ],
   migrationsTableName: 'migrations',
 });

@@ -21,6 +21,7 @@ import { Project } from '../projects/project.entity';
 import { WeeklyInvoice } from '../weekly-invoices/weekly-invoice.entity';
 import { WeeklyInvoiceBidder } from '../weekly-invoices/weekly-invoice-bidder.entity';
 import { WeeklyInvoiceDailyBidder } from '../weekly-invoices/weekly-invoice-daily-bidder.entity';
+import { WalletTransaction } from '../wallet/wallet-transaction.entity';
 
 const TRANSIENT_DB_MESSAGE =
   /terminat|ECONNRESET|ECONNREFUSED|connection timed out|timeout expired|canceling statement|lock timeout|deadlock detected/i;
@@ -138,6 +139,17 @@ export async function detachUserReferences(
     BidManagerWeeklyPayment,
     { paidByUserId: userId },
     { paidByUserId: null },
+  );
+  await manager.delete(WalletTransaction, { ownerUserId: userId });
+  await manager.update(
+    WalletTransaction,
+    { createdByUserId: userId },
+    { createdByUserId: null },
+  );
+  await manager.update(
+    WalletTransaction,
+    { voidedByUserId: userId },
+    { voidedByUserId: null },
   );
 
   await manager.delete(DailySubmissionRead, { userId });

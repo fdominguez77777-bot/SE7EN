@@ -16,6 +16,7 @@ import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { avatarPublicUrl } from '../storage/image-kind';
 import { UsersService } from '../users/users.service';
+import { singleflight } from '../cache/singleflight';
 import { BidderProfile } from './bidder-profile.entity';
 import { CreateBidderProfileDto } from './dto/create-bidder-profile.dto';
 import { CreateEducationDto } from './dto/create-education.dto';
@@ -36,6 +37,8 @@ const PROFILE_RELATIONS = {
 
 @Injectable()
 export class BidderProfilesService {
+  private readonly listInflight: Map<string, Promise<any[]>>;
+
   constructor(
     @InjectRepository(BidderProfile)
     private readonly profiles: Repository<BidderProfile>,
@@ -46,7 +49,9 @@ export class BidderProfilesService {
     private readonly usersService: UsersService,
     private readonly audit: AuditService,
     private readonly dataSource: DataSource,
-  ) {}
+  ) {
+    this.listInflight = new Map();
+  }
 
   async create(dto: CreateBidderProfileDto, actor: User) {
     this.assertAdmin(actor);
@@ -83,6 +88,11 @@ export class BidderProfilesService {
   }
 
   async findAll(actor: User) {
+    const key = `${actor.id}:${actor.role}`;
+    return singleflight(this.listInflight, key, () => this.loadAll(actor));
+  }
+
+  private async loadAll(actor: User) {
     if (isStaff(actor)) {
       const rows = await this.profiles.find({
         relations: PROFILE_RELATIONS,

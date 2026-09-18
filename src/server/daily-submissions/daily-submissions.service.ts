@@ -80,12 +80,6 @@ export class DailySubmissionsService {
       relations: { manager: true, rows: { bidder: true } },
       order: { reportingDate: 'DESC', id: 'DESC' },
     });
-    if (actor.role === UserRole.ADMIN) {
-      await this.markReadMany(
-        actor.id,
-        items.map((item) => item.id),
-      );
-    }
     const unreadById = await this.unreadBySubmission(actor, items);
     return items.map((item) =>
       this.toListDto(item, unreadById.get(item.id) ?? false),
@@ -97,23 +91,18 @@ export class DailySubmissionsService {
     if (actor.role !== UserRole.ADMIN) {
       return { count: 0 };
     }
-    const [items, reads] = await Promise.all([
-      this.submissions.find({
-        select: { id: true, status: true, contentChangedAt: true },
-        where: { status: DailySubmissionStatus.SUBMITTED },
-      }),
-      this.reads.find({ where: { userId: actor.id } }),
-    ]);
-    const readAtById = new Map(
-      reads.map((row) => [row.dailySubmissionId, row.readAt]),
-    );
-    const count = items.filter((item) =>
-      isDailyReportUnread({
-        status: item.status,
-        contentChangedAt: item.contentChangedAt,
-        readAt: readAtById.get(item.id) ?? null,
-      }),
-    ).length;
+    const count = await this.submissions
+      .createQueryBuilder('s')
+      .leftJoin(
+        DailySubmissionRead,
+        'r',
+        'r.dailySubmissionId = s.id AND r.userId = :userId',
+        { userId: actor.id },
+      )
+      .where('s.status = :status', { status: DailySubmissionStatus.SUBMITTED })
+      .andWhere('s.contentChangedAt IS NOT NULL')
+      .andWhere('(r.id IS NULL OR r.readAt < s.contentChangedAt)')
+      .getCount();
     return { count };
   }
 
