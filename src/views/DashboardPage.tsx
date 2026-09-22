@@ -52,8 +52,23 @@ export function DashboardPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [rankMetric, setRankMetric] = useState<RankMetric>('applications')
-  const [rankPeriod, setRankPeriod] = useState<RankPeriod>('day')
+  const [rankPeriod, setRankPeriod] = useState<RankPeriod>(
+    period.preset === 'weekdays' ? 'week' : 'day',
+  )
   const [chartMode, setChartMode] = useState<ChartMode>('total')
+
+  useEffect(() => {
+    if (
+      period.applied.preset === 'today' ||
+      period.applied.preset === 'yesterday'
+    ) {
+      setRankPeriod('day')
+    } else if (period.applied.preset === 'weekdays') {
+      setRankPeriod('week')
+    } else {
+      setRankPeriod('custom')
+    }
+  }, [period.applied])
 
   const load = useCallback(async () => {
     const { data } = await api.get<DashboardSummary>('/dashboard', {
@@ -139,7 +154,7 @@ export function DashboardPage() {
 
   const performance = useMemo(() => {
     const pool = (summary?.bidders ?? []).filter(
-      (bidder) => bidder.role === 'BIDDER',
+      (bidder) => (bidder.role ?? 'BIDDER') === 'BIDDER',
     )
     const rows = pool.map((bidder) => {
       const value = metricForPeriod(bidder, rankPeriod, rankMetric)
@@ -161,6 +176,55 @@ export function DashboardPage() {
   const weekRate = interviewRate(weekInts, weekApps)
   const appsPerBidder =
     activeBidderCount > 0 ? weekApps / activeBidderCount : null
+
+  // When the page filter is Today / This week, the period KPI is the same slice.
+  const filterPreset = period.applied.preset
+  const appsKpi =
+    filterPreset === 'today' || filterPreset === 'yesterday'
+      ? todayApps
+      : filterPreset === 'weekdays'
+        ? weekApps
+        : periodApps
+  const intsKpi =
+    filterPreset === 'today' || filterPreset === 'yesterday'
+      ? todayInts
+      : filterPreset === 'weekdays'
+        ? weekInts
+        : periodInts
+  const appsKpiChange =
+    filterPreset === 'today' ||
+    filterPreset === 'yesterday' ||
+    filterPreset === 'weekdays'
+      ? null
+      : appChange
+  const intsKpiChange =
+    filterPreset === 'today' ||
+    filterPreset === 'yesterday' ||
+    filterPreset === 'weekdays'
+      ? null
+      : intChange
+
+  function selectAppsRanking() {
+    setRankMetric('applications')
+    if (filterPreset === 'today' || filterPreset === 'yesterday') {
+      setRankPeriod('day')
+    } else if (filterPreset === 'weekdays') {
+      setRankPeriod('week')
+    } else {
+      setRankPeriod('custom')
+    }
+  }
+
+  function selectIntsRanking() {
+    setRankMetric('interviews')
+    if (filterPreset === 'today' || filterPreset === 'yesterday') {
+      setRankPeriod('day')
+    } else if (filterPreset === 'weekdays') {
+      setRankPeriod('week')
+    } else {
+      setRankPeriod('custom')
+    }
+  }
 
   return (
     <section>
@@ -213,27 +277,33 @@ export function DashboardPage() {
             />
             <KpiCard
               label="Applications"
-              value={periodApps}
-              change={appChange}
-              hint="vs previous equivalent period"
-              selected={rankMetric === 'applications' && rankPeriod === 'custom'}
-              onSelect={() => {
-                setRankMetric('applications')
-                setRankPeriod('custom')
-              }}
+              value={appsKpi}
+              change={appsKpiChange}
+              hint={
+                filterPreset === 'today' || filterPreset === 'yesterday'
+                  ? 'same total as Today below'
+                  : filterPreset === 'weekdays'
+                    ? 'same total as This week below'
+                    : 'vs previous equivalent period'
+              }
+              selected={rankMetric === 'applications'}
+              onSelect={selectAppsRanking}
             />
             <KpiCard
               label="Interviews"
-              value={periodInts}
-              change={intChange}
-              hint="vs previous equivalent period"
+              value={intsKpi}
+              change={intsKpiChange}
+              hint={
+                filterPreset === 'today' || filterPreset === 'yesterday'
+                  ? 'same total as Today below'
+                  : filterPreset === 'weekdays'
+                    ? 'same total as This week below'
+                    : 'vs previous equivalent period'
+              }
               sparkline={intSpark}
               sparkDates={sparkDates}
-              selected={rankMetric === 'interviews' && rankPeriod === 'custom'}
-              onSelect={() => {
-                setRankMetric('interviews')
-                setRankPeriod('custom')
-              }}
+              selected={rankMetric === 'interviews'}
+              onSelect={selectIntsRanking}
             />
           </div>
 
@@ -367,7 +437,19 @@ export function DashboardPage() {
                 : rankPeriod === 'week'
                   ? 'This week'
                   : range.label
-            }`}
+            } · ${(
+              rankMetric === 'interviews'
+                ? rankPeriod === 'day'
+                  ? todayInts
+                  : rankPeriod === 'week'
+                    ? weekInts
+                    : periodInts
+                : rankPeriod === 'day'
+                  ? todayApps
+                  : rankPeriod === 'week'
+                    ? weekApps
+                    : periodApps
+            ).toLocaleString()} total`}
             action={
               <div className="flex flex-wrap justify-end gap-2">
                 <Segmented

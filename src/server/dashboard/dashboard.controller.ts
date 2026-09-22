@@ -20,7 +20,18 @@ export class DashboardController {
     @CurrentUser() user: User,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('todayFrom') todayFrom?: string,
+    @Query('todayTo') todayTo?: string,
+    @Query('weekFrom') weekFrom?: string,
+    @Query('weekTo') weekTo?: string,
   ) {
-    return this.dashboardService.getSummary(user, from, to);
+    return this.dashboardService.getSummary(user, {
+      from,
+      to,
+      todayFrom,
+      todayTo,
+      weekFrom,
+      weekTo,
+    });
   }
 }

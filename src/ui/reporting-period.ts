@@ -175,9 +175,16 @@ export function datesForPreset(preset: PeriodPreset, fromDate: string, toDate: s
 }
 
 export function rangeQuery(range: DateRange) {
+  const today = startOfLocalDay()
+  const tomorrow = addDays(today, 1)
+  const week = weekRange('current')
   return {
     from: range.from.toISOString(),
     to: range.to.toISOString(),
+    todayFrom: today.toISOString(),
+    todayTo: tomorrow.toISOString(),
+    weekFrom: week.from.toISOString(),
+    weekTo: week.to.toISOString(),
   }
 }
 

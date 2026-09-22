@@ -26,6 +26,23 @@ import {
 
 const SUMMARY_CACHE_MS = 25_000;
 
+function parseBound(value?: string): Date | null {
+  if (!value?.trim()) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export type DashboardBounds = {
+  from?: string;
+  to?: string;
+  todayFrom?: string;
+  todayTo?: string;
+  weekFrom?: string;
+  weekTo?: string;
+};
+
 @Injectable()
 export class DashboardService {
   private readonly summaryCache: TtlCache<any>;
@@ -45,8 +62,17 @@ export class DashboardService {
     this.summaryInflight = new Map();
   }
 
-  async getSummary(actor: User, from?: string, to?: string) {
-    const key = `${actor.id}:${actor.role}:${from ?? ''}:${to ?? ''}`;
+  async getSummary(actor: User, bounds: DashboardBounds = {}) {
+    const key = [
+      actor.id,
+      actor.role,
+      bounds.from ?? '',
+      bounds.to ?? '',
+      bounds.todayFrom ?? '',
+      bounds.todayTo ?? '',
+      bounds.weekFrom ?? '',
+      bounds.weekTo ?? '',
+    ].join(':');
     const cached = this.summaryCache.get(key);
     if (cached) {
       return cached;
@@ -56,16 +82,28 @@ export class DashboardService {
       if (again) {
         return again;
       }
-      const value = await this.computeSummary(actor, from, to);
+      const value = await this.computeSummary(actor, bounds);
       this.summaryCache.set(key, value);
       return value;
     });
   }
 
-  private async computeSummary(actor: User, from?: string, to?: string) {
-    const week = mondaySundayWeek();
-    const end = to ? new Date(to) : week.to;
-    const start = from ? new Date(from) : week.from;
+  private async computeSummary(actor: User, bounds: DashboardBounds) {
+    const fallbackWeek = mondaySundayWeek();
+    const fallbackToday = startOfLocalDay();
+    const fallbackTomorrow = new Date(fallbackToday);
+    fallbackTomorrow.setDate(fallbackTomorrow.getDate() + 1);
+
+    const today =
+      parseBound(bounds.todayFrom) ?? fallbackToday;
+    const tomorrow =
+      parseBound(bounds.todayTo) ?? fallbackTomorrow;
+    const weekFrom =
+      parseBound(bounds.weekFrom) ?? fallbackWeek.from;
+    const weekTo =
+      parseBound(bounds.weekTo) ?? fallbackWeek.to;
+    const end = parseBound(bounds.to) ?? weekTo;
+    const start = parseBound(bounds.from) ?? weekFrom;
     const base = {
       role: actor.role,
       from: start.toISOString(),
@@ -98,16 +136,18 @@ export class DashboardService {
     }
 
     const previous = previousWindow(start, end);
-    const today = startOfLocalDay();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const weekdayEnd = new Date(week.from);
+    const weekdayEnd = new Date(weekFrom);
     weekdayEnd.setDate(weekdayEnd.getDate() + 5);
     const windowFrom = new Date(
-      Math.min(previous.from.getTime(), start.getTime(), week.from.getTime(), today.getTime()),
+      Math.min(
+        previous.from.getTime(),
+        start.getTime(),
+        weekFrom.getTime(),
+        today.getTime(),
+      ),
     );
     const windowTo = new Date(
-      Math.max(end.getTime(), week.to.getTime(), tomorrow.getTime()),
+      Math.max(end.getTime(), weekTo.getTime(), tomorrow.getTime()),
     );
 
     const people = await this.users.find({
@@ -127,10 +167,7 @@ export class DashboardService {
       role: row.role,
     }));
 
-    const [
-      applicationRows,
-      interviewRows,
-    ] = await Promise.all([
+    const [applicationRows, interviewRows] = await Promise.all([
       this.loadApplicationCredits(windowFrom, windowTo),
       this.loadInterviewCredits(windowFrom, windowTo, bidderInputs, actor),
     ]);
@@ -151,11 +188,13 @@ export class DashboardService {
       inTimeRange(row.startsAt, today, tomorrow),
     );
     const weekApps = applicationRows.filter((row) =>
-      inTimeRange(row.appliedAt, week.from, week.to),
+      inTimeRange(row.appliedAt, weekFrom, weekTo),
     );
     const weekInts = interviewRows.filter((row) =>
-      inTimeRange(row.startsAt, week.from, week.to),
+      inTimeRange(row.startsAt, weekFrom, weekTo),
     );
+
+    // One rollup source for period / today / week so KPI, sidebar, and ranking match.
     const periodTeam = rollupTeamBidderPerformance(
       bidderInputs,
       selectedApps,
@@ -208,9 +247,9 @@ export class DashboardService {
     const weekInterviewByDay = new Map(
       dailyCounts(
         interviewRows
-          .filter((row) => inTimeRange(row.startsAt, week.from, weekdayEnd))
+          .filter((row) => inTimeRange(row.startsAt, weekFrom, weekdayEnd))
           .map((row) => row.startsAt),
-        week.from,
+        weekFrom,
         weekdayEnd,
       ).map((row) => [row.date, row.applications]),
     );
@@ -248,9 +287,9 @@ export class DashboardService {
       })),
       weekDaily: dailyCounts(
         applicationRows
-          .filter((row) => inTimeRange(row.appliedAt, week.from, weekdayEnd))
+          .filter((row) => inTimeRange(row.appliedAt, weekFrom, weekdayEnd))
           .map((row) => row.appliedAt),
-        week.from,
+        weekFrom,
         weekdayEnd,
       ).map((row) => ({
         ...row,
