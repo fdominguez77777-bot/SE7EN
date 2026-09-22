@@ -42,7 +42,7 @@ type AuthState = {
   status: AuthStatus
   workspaceError: boolean
   message: string
-  login: (email: string, password: string) => Promise<User>
+  login: (username: string, password: string) => Promise<User>
   logout: () => void
   retry: () => void
   applyUser: (next: User) => void
@@ -69,9 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMessage('Preparing your workspace…')
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     const { data } = await api.post<AuthResponse>('/auth/login', {
-      email,
+      email: username,
       password,
     })
     setStoredToken(data.accessToken)

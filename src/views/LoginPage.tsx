@@ -60,18 +60,21 @@ export function LoginPage() {
           Welcome back
         </h1>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          Use your account email and password.
+          Use your username and password.
         </p>
         <label className="mt-6 block text-sm text-[var(--text-secondary)]">
-          Email
+          Username
           <input
             className="input-field"
             type="text"
             autoComplete="username"
+            spellCheck={false}
+            autoCapitalize="none"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={pending}
+            placeholder="e.g. joe"
           />
         </label>
         <label className="mt-4 block text-sm text-[var(--text-secondary)]">

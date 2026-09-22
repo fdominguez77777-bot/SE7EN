@@ -32,14 +32,14 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
-    const user = await this.usersService.findByEmailWithPassword(dto.email);
+    const user = await this.usersService.findByLoginWithPassword(dto.email);
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid username or password');
     }
 
     const matches = await bcrypt.compare(dto.password, user.password);
     if (!matches) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid username or password');
     }
 
     if (user.isActive === false) {

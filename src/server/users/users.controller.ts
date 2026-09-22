@@ -179,7 +179,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...MEMBER_ADMIN_ROLES)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update member name, email, role, or status (ADMIN)' })
+  @ApiOperation({ summary: 'Update member name, username, role, or status (ADMIN)' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUserDto,

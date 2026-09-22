@@ -1,15 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsEmail,
   IsEnum,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
   ValidateIf,
 } from 'class-validator';
 
+import { USERNAME_HINT, USERNAME_PATTERN } from '../username.rules';
 import { UserRole } from '../user-role.enum';
 
 export class CreateUserDto {
@@ -19,8 +20,11 @@ export class CreateUserDto {
   @MaxLength(120)
   name: string;
 
-  @ApiProperty()
-  @IsEmail()
+  @ApiProperty({ example: 'joe', description: 'Sign-in username (not email)' })
+  @IsString()
+  @MinLength(2, { message: USERNAME_HINT })
+  @MaxLength(40, { message: USERNAME_HINT })
+  @Matches(USERNAME_PATTERN, { message: USERNAME_HINT })
   email: string;
 
   @ApiPropertyOptional({

@@ -47,6 +47,7 @@ import {
   shouldSeedDefaultAdmin,
   statusChangeBlockReason,
 } from './member-admin.rules';
+import { normalizeUsername } from './username.rules';
 import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
 
@@ -122,14 +123,14 @@ export class UsersService implements OnModuleInit {
   }
 
   normalizeEmail(email: string): string {
-    return email.trim().toLowerCase();
+    return normalizeUsername(email);
   }
 
   async create(input: CreateUserInput): Promise<User> {
     const email = this.normalizeEmail(input.email);
     const existing = await this.findByEmail(email);
     if (existing) {
-      throw new ConflictException('Email already in use');
+      throw new ConflictException('Username already in use');
     }
 
     const user = this.usersRepository.create({
@@ -158,6 +159,27 @@ export class UsersService implements OnModuleInit {
       .addSelect('user.password')
       .addSelect('user.passwordVault')
       .where('user.email = :email', { email: this.normalizeEmail(email) })
+      .getOne();
+  }
+
+  /**
+   * Sign-in lookup: exact username first, then legacy `name@domain` accounts
+   * so members can switch to usernames without locking out older Gmail rows.
+   */
+  async findByLoginWithPassword(login: string): Promise<User | null> {
+    const key = this.normalizeEmail(login);
+    const direct = await this.findByEmailWithPassword(key);
+    if (direct) {
+      return direct;
+    }
+    if (key.includes('@')) {
+      return null;
+    }
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .addSelect('user.passwordVault')
+      .where('LOWER(user.email) LIKE :prefix', { prefix: `${key}@%` })
       .getOne();
   }
 
@@ -336,7 +358,7 @@ export class UsersService implements OnModuleInit {
       const email = this.normalizeEmail(dto.email);
       const existing = await this.findByEmail(email);
       if (existing && existing.id !== id) {
-        throw new ConflictException('Email already in use');
+        throw new ConflictException('Username already in use');
       }
       user.email = email;
     }

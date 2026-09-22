@@ -448,7 +448,7 @@ export function MembersPage() {
               <Search className="h-4 w-4 text-[var(--text-muted)]" aria-hidden="true" />
               <input
                 className="input-field mt-0"
-                placeholder="Search name or email"
+                placeholder="Search name or username"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -500,7 +500,7 @@ export function MembersPage() {
                     <thead>
                       <tr>
                         <th>Member</th>
-                        <th>Email</th>
+                        <th>Username</th>
                         <th>Password</th>
                         <th>Role</th>
                         <th>Status</th>
@@ -650,13 +650,17 @@ export function MembersPage() {
               />
             </label>
             <label className="text-sm md:col-span-2">
-              <span className="text-[var(--text-secondary)]">Email</span>
+              <span className="text-[var(--text-secondary)]">Username</span>
               <input
                 className="input-field"
-                type="email"
+                type="text"
+                autoComplete="username"
+                spellCheck={false}
+                autoCapitalize="none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                placeholder="e.g. joe"
               />
             </label>
             <label className="text-sm md:col-span-2 flex items-center gap-2">
@@ -778,13 +782,17 @@ export function MembersPage() {
                 />
               </label>
               <label className="text-sm md:col-span-2">
-                <span className="text-[var(--text-secondary)]">Email</span>
+                <span className="text-[var(--text-secondary)]">Username</span>
                 <input
                   className="input-field"
-                  type="email"
+                  type="text"
+                  autoComplete="username"
+                  spellCheck={false}
+                  autoCapitalize="none"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  placeholder="e.g. joe"
                 />
               </label>
               <div className="md:col-span-2">
