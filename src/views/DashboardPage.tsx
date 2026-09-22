@@ -58,14 +58,12 @@ export function DashboardPage() {
   const [chartMode, setChartMode] = useState<ChartMode>('total')
 
   useEffect(() => {
-    if (
-      period.applied.preset === 'today' ||
-      period.applied.preset === 'yesterday'
-    ) {
+    if (period.applied.preset === 'today') {
       setRankPeriod('day')
     } else if (period.applied.preset === 'weekdays') {
       setRankPeriod('week')
     } else {
+      // Yesterday and custom ranges use the filtered period slice on each bidder.
       setRankPeriod('custom')
     }
   }, [period.applied])
@@ -182,36 +180,28 @@ export function DashboardPage() {
   const appsPerBidder =
     activeBidderCount > 0 ? weekApps / activeBidderCount : null
 
-  // When the page filter is Today / This week, the period KPI is the same slice.
+  // Today / This week KPIs mirror the sidebar; every other preset uses the filtered period.
   const filterPreset = period.applied.preset
   const appsKpi =
-    filterPreset === 'today' || filterPreset === 'yesterday'
+    filterPreset === 'today'
       ? todayApps
       : filterPreset === 'weekdays'
         ? weekApps
         : periodApps
   const intsKpi =
-    filterPreset === 'today' || filterPreset === 'yesterday'
+    filterPreset === 'today'
       ? todayInts
       : filterPreset === 'weekdays'
         ? weekInts
         : periodInts
   const appsKpiChange =
-    filterPreset === 'today' ||
-    filterPreset === 'yesterday' ||
-    filterPreset === 'weekdays'
-      ? null
-      : appChange
+    filterPreset === 'today' || filterPreset === 'weekdays' ? null : appChange
   const intsKpiChange =
-    filterPreset === 'today' ||
-    filterPreset === 'yesterday' ||
-    filterPreset === 'weekdays'
-      ? null
-      : intChange
+    filterPreset === 'today' || filterPreset === 'weekdays' ? null : intChange
 
   function selectAppsRanking() {
     setRankMetric('applications')
-    if (filterPreset === 'today' || filterPreset === 'yesterday') {
+    if (filterPreset === 'today') {
       setRankPeriod('day')
     } else if (filterPreset === 'weekdays') {
       setRankPeriod('week')
@@ -222,7 +212,7 @@ export function DashboardPage() {
 
   function selectIntsRanking() {
     setRankMetric('interviews')
-    if (filterPreset === 'today' || filterPreset === 'yesterday') {
+    if (filterPreset === 'today') {
       setRankPeriod('day')
     } else if (filterPreset === 'weekdays') {
       setRankPeriod('week')
@@ -285,7 +275,7 @@ export function DashboardPage() {
               value={appsKpi}
               change={appsKpiChange}
               hint={
-                filterPreset === 'today' || filterPreset === 'yesterday'
+                filterPreset === 'today'
                   ? 'same total as Today below'
                   : filterPreset === 'weekdays'
                     ? 'same total as This week below'
@@ -299,7 +289,7 @@ export function DashboardPage() {
               value={intsKpi}
               change={intsKpiChange}
               hint={
-                filterPreset === 'today' || filterPreset === 'yesterday'
+                filterPreset === 'today'
                   ? 'same total as Today below'
                   : filterPreset === 'weekdays'
                     ? 'same total as This week below'
