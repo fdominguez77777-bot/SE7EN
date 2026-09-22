@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import { NavLink, useNavigate, usePathname } from '@/lib/navigation'
 import {
+  Camera,
   ClipboardCheck,
   CalendarClock,
   ChartNoAxesCombined,
@@ -220,30 +221,39 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="shrink-0 border-t border-[var(--border-glass)] p-3">
-          <div className="mb-2 flex items-center gap-2.5 px-2">
+          <div className="mb-1 flex items-center gap-2 rounded-lg px-1.5 py-1.5">
             <EntityAvatar name={user?.name} src={user?.avatarUrl} size="sm" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{user?.name}</p>
-              {user ? (
-                <StatusBadge muted>{ROLE_LABEL[user.role]}</StatusBadge>
-              ) : null}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                  {user?.name}
+                </p>
+                {user ? (
+                  <StatusBadge muted>{ROLE_LABEL[user.role]}</StatusBadge>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-white/[0.06] hover:text-[var(--text-primary)]"
+                onClick={() => setPhotoOpen(true)}
+                title="Change photo"
+                aria-label="Change photo"
+              >
+                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-white/[0.06] hover:text-[var(--text-primary)]"
+                onClick={() => setPasswordOpen(true)}
+                title="Change password"
+                aria-label="Change password"
+              >
+                <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
             </div>
           </div>
-          <button
-            type="button"
-            className="mb-1 flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/[0.045] hover:text-[var(--text-primary)]"
-            onClick={() => setPhotoOpen(true)}
-          >
-            Change photo
-          </button>
-          <button
-            type="button"
-            className="mb-1 flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/[0.045] hover:text-[var(--text-primary)]"
-            onClick={() => setPasswordOpen(true)}
-          >
-            <KeyRound className="h-4 w-4" aria-hidden="true" />
-            Change password
-          </button>
           <button
             type="button"
             className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-muted)] transition hover:bg-red-500/10 hover:text-red-200 active:bg-red-500/15"
