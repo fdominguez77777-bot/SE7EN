@@ -24,8 +24,11 @@ type UpstreamError = {
 
 @Injectable()
 export class JiracodersClient {
-  private readonly getCache: Map<string, { at: number; value: unknown }>;
-  private readonly getInflight: Map<string, Promise<unknown>>;
+  private readonly getCache: Map<
+    string,
+    { at: number; value: JiracodersEnvelope<unknown> }
+  >;
+  private readonly getInflight: Map<string, Promise<JiracodersEnvelope<unknown>>>;
 
   constructor(
     private readonly config: ConfigService<EnvironmentVariables, true>,
@@ -113,10 +116,10 @@ export class JiracodersClient {
       return cached.value as JiracodersEnvelope<T>;
     }
 
-    return singleflight(this.getInflight, path, async () => {
+    const value = await singleflight(this.getInflight, path, async () => {
       const again = this.getCache.get(path);
       if (again && Date.now() - again.at < 45_000) {
-        return again.value as JiracodersEnvelope<T>;
+        return again.value;
       }
 
       let response: Response;
@@ -134,9 +137,8 @@ export class JiracodersClient {
 
       const envelope = await readEnvelope(response);
       if (response.ok && envelope.success !== false) {
-        const value = envelope as JiracodersEnvelope<T>;
-        this.getCache.set(path, { at: Date.now(), value });
-        return value;
+        this.getCache.set(path, { at: Date.now(), value: envelope });
+        return envelope;
       }
 
       throw mapUpstreamError({
@@ -145,6 +147,7 @@ export class JiracodersClient {
           envelope.message || `JiraCoders request failed (${response.status}).`,
       });
     });
+    return value as JiracodersEnvelope<T>;
   }
 }
 
