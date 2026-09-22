@@ -2173,6 +2173,17 @@ label .req,
   background: var(--accent-soft);
 }
 
+.rank-role {
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .rank-col-plot {
   display: flex;
   width: 100%;

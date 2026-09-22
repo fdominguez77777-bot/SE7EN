@@ -86,6 +86,11 @@ export function TeamRanking({
               <span className="rank-col-name">
                 {row.bidder.name}
                 {isYou ? <span className="rank-you">You</span> : null}
+                {row.bidder.role === 'BID_MANAGER' ? (
+                  <span className="rank-role">Manager</span>
+                ) : row.bidder.role === 'ADMIN' && !isYou ? (
+                  <span className="rank-role">Admin</span>
+                ) : null}
               </span>
             )
             return (

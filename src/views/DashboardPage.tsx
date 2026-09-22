@@ -153,9 +153,14 @@ export function DashboardPage() {
   const sparkDates = weekPoints.map((point) => point.date)
 
   const performance = useMemo(() => {
-    const pool = (summary?.bidders ?? []).filter(
-      (bidder) => (bidder.role ?? 'BIDDER') === 'BIDDER',
-    )
+    const pool = (summary?.bidders ?? []).filter((bidder) => {
+      const role = bidder.role ?? 'BIDDER'
+      if (role === 'BIDDER' || role === 'BID_MANAGER') {
+        return true
+      }
+      // Keep the signed-in admin on the board so their credited apps show.
+      return user?.id != null && bidder.id === user.id
+    })
     const rows = pool.map((bidder) => {
       const value = metricForPeriod(bidder, rankPeriod, rankMetric)
       return { bidder, value }
@@ -169,7 +174,7 @@ export function DashboardPage() {
           b.value - a.value ||
           a.bidder.name.localeCompare(b.bidder.name),
       )
-  }, [summary, rankMetric, rankPeriod])
+  }, [summary, rankMetric, rankPeriod, user?.id])
 
   const rankingHasActivity = performance.some((row) => row.value > 0)
 
@@ -473,7 +478,7 @@ export function DashboardPage() {
             }
           >
             {performance.length === 0 ? (
-              <EmptyState title="No bidders to rank." />
+              <EmptyState title="No teammates to rank." />
             ) : !rankingHasActivity ? (
               <EmptyState
                 title="No activity in this period"
@@ -493,7 +498,7 @@ export function DashboardPage() {
                 metricLabel={
                   rankMetric === 'interviews' ? 'Interviews' : 'Applications'
                 }
-                currentUserId={user?.role === 'BIDDER' ? user.id : undefined}
+                currentUserId={user?.id}
                 isStaff={isStaff}
               />
             )}
