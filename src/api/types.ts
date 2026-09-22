@@ -38,6 +38,9 @@ export type LoginHistoryRow = {
   os: string | null
   deviceSummary: string
   createdAt: string
+  lastSeenAt: string
+  durationMs: number
+  active: boolean
 }
 
 export type LoginHistoryListResponse = {

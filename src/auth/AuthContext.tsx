@@ -176,6 +176,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => api.interceptors.response.eject(id)
   }, [logout])
 
+  useEffect(() => {
+    if (status !== 'authenticated' || !token) {
+      return
+    }
+
+    let cancelled = false
+    let inFlight = false
+
+    async function ping() {
+      if (cancelled || inFlight) {
+        return
+      }
+      if (typeof document !== 'undefined' && document.hidden) {
+        return
+      }
+      inFlight = true
+      try {
+        await api.post('/login-history/session')
+      } catch {
+        // Visit tracking must never interrupt the workspace.
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void ping()
+    const timer = window.setInterval(() => {
+      void ping()
+    }, 60_000)
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        void ping()
+      }
+    }
+    function onFocus() {
+      void ping()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [status, token])
+
   const value = useMemo(
     () => ({
       user,

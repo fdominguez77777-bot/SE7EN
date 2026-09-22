@@ -24,6 +24,20 @@ import { PageHeader } from '../ui/page-header'
 import { ROLE_LABEL, roleBadgeTone } from '../ui/roles'
 import { StatusBadge } from '../ui/StatusBadge'
 
+function formatDuration(ms: number) {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60_000))
+  if (totalMinutes < 1) return '<1m'
+  if (totalMinutes < 60) return `${totalMinutes}m`
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours < 24) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+  }
+  const days = Math.floor(hours / 24)
+  const remHours = hours % 24
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`
+}
+
 function formatWhen(iso: string) {
   const date = new Date(iso)
   return {
@@ -113,7 +127,7 @@ export function LoginHistoryPage() {
       <PageHeader
         eyebrow="Security"
         title="Login history"
-        description="Every successful sign-in across the team — IP, approximate region, and device."
+        description="Platform visits — when members open SE7EN, how long they stay, plus IP, region, and device."
         actions={
           <Button
             variant="secondary"
@@ -143,7 +157,7 @@ export function LoginHistoryPage() {
               icon={History}
               label="Shown"
               value={data?.summary.total ?? 0}
-              hint="Most recent events"
+              hint="Recent visits"
             />
             <Stat
               icon={Shield}
@@ -163,8 +177,8 @@ export function LoginHistoryPage() {
 
           <SectionCard
             className="mt-6"
-            title="Sign-in activity"
-            description="Newest first. Location is approximate from network headers."
+            title="Platform visits"
+            description="Opens when someone loads the app. Duration updates while the tab stays active."
             action={
               <div className="lh-filters">
                 <label className="lh-search">
@@ -190,11 +204,11 @@ export function LoginHistoryPage() {
           >
             {items.length === 0 ? (
               <EmptyState
-                title={data?.items.length ? 'No matching sign-ins' : 'No sign-ins recorded yet'}
+                title={data?.items.length ? 'No matching visits' : 'No visits recorded yet'}
                 description={
                   data?.items.length
                     ? 'Try a different search or role filter.'
-                    : 'New logins will appear here after the next successful sign-in.'
+                    : 'Visits appear when a member opens the platform while signed in.'
                 }
               />
             ) : (
@@ -202,7 +216,8 @@ export function LoginHistoryPage() {
                 <table className="lh-table table-ui">
                   <thead>
                     <tr>
-                      <th>When</th>
+                      <th>Opened</th>
+                      <th>Viewed</th>
                       <th>Member</th>
                       <th>Location</th>
                       <th>IP</th>
@@ -250,7 +265,8 @@ function Stat({
 }
 
 function HistoryRow({ row }: { row: LoginHistoryRow }) {
-  const when = formatWhen(row.createdAt)
+  const opened = formatWhen(row.createdAt)
+  const lastSeen = formatWhen(row.lastSeenAt)
   const DeviceIcon = row.device === 'Mobile' ? Smartphone : Laptop
   return (
     <tr>
@@ -258,12 +274,24 @@ function HistoryRow({ row }: { row: LoginHistoryRow }) {
         <div className="lh-when">
           <span className="lh-when-rel">{relativeLabel(row.createdAt)}</span>
           <span className="lh-when-abs">
-            {when.date} · {when.time}
+            {opened.date} · {opened.time}
           </span>
         </div>
       </td>
       <td>
-          <div className="lh-member">
+        <div className="lh-when">
+          <span className="lh-when-rel">
+            {row.active ? 'Active now' : formatDuration(row.durationMs)}
+          </span>
+          <span className="lh-when-abs">
+            {row.active
+              ? `Until ${lastSeen.time}`
+              : `${lastSeen.date} · ${lastSeen.time}`}
+          </span>
+        </div>
+      </td>
+      <td>
+        <div className="lh-member">
           <EntityAvatar name={row.displayName} size="sm" />
           <div className="min-w-0">
             <p className="lh-member-name">{row.displayName}</p>

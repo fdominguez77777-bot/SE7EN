@@ -60,4 +60,8 @@ export class LoginHistory {
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
+
+  /** Last activity while this platform session stayed open. */
+  @Column({ type: 'timestamptz' })
+  lastSeenAt: Date;
 }
