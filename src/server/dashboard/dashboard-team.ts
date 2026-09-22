@@ -52,6 +52,13 @@ export function rollupTeamBidderPerformance(
 }
 
 export function assignDenseRanks(values: number[]) {
+  if (values.length === 0) {
+    return [];
+  }
+  const max = Math.max(...values);
+  if (max <= 0) {
+    return values.map(() => 0);
+  }
   const sorted = [...values].sort((a, b) => b - a);
   const rankByValue = new Map<number, number>();
   let rank = 0;

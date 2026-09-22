@@ -25,15 +25,16 @@ export function TeamRanking({
   currentUserId?: number
   isStaff: boolean
 }) {
-  const leader = rows.find((row) => row.rank === 1)
-  const runnerUp = rows.find((row) => row.rank > 1)
+  const ranked = rows.filter((row) => row.rank > 0)
+  const leader = ranked.find((row) => row.rank === 1)
+  const runnerUp = ranked.find((row) => row.rank > 1)
   const leadBy =
     leader && runnerUp ? Math.max(0, leader.value - runnerUp.value) : 0
   const you = currentUserId
     ? rows.find((row) => row.bidder.id === currentUserId)
     : undefined
-  const max = Math.max(...rows.map((row) => row.value), 1)
-  const columns = pyramidColumns(rows)
+  const max = Math.max(...ranked.map((row) => row.value), 1)
+  const columns = pyramidColumns(ranked)
 
   return (
     <div>
@@ -72,7 +73,7 @@ export function TeamRanking({
         </figcaption>
         <div className="rank-chart">
           {columns.map((row) => {
-            const featured = row.rank === 1
+            const featured = row.rank === 1 && row.value > 0
             const isYou = row.bidder.id === currentUserId
             const height = Math.max(
               row.value > 0 ? MIN_BAR_PX : 4,

@@ -138,15 +138,25 @@ export function DashboardPage() {
   const sparkDates = weekPoints.map((point) => point.date)
 
   const performance = useMemo(() => {
-    const rows = (summary?.bidders ?? []).map((bidder) => {
+    const pool = (summary?.bidders ?? []).filter(
+      (bidder) => bidder.role === 'BIDDER',
+    )
+    const rows = pool.map((bidder) => {
       const value = metricForPeriod(bidder, rankPeriod, rankMetric)
       return { bidder, value }
     })
     const ranks = assignDenseRanks(rows.map((row) => row.value))
     return rows
-      .map((row, index) => ({ ...row, rank: ranks[index] }))
-      .sort((a, b) => a.rank - b.rank || a.bidder.name.localeCompare(b.bidder.name))
+      .map((row, index) => ({ ...row, rank: ranks[index] ?? 0 }))
+      .sort(
+        (a, b) =>
+          (a.rank || 999) - (b.rank || 999) ||
+          b.value - a.value ||
+          a.bidder.name.localeCompare(b.bidder.name),
+      )
   }, [summary, rankMetric, rankPeriod])
+
+  const rankingHasActivity = performance.some((row) => row.value > 0)
 
   const weekRate = interviewRate(weekInts, weekApps)
   const appsPerBidder =
@@ -381,7 +391,20 @@ export function DashboardPage() {
             }
           >
             {performance.length === 0 ? (
-              <EmptyState title="No teammates to rank." />
+              <EmptyState title="No bidders to rank." />
+            ) : !rankingHasActivity ? (
+              <EmptyState
+                title="No activity in this period"
+                description={`Try Week or a custom range — there are no ${
+                  rankMetric === 'interviews' ? 'interviews' : 'applications'
+                } to rank for ${
+                  rankPeriod === 'day'
+                    ? 'today'
+                    : rankPeriod === 'week'
+                      ? 'this week'
+                      : 'this range'
+                } yet.`}
+              />
             ) : (
               <TeamRanking
                 rows={performance}

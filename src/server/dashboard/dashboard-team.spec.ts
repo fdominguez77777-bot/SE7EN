@@ -65,6 +65,7 @@ describe('dashboard team visibility', () => {
   it('ranks bidders by count with ties sharing a dense rank', () => {
     expect(assignDenseRanks([10, 10, 4, 0])).toEqual([1, 1, 2, 3]);
     expect(assignDenseRanks([0, 3, 3])).toEqual([2, 1, 1]);
+    expect(assignDenseRanks([0, 0, 0])).toEqual([0, 0, 0]);
   });
 
   it('counts the previous window and daily buckets without inventing rows', () => {

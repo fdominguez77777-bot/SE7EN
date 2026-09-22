@@ -113,6 +113,7 @@ export type DashboardTeamBidder = {
   name: string
   email: string
   isActive: boolean
+  role?: Role
   applications: number
   interviews: number
   todayApplications: number
