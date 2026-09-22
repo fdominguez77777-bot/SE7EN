@@ -27,6 +27,7 @@ import { CalendarAssignedBidder1771600000000 } from './migrations/1771600000000-
 import { WalletTransaction1771700000000 } from './migrations/1771700000000-WalletTransaction';
 import { WalletOwner1771800000000 } from './migrations/1771800000000-WalletOwner';
 import { UserPasswordVault1771900000000 } from './migrations/1771900000000-UserPasswordVault';
+import { LoginHistory1772000000000 } from './migrations/1772000000000-LoginHistory';
 import { applyDatabaseUrl, isManagedPostgresSsl } from './config/database-url';
 
 config({ path: resolve(process.cwd(), '.env') });
@@ -72,6 +73,7 @@ export default new DataSource({
     WalletTransaction1771700000000,
     WalletOwner1771800000000,
     UserPasswordVault1771900000000,
+    LoginHistory1772000000000,
   ],
   migrationsTableName: 'migrations',
 });

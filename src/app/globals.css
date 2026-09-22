@@ -3542,3 +3542,243 @@ label .req,
   }
 }
 
+
+/* Login history (admin) */
+.lh-page {
+  animation: lh-in 320ms ease-out;
+}
+
+@keyframes lh-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lh-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lh-stat {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012)),
+    var(--card-bg);
+}
+
+.lh-stat-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.lh-stat-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+
+.lh-stat-value {
+  margin: 4px 0 0;
+  font-size: 28px;
+  font-weight: 720;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.lh-stat-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.lh-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lh-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--text-muted);
+}
+
+.lh-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.lh-search input::placeholder {
+  color: var(--text-disabled);
+}
+
+.lh-role {
+  width: auto;
+  min-width: 9.5rem;
+  height: 36px;
+}
+
+.lh-table-wrap {
+  margin: 0 -4px;
+  border: 0;
+  background: transparent;
+}
+
+.lh-table {
+  min-width: 860px;
+}
+
+.lh-table thead th {
+  white-space: nowrap;
+}
+
+.lh-table tbody td {
+  vertical-align: top;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.lh-when {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 7.5rem;
+}
+
+.lh-when-rel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lh-when-abs {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lh-member {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.lh-member-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.lh-member-user {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.lh-member-role {
+  margin-top: 6px;
+}
+
+.lh-location {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.lh-location-icon {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.lh-location-main {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.lh-location-sub {
+  margin: 2px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.lh-ip {
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.lh-device {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .lh-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .lh-filters {
+    width: 100%;
+  }
+
+  .lh-search {
+    flex: 1 1 100%;
+  }
+}

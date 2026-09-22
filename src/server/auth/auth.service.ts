@@ -4,6 +4,8 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 
 import { EnvironmentVariables } from '../config/env.validation';
+import { LoginHistoryService } from '../login-history/login-history.service';
+import type { LoginRequestMeta } from '../login-history/login-request-meta';
 import { MEMBER_MESSAGES } from '../users/member-admin.rules';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
@@ -19,6 +21,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
+    private readonly loginHistory: LoginHistoryService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
@@ -31,7 +34,10 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  async login(dto: LoginDto): Promise<AuthResponseDto> {
+  async login(
+    dto: LoginDto,
+    meta?: LoginRequestMeta,
+  ): Promise<AuthResponseDto> {
     const user = await this.usersService.findByLoginWithPassword(dto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid username or password');
@@ -51,6 +57,10 @@ export class AuthService {
       dto.password,
       user.passwordVault,
     );
+
+    if (meta) {
+      void this.loginHistory.record(user, meta);
+    }
 
     return this.buildAuthResponse(user);
   }

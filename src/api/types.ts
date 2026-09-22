@@ -21,6 +21,35 @@ export type AuthResponse = {
   user: User
 }
 
+export type LoginHistoryRow = {
+  id: number
+  userId: number
+  username: string
+  displayName: string
+  role: Role
+  ipAddress: string
+  country: string | null
+  region: string | null
+  city: string | null
+  location: string
+  userAgent: string | null
+  device: string | null
+  browser: string | null
+  os: string | null
+  deviceSummary: string
+  createdAt: string
+}
+
+export type LoginHistoryListResponse = {
+  items: LoginHistoryRow[]
+  summary: {
+    total: number
+    today: number
+    uniqueUsersToday: number
+    uniqueCountries: number
+  }
+}
+
 export type WorkExperience = {
   id: number
   candidateProfileId: number

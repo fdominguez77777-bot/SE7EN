@@ -1,6 +1,15 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 
+import { loginRequestMeta } from '../login-history/login-request-meta';
 import { AuthService } from './auth.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
@@ -21,7 +30,11 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in and return a JWT' })
-  login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(dto);
+  login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+  ): Promise<AuthResponseDto> {
+    const meta = loginRequestMeta(req.headers, req.socket?.remoteAddress);
+    return this.authService.login(dto, meta);
   }
 }

@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   CalendarClock,
   ChartNoAxesCombined,
+  History,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -70,6 +71,7 @@ const NAV: Record<Role, NavSection[]> = {
       label: 'Admin',
       items: [
         { to: '/admin/members', label: 'Members', icon: UsersRound },
+        { to: '/admin/login-history', label: 'Login history', icon: History },
         { to: '/settings/compensation', label: 'Compensation', icon: WalletCards },
       ],
     },

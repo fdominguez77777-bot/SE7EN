@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
 import { EnvironmentVariables } from '../config/env.validation';
+import { LoginHistoryModule } from '../login-history/login-history.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -14,6 +15,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 @Module({
   imports: [
     forwardRef(() => UsersModule),
+    forwardRef(() => LoginHistoryModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],

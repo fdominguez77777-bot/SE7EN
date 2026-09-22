@@ -25,6 +25,7 @@ import { JiracodersModule } from './integrations/jiracoders/jiracoders.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { CompensationModule } from './compensation/compensation.module';
 import { WalletModule } from './wallet/wallet.module';
+import { LoginHistoryModule } from './login-history/login-history.module';
 import { ProjectsModule } from './projects/projects.module';
 import { UsersModule } from './users/users.module';
 import { DailySubmissionsModule } from './daily-submissions/daily-submissions.module';
@@ -76,6 +77,7 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
     DailySubmissionsModule,
     WeeklyInvoicesModule,
     AuthModule,
+    LoginHistoryModule,
     BidderProfilesModule,
     ProjectsModule,
     BidInvitationsModule,
