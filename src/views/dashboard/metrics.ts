@@ -120,6 +120,30 @@ export function assignDenseRanks(values: number[]) {
   return values.map((value) => rankByValue.get(value) ?? values.length)
 }
 
+export function formatPlace(rank: number) {
+  const n = Math.trunc(rank)
+  const teens = n % 100
+  if (teens >= 11 && teens <= 13) {
+    return `${n}th`
+  }
+  switch (n % 10) {
+    case 1:
+      return `${n}st`
+    case 2:
+      return `${n}nd`
+    case 3:
+      return `${n}rd`
+    default:
+      return `${n}th`
+  }
+}
+
+export function placeParts(rank: number) {
+  const label = formatPlace(rank)
+  const suffix = label.replace(/^\d+/, '')
+  return { rank: Math.trunc(rank), suffix, label }
+}
+
 export function average(values: number[]) {
   if (values.length === 0) {
     return 0

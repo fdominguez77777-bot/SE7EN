@@ -7,6 +7,7 @@ import type { CalendarAccount, CalendarBidder, CalendarConnectLink } from '../ap
 import { useAuth } from '../auth/AuthContext'
 import { Alert, Button, SectionCard } from '../ui/chrome'
 import { useConfirmDialog } from '../ui/confirm-dialog'
+import { FunLoader } from '../ui/loading/fun-loader'
 
 function personOptionLabel(person: CalendarBidder, meId: number | undefined) {
   return person.id === meId ? `${person.name} (you)` : person.name
@@ -124,10 +125,10 @@ export function CalendarIntegrationsPage() {
       <p className="apps-crumb">Operations &gt; Interviews &gt; Calendars</p>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mt-1 text-[26px] font-bold tracking-tight text-[var(--text-primary)]">
+          <h1 className="mt-1 text-[26px] font-bold leading-none tracking-tight text-[var(--text-primary)]">
             Connected calendars
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+          <p className="mt-2 text-[13px] leading-5 text-[var(--text-secondary)]">
             Link Gmails to you, a bid manager, or a bidder. The same person can have several
             calendars — assign each Gmail to them and Save. If Google says insufficient scopes,
             disconnect the account and Add Google Calendar again.
@@ -149,7 +150,7 @@ export function CalendarIntegrationsPage() {
 
       <SectionCard
         className="mt-5"
-        title="Connected calendars"
+        title="Linked accounts"
         action={
           canManage ? (
             <div className="flex gap-2">
@@ -166,7 +167,7 @@ export function CalendarIntegrationsPage() {
         }
       >
         {loading ? (
-          <p className="text-[13px] text-[var(--text-muted)]">Loading calendars…</p>
+          <FunLoader compact label="Loading calendars" />
         ) : accounts.length === 0 ? (
           <p className="text-[13px] text-[var(--text-muted)]">No calendars connected yet.</p>
         ) : (

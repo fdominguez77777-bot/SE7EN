@@ -5,6 +5,7 @@ import { getApiErrorMessage } from '../api/client'
 import { homePathForRole, useAuth } from '../auth/AuthContext'
 import { BrandLogo } from '../ui/BrandLogo'
 import { Alert, Button } from '../ui/chrome'
+import { PasswordField } from '../ui/password-field'
 import { AppLoadingScreen, InlineSpinner } from '../ui/loading/AppLoadingScreen'
 
 export function LoginPage() {
@@ -75,13 +76,11 @@ export function LoginPage() {
         </label>
         <label className="mt-4 block text-sm text-[var(--text-secondary)]">
           Password
-          <input
-            className="input-field"
-            type="password"
+          <PasswordField
             autoComplete="current-password"
             minLength={8}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={setPassword}
             required
             disabled={pending}
           />

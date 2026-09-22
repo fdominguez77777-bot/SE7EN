@@ -29,7 +29,7 @@ import { parseLocalDate, toIsoDate } from '../ui/reporting-period'
 import { StatusBadge } from '../ui/StatusBadge'
 
 type TypeFilter = 'ALL' | WalletTransactionType | 'VOID'
-type PeriodMode = 'all' | 'week' | 'days30' | 'month'
+type PeriodMode = 'all' | 'week' | 'days30' | 'month' | 'custom'
 
 const TYPE_META: Record<
   WalletTransactionType,
@@ -205,10 +205,47 @@ function groupByDay(items: WalletTransaction[]) {
   return groups
 }
 
-function periodLabel(mode: PeriodMode, month: string) {
+function formatCustomRange(from: string, to: string) {
+  if (!from || !to) return 'Custom range'
+  const start = parseLocalDate(from)
+  const end = parseLocalDate(to)
+  if (from === to) {
+    return end.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+  const sameYear = start.getFullYear() === end.getFullYear()
+  const left = start.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: sameYear ? undefined : 'numeric',
+  })
+  const right = end.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  return `${left} – ${right}`
+}
+
+function orderedRange(from: string, to: string) {
+  if (!from || !to) {
+    const bounds = monthBounds(currentMonth())
+    return { from: bounds.from, to: todayIso() }
+  }
+  return from <= to ? { from, to } : { from: to, to: from }
+}
+
+function periodLabel(mode: PeriodMode, month: string, customFrom: string, customTo: string) {
   if (mode === 'all') return 'All time'
   if (mode === 'week') return 'This week'
   if (mode === 'days30') return 'Last 30 days'
+  if (mode === 'custom') {
+    const range = orderedRange(customFrom, customTo)
+    return formatCustomRange(range.from, range.to)
+  }
   return formatMonthFull(month)
 }
 
@@ -231,6 +268,8 @@ export function WalletPage() {
   const [notice, setNotice] = useState('')
   const [period, setPeriod] = useState<PeriodMode>('month')
   const [month, setMonth] = useState(currentMonth)
+  const [customFrom, setCustomFrom] = useState(() => monthBounds(currentMonth()).from)
+  const [customTo, setCustomTo] = useState(todayIso)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL')
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
@@ -249,8 +288,11 @@ export function WalletPage() {
     if (period === 'days30') {
       return { from: shiftDays(todayIso(), -29), to: todayIso() }
     }
+    if (period === 'custom') {
+      return orderedRange(customFrom, customTo)
+    }
     return monthBounds(month)
-  }, [period, month])
+  }, [period, month, customFrom, customTo])
 
   async function load() {
     const { data } = await api.get<WalletLedger>('/wallet', {
@@ -298,8 +340,9 @@ export function WalletPage() {
   const months = ledger.months.length ? ledger.months : monthWindow(currentMonth())
   const sparkMax = Math.max(1, ...ledger.spark.map((point) => Math.abs(point.netCents)))
   const latestPosted = ledger.items.find((row) => row.status === 'POSTED') ?? null
-  const netTone = Number(ledger.summary.periodNet) < 0 ? 'is-out' : 'is-in'
+  const netTone = Number(ledger.summary.periodNet) < 0 ? 'is-out' : Number(ledger.summary.periodNet) > 0 ? 'is-in' : ''
   const priorNet = vsPrior(ledger.summary.periodNet, ledger.summary.previousPeriodNet)
+  const viewLabel = periodLabel(period, month, customFrom, customTo)
 
   function showNotice(message: string) {
     setError('')
@@ -393,12 +436,12 @@ export function WalletPage() {
             </div>
             <div className="wal-hero-side">
               <div>
-                <span>In {periodLabel(period, month)}</span>
-                <strong className="is-in">{formatUsdDelta(ledger.summary.periodIn)}</strong>
+                <span>In {viewLabel}</span>
+                <strong className={Number(ledger.summary.periodIn) > 0 ? 'is-in' : ''}>{formatUsdDelta(ledger.summary.periodIn)}</strong>
               </div>
               <div>
-                <span>Out {periodLabel(period, month)}</span>
-                <strong className="is-out">{formatUsd(ledger.summary.periodOut)}</strong>
+                <span>Out {viewLabel}</span>
+                <strong className={Number(ledger.summary.periodOut) > 0 ? 'is-out' : ''}>{formatUsd(ledger.summary.periodOut)}</strong>
               </div>
               <div>
                 <span>Net</span>
@@ -411,7 +454,7 @@ export function WalletPage() {
           <div className="wal-kpis">
             <article>
               <p>Received</p>
-              <strong className="is-in">{formatUsd(ledger.summary.received)}</strong>
+              <strong className={Number(ledger.summary.received) > 0 ? 'is-in' : ''}>{formatUsd(ledger.summary.received)}</strong>
             </article>
             <article>
               <p>Payments</p>
@@ -446,6 +489,7 @@ export function WalletPage() {
                     ['week', 'This week'],
                     ['days30', '30 days'],
                     ['month', 'Month'],
+                    ['custom', 'Custom'],
                   ] as Array<[PeriodMode, string]>
                 ).map(([id, label]) => (
                   <button
@@ -459,6 +503,29 @@ export function WalletPage() {
                 ))}
               </div>
             </div>
+            {period === 'custom' ? (
+              <div className="wal-custom">
+                <label>
+                  <span>From</span>
+                  <input
+                    className="input-field"
+                    type="date"
+                    value={customFrom}
+                    onChange={(event) => setCustomFrom(event.target.value || customFrom)}
+                  />
+                </label>
+                <label>
+                  <span>To</span>
+                  <input
+                    className="input-field"
+                    type="date"
+                    value={customTo}
+                    onChange={(event) => setCustomTo(event.target.value || customTo)}
+                  />
+                </label>
+                <p>{viewLabel}</p>
+              </div>
+            ) : null}
             <div className="wal-spark">
               {ledger.spark.map((point) => {
                 const height = Math.max(4, Math.round((Math.abs(point.netCents) / sparkMax) * 42))
@@ -548,7 +615,7 @@ export function WalletPage() {
             </form>
           </div>
 
-          <div className="wal-body">
+          <div className={`wal-body${groups.length === 0 && !selected ? ' is-empty' : ''}`}>
             {groups.length === 0 ? (
               <div className="wal-empty">
                 <EmptyState
@@ -632,9 +699,9 @@ export function WalletPage() {
                 onSave={saveDetails}
                 onError={setError}
               />
-            ) : (
+            ) : groups.length > 0 ? (
               <aside className="wal-detail wal-idle">
-                <p className="wal-kicker">{periodLabel(period, month)}</p>
+                <p className="wal-kicker">{viewLabel}</p>
                 <h3>{ledger.summary.periodCount} posted in view</h3>
                 <p>
                   Select a transaction to inspect the counterparty, method, and running balance. This history stays on your account only.
@@ -644,7 +711,7 @@ export function WalletPage() {
                   Record transaction
                 </Button>
               </aside>
-            )}
+            ) : null}
           </div>
         </>
       )}
@@ -657,8 +724,10 @@ export function WalletPage() {
             setTypeFilter('ALL')
             setAppliedSearch('')
             setSearch('')
-            setPeriod('month')
-            setMonth(occurredOn.slice(0, 7))
+            if (period !== 'custom') {
+              setPeriod('month')
+              setMonth(occurredOn.slice(0, 7))
+            }
             showNotice('Transaction posted to the ledger.')
             setReloadNonce((value) => value + 1)
           }}

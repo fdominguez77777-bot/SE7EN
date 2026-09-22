@@ -90,12 +90,12 @@ export function InterviewsPage() {
     }
     setError('')
     try {
-      const { data: bidderRows } = await api.get<CalendarBidder[]>('/calendar/bidders')
+      const [{ data: bidderRows }, { data: eventRows }] = await Promise.all([
+        api.get<CalendarBidder[]>('/calendar/bidders'),
+        api.get<CalendarEvent[]>('/calendar/events', { params: { from, to } }),
+      ])
       setBidders(bidderRows)
       setSelected((current) => current.filter((id) => bidderRows.some((row) => row.id === id)))
-      const { data: eventRows } = await api.get<CalendarEvent[]>('/calendar/events', {
-        params: { from, to },
-      })
       setEvents(eventRows)
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -153,7 +153,7 @@ export function InterviewsPage() {
       <div className="iv-toolbar">
         <div className="min-w-0">
           <p className="apps-crumb">Operations &gt; Interviews</p>
-          <h1 className="mt-0.5 text-[22px] font-bold tracking-tight text-[var(--text-primary)]">
+          <h1 className="mt-1 text-[26px] font-bold leading-none tracking-tight text-[var(--text-primary)]">
             Interviews
           </h1>
           <p className="apps-count">

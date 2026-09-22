@@ -9,7 +9,7 @@ import type {
 } from '../api/types'
 import { Alert, Button, SectionCard } from '../ui/chrome'
 import { EmptyState } from '../ui/EmptyState'
-import { CardSkeleton } from '../ui/loading/page-skeletons'
+import { FunLoader } from '../ui/loading/fun-loader'
 import { formatUsd } from '../ui/money'
 import { PageHeader } from '../ui/page-header'
 import { toIsoDate } from '../ui/reporting-period'
@@ -237,10 +237,7 @@ export function CompensationSettingsPage() {
       ) : null}
 
       {loading ? (
-        <div className="mt-6 space-y-3">
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
+        <FunLoader label="Loading compensation" />
       ) : (
         <>
           <SectionCard

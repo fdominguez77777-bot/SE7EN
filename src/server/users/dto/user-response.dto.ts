@@ -10,4 +10,9 @@ export class UserResponseDto {
 
 export class MemberDetailDto extends UserResponseDto {
   assignedProfileCount: number;
+  signInPassword: string | null;
+}
+
+export class MemberListItemDto extends UserResponseDto {
+  signInPassword: string | null;
 }

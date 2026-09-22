@@ -135,6 +135,7 @@ export async function googleEvents(params: {
   from: Date;
   to: Date;
   calendarId?: string | null;
+  detail?: 'full' | 'lite';
 }): Promise<UpstreamEvent[]> {
   const calendars = [
     params.calendarId?.trim() || '',
@@ -144,7 +145,13 @@ export async function googleEvents(params: {
   let lastError = 'Google Calendar request failed.';
   for (const calendarId of calendars) {
     try {
-      return await listGoogleCalendar(params.accessToken, calendarId, params.from, params.to);
+      return await listGoogleCalendar(
+        params.accessToken,
+        calendarId,
+        params.from,
+        params.to,
+        params.detail ?? 'full',
+      );
     } catch (error) {
       lastError = error instanceof Error ? error.message : lastError;
     }
@@ -157,6 +164,7 @@ async function listGoogleCalendar(
   calendarId: string,
   from: Date,
   to: Date,
+  detail: 'full' | 'lite',
 ): Promise<UpstreamEvent[]> {
   const collected: UpstreamEvent[] = [];
   let pageToken = '';
@@ -167,8 +175,15 @@ async function listGoogleCalendar(
       singleEvents: 'true',
       orderBy: 'startTime',
       maxResults: '250',
-      maxAttendees: '120',
     });
+    if (detail === 'lite') {
+      query.set(
+        'fields',
+        'nextPageToken,items(id,status,summary,start,end,htmlLink,hangoutLink,location,organizer)',
+      );
+    } else {
+      query.set('maxAttendees', '80');
+    }
     if (pageToken) {
       query.set('pageToken', pageToken);
     }
@@ -332,12 +347,19 @@ export async function microsoftEvents(params: {
   accessToken: string;
   from: Date;
   to: Date;
+  detail?: 'full' | 'lite';
 }): Promise<UpstreamEvent[]> {
   const query = new URLSearchParams({
     startDateTime: params.from.toISOString(),
     endDateTime: params.to.toISOString(),
     $top: '250',
   });
+  if (params.detail === 'lite') {
+    query.set(
+      '$select',
+      'id,subject,start,end,isAllDay,location,onlineMeeting,onlineMeetingUrl,webLink,organizer,isCancelled',
+    );
+  }
   const response = await fetch(
     `https://graph.microsoft.com/v1.0/me/calendarView?${query}`,
     {

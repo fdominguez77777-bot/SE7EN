@@ -14,6 +14,7 @@ import {
   api,
   clearStoredToken,
   getStoredToken,
+  invalidateApiGets,
   isAuthFailure,
   setStoredToken,
 } from '../api/client'
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     clearStoredToken()
     localStorage.removeItem(USER_KEY)
+    invalidateApiGets()
     setToken(null)
     setUser(null)
     setWorkspaceError(false)
@@ -156,12 +158,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const id = api.interceptors.response.use(
       (response) => response,
       (error) => {
-        const url = String(error.config?.url ?? '')
-        const bootstrap = url.includes('/users/me')
+        const url = String(error.config?.url ?? '').split('?')[0]
+        const method = String(error.config?.method ?? 'get').toLowerCase()
+        const bootstrapMeGet =
+          method === 'get' &&
+          (url === '/users/me' || url.endsWith('/users/me'))
         if (
           error.response?.status === 401 &&
           !url.includes('/auth/login') &&
-          !bootstrap
+          !bootstrapMeGet
         ) {
           logout()
         }

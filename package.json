@@ -3,9 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
+    "predev": "node scripts/free-dev-port.cjs",
+    "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build",
-    "start": "next start --hostname 0.0.0.0",
+    "start": "next start --hostname 0.0.0.0 --port 3000",
     "lint": "oxlint",
     "migration:run": "npx tsx src/server/run-migrations.ts",
     "migration:revert": "npx tsx src/server/run-migrations.ts revert",

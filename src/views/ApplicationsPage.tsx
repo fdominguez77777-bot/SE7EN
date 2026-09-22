@@ -352,12 +352,11 @@ export function ApplicationsPage() {
   return (
     <section className="apps-page">
       <p className="apps-crumb">Operations &gt; Applications</p>
-      <h1 className="mt-1 text-[26px] font-bold tracking-tight text-[var(--text-primary)]">
+      <h1 className="mt-1 text-[26px] font-bold leading-none tracking-tight text-[var(--text-primary)]">
         Applications
       </h1>
       <p className="apps-count">
-        {(count ?? items.length).toLocaleString()} application
-        {(count ?? items.length) === 1 ? '' : 's'}
+        {`${(count ?? items.length).toLocaleString()} application${(count ?? items.length) === 1 ? '' : 's'}`}
       </p>
 
       {urlBidderId || urlApplicationId ? (

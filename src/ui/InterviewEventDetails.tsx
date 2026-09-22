@@ -6,6 +6,7 @@ import { EntityAvatar } from './avatar'
 import { formatEventWhen } from './calendar-week'
 import { Button } from './chrome'
 import { safeHttpUrl } from './job-application'
+import { descriptionToPlainText, firstHttpUrl, splitLinkedText } from './text-links'
 
 const RSVP: Record<CalendarGuest['status'], string> = {
   accepted: 'Yes',
@@ -24,10 +25,10 @@ export function InterviewEventDetails({
   onClose: () => void
 }) {
   const when = formatEventWhen(event.start, event.end, event.allDay)
-  const joinUrl = safeHttpUrl(event.joinUrl)
+  const description = descriptionToPlainText(event.description)
+  const joinUrl = safeHttpUrl(event.joinUrl) ?? firstHttpUrl(description)
   const calendarUrl = safeHttpUrl(event.htmlLink)
   const guests = event.guests ?? []
-  const description = plainText(event.description)
   const calendarLabel = owner?.name || event.email
   const calendarEmail = owner?.calendarEmail || event.email
 
@@ -103,7 +104,7 @@ export function InterviewEventDetails({
           </DetailRow>
           {event.location ? (
             <DetailRow icon={MapPin}>
-              <p>{event.location}</p>
+              <LinkedText text={event.location} as="p" />
             </DetailRow>
           ) : null}
           <DetailRow icon={CalendarDays}>
@@ -138,7 +139,7 @@ export function InterviewEventDetails({
           {description ? (
             <div className="iv-detail-notes">
               <p className="iv-detail-label">Description</p>
-              <pre>{description}</pre>
+              <LinkedText text={description} as="pre" />
             </div>
           ) : null}
         </div>
@@ -175,19 +176,24 @@ function DetailRow({
   )
 }
 
-function plainText(value: string | null | undefined) {
-  if (!value?.trim()) {
-    return ''
-  }
-  return value
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+function LinkedText({
+  text,
+  as: Tag,
+}: {
+  text: string
+  as: 'pre' | 'p'
+}) {
+  return (
+    <Tag>
+      {splitLinkedText(text).map((part, index) =>
+        part.href ? (
+          <a key={`${part.href}-${index}`} href={part.href} target="_blank" rel="noreferrer">
+            {part.text}
+          </a>
+        ) : (
+          part.text
+        ),
+      )}
+    </Tag>
+  )
 }

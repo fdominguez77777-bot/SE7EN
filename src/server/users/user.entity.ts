@@ -24,6 +24,9 @@ export class User {
   @Column({ type: 'varchar', select: false })
   password: string;
 
+  @Column({ type: 'varchar', nullable: true, select: false })
+  passwordVault: string | null;
+
   @Column({ type: 'varchar', default: UserRole.BIDDER })
   role: string;
 

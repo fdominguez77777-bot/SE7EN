@@ -281,13 +281,14 @@ export class CalendarService {
     fromIso: string,
     toIso: string,
     actor?: User,
+    detail: 'full' | 'lite' = 'full',
   ): Promise<CalendarEventDto[]> {
     const from = new Date(fromIso);
     const to = new Date(toIso);
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
       throw new BadRequestException('Provide a valid from and to range.');
     }
-    const key = `${actor?.id ?? 0}:${actor?.role ?? ''}:${fromIso}:${toIso}`;
+    const key = `${actor?.id ?? 0}:${actor?.role ?? ''}:${detail}:${fromIso}:${toIso}`;
     const cached = this.eventsCache.get(key);
     if (cached) {
       return cached;
@@ -297,7 +298,7 @@ export class CalendarService {
       if (again) {
         return again;
       }
-      const events = await this.fetchEvents(from, to, actor);
+      const events = await this.fetchEvents(from, to, actor, detail);
       this.eventsCache.set(key, events);
       return events;
     });
@@ -307,6 +308,7 @@ export class CalendarService {
     from: Date,
     to: Date,
     actor?: User,
+    detail: 'full' | 'lite' = 'full',
   ): Promise<CalendarEventDto[]> {
     await this.maybeAutoAssignByEmail();
     const people = await this.users.findCalendarPeople();
@@ -331,12 +333,13 @@ export class CalendarService {
                   from,
                   to,
                   calendarId: account.email,
+                  detail,
                 })
-              : await microsoftEvents({ accessToken: access, from, to });
+              : await microsoftEvents({ accessToken: access, from, to, detail });
           return events.map((event) => this.toEventDto(account, event));
         } catch (error) {
-          const detail = error instanceof Error ? error.message : 'Calendar sync failed.';
-          failures.push(`${account.email}: ${detail}`);
+          const detailMessage = error instanceof Error ? error.message : 'Calendar sync failed.';
+          failures.push(`${account.email}: ${detailMessage}`);
           return [] as CalendarEventDto[];
         }
       }),

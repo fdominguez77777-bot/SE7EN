@@ -1,5 +1,8 @@
+'use client'
+
 import { BrandLogo } from '../BrandLogo'
 import { Button } from '../chrome'
+import { FunLoader } from './fun-loader'
 
 export function AppLoadingScreen({
   message = 'Preparing your workspace…',
@@ -42,15 +45,9 @@ export function AppLoadingScreen({
             ) : null}
           </>
         ) : (
-          <>
-            <p className="app-status mt-8 text-sm text-[var(--text-muted)]">{message}</p>
-            <div
-              className="app-progress mt-5 h-[3px] w-[220px] max-w-full overflow-hidden rounded-full bg-white/10"
-              aria-hidden="true"
-            >
-              <span className="app-progress-bar block h-full w-1/3 rounded-full bg-[var(--accent)]" />
-            </div>
-          </>
+          <div className="mt-6 w-full">
+            <FunLoader compact overlay={false} label={message} />
+          </div>
         )}
       </div>
     </div>

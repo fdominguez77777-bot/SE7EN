@@ -10,7 +10,8 @@ import { AvatarPhotoDialog } from '../ui/AvatarPhotoDialog'
 import { Alert, Button, SectionCard, StatCard } from '../ui/chrome'
 import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
-import { LoginPasswordPanel } from '../ui/login-password'
+import { LoginPasswordPanel, MemberPasswordText } from '../ui/login-password'
+import { PasswordField } from '../ui/password-field'
 import { TableSkeleton } from '../ui/loading/page-skeletons'
 import { PageHeader } from '../ui/page-header'
 import { StatusBadge } from '../ui/StatusBadge'
@@ -68,7 +69,7 @@ export function MembersPage() {
   const [photoOpen, setPhotoOpen] = useState(false)
 
   async function loadMembers() {
-    const { data } = await api.get<User[]>('/users')
+    const { data } = await api.get<User[]>('/users?includePasswords=1')
     setMembers(data)
     return data
   }
@@ -258,6 +259,7 @@ export function MembersPage() {
     setPending(true)
     try {
       await api.patch(`/users/${selectedId}/password`, { newPassword })
+      await Promise.all([loadMembers(), loadDetail(selectedId)])
       setNotice(
         `Password reset successfully. Share this sign-in password: ${newPassword}`,
       )
@@ -285,6 +287,7 @@ export function MembersPage() {
       action: async () => {
         try {
           await api.patch(`/users/${selected.id}/password`, { useDefault: true })
+          await Promise.all([loadMembers(), loadDetail(selected.id)])
           setNotice(
             `Password reset successfully. Sign-in password: ${DEFAULT_MEMBER_PASSWORD}`,
           )
@@ -498,6 +501,7 @@ export function MembersPage() {
                       <tr>
                         <th>Member</th>
                         <th>Email</th>
+                        <th>Password</th>
                         <th>Role</th>
                         <th>Status</th>
                         <th>Created</th>
@@ -523,6 +527,12 @@ export function MembersPage() {
                             </div>
                           </td>
                           <td className="text-[var(--text-secondary)]">{member.email}</td>
+                          <td onClick={(event) => event.stopPropagation()}>
+                            <MemberPasswordText
+                              password={member.signInPassword}
+                              label={`password for ${member.name}`}
+                            />
+                          </td>
                           <td>
                             <StatusBadge tone={roleBadgeTone(member.role)}>
                               {ROLE_LABEL[member.role]}
@@ -576,6 +586,13 @@ export function MembersPage() {
                           {member.name}
                         </p>
                         <p className="truncate text-sm text-[var(--text-secondary)]">{member.email}</p>
+                        <div className="mt-1 flex items-center gap-1.5 text-sm">
+                          <span className="text-xs text-[var(--text-muted)]">Password</span>
+                          <MemberPasswordText
+                            password={member.signInPassword}
+                            label={`password for ${member.name}`}
+                          />
+                        </div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           <StatusBadge tone={roleBadgeTone(member.role)}>
                             {ROLE_LABEL[member.role]}
@@ -737,6 +754,7 @@ export function MembersPage() {
 
           <LoginPasswordPanel
             personName={selected.name}
+            password={selected.signInPassword}
             onApplyDefault={requestSetDefaultPassword}
             pending={pending}
           />
@@ -833,7 +851,7 @@ export function MembersPage() {
 
           <SectionCard
             title="Security"
-            description="You can set a new password or the default password. Stored passwords cannot be shown because they are hashed."
+            description="Set a new password when someone cannot sign in. The current password is shown above."
           >
             <p className="text-sm text-[var(--text-secondary)]">
               Default password:{' '}
@@ -853,27 +871,23 @@ export function MembersPage() {
               <form onSubmit={onResetPassword} className="mt-4 max-w-md space-y-3">
                 <label className="block text-sm">
                   <span className="text-[var(--text-secondary)]">New password</span>
-                  <input
-                    className="input-field"
-                    type="text"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                  <PasswordField
+                    autoComplete="new-password"
                     minLength={8}
                     maxLength={72}
-                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={setNewPassword}
                     required
                   />
                 </label>
                 <label className="block text-sm">
                   <span className="text-[var(--text-secondary)]">Confirm new password</span>
-                  <input
-                    className="input-field"
-                    type="text"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  <PasswordField
+                    autoComplete="new-password"
                     minLength={8}
                     maxLength={72}
-                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={setConfirmPassword}
                     required
                   />
                 </label>
@@ -898,8 +912,9 @@ export function MembersPage() {
                 </div>
                 {generatedPassword ? (
                   <p className="rounded-lg border border-[var(--border-glass)] bg-white/5 px-3 py-2 text-sm text-[var(--text-secondary)]">
-                    Temporary password (copy now, it will not be shown again):{' '}
+                    Temporary password:{' '}
                     <span className="font-mono">{generatedPassword}</span>
+                    . It will also appear in the member password list after you save.
                   </p>
                 ) : null}
               </form>

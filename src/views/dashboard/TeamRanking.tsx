@@ -3,6 +3,7 @@ import { Trophy } from 'lucide-react'
 
 import type { DashboardTeamBidder } from '../../api/types'
 import { EntityAvatar } from '../../ui/avatar'
+import { formatPlace, placeParts } from './metrics'
 
 export type RankingRow = {
   bidder: DashboardTeamBidder
@@ -41,22 +42,22 @@ export function TeamRanking({
           {you.rank === 1 ? (
             leadBy > 0 ? (
               <>
-                You hold <strong>1st</strong>. Lead is {leadBy.toLocaleString()}{' '}
+                You hold <strong>{formatPlace(1)}</strong>. Lead is {leadBy.toLocaleString()}{' '}
                 {metricLabel.toLowerCase()} — keep it.
               </>
             ) : (
               <>
-                You hold <strong>1st</strong> on this board.
+                You hold <strong>{formatPlace(1)}</strong> on this board.
               </>
             )
           ) : (
             <>
-              You are <strong>#{you.rank}</strong>
+              You are <strong>{formatPlace(you.rank)}</strong>
               {you.value < leader.value ? (
                 <>
                   {' '}
                   · {(leader.value - you.value).toLocaleString()}{' '}
-                  {metricLabel.toLowerCase()} from 1st
+                  {metricLabel.toLowerCase()} from {formatPlace(1)}
                   {leader.bidder.name ? ` (${leader.bidder.name})` : ''}
                 </>
               ) : null}
@@ -79,6 +80,7 @@ export function TeamRanking({
             )
             const tone =
               row.rank === 1 ? '1' : row.rank === 2 ? '2' : row.rank === 3 ? '3' : 'n'
+            const place = placeParts(row.rank)
             const name = (
               <span className="rank-col-name">
                 {row.bidder.name}
@@ -111,8 +113,9 @@ export function TeamRanking({
                   ) : (
                     name
                   )}
-                  <p className="rank-col-place">
-                    {row.rank === 1 ? '1st' : `#${row.rank}`}
+                  <p className="rank-col-place" aria-label={place.label}>
+                    <span className="rank-col-place-num">{place.rank}</span>
+                    <span className="rank-col-place-ord">{place.suffix}</span>
                   </p>
                 </div>
                 <div className="rank-col-plot">

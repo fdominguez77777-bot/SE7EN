@@ -2,11 +2,11 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
-import type { CandidateProfile, User } from '../api/types'
+import type { CandidateProfile, MemberDetail, User } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { Alert, Button } from '../ui/chrome'
-import { CardSkeleton } from '../ui/loading/page-skeletons'
+import { FunLoader } from '../ui/loading/fun-loader'
 import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
 import { LoginPasswordPanel } from '../ui/login-password'
@@ -38,6 +38,7 @@ export function BiddersPage() {
   const [assignProfileId, setAssignProfileId] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [passwordRefresh, setPasswordRefresh] = useState(0)
 
   async function load() {
     const [{ data: bidderRows }, { data: profileRows }] = await Promise.all([
@@ -137,6 +138,7 @@ export function BiddersPage() {
         try {
           await api.patch(`/users/${bidder.id}/password`, { useDefault: true })
           setNotice(`${bidder.name} can sign in with ${DEFAULT_MEMBER_PASSWORD}`)
+          setPasswordRefresh((value) => value + 1)
         } catch (err) {
           setError(getApiErrorMessage(err))
           throw err
@@ -268,11 +270,7 @@ export function BiddersPage() {
       ) : null}
 
       {loading ? (
-        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
+        <FunLoader label="Loading bidders" />
       ) : rows.length === 0 ? (
         <div className="mt-6">
           <EmptyState title="No bidder users yet." />
@@ -310,6 +308,7 @@ export function BiddersPage() {
           onResetPassword={
             isAdmin ? () => requestResetBidderPassword(selected.bidder) : undefined
           }
+          passwordRefresh={passwordRefresh}
         />
       ) : null}
     </section>
@@ -412,6 +411,7 @@ function BidderDetailModal({
   onDelete,
   onResetPassword,
   deleting,
+  passwordRefresh = 0,
 }: {
   row: BidderReportRow
   isAdmin: boolean
@@ -424,7 +424,32 @@ function BidderDetailModal({
   onDelete?: () => void
   onResetPassword?: () => void
   deleting?: boolean
+  passwordRefresh?: number
 }) {
+  const [signInPassword, setSignInPassword] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return
+    }
+    let cancelled = false
+    api
+      .get<MemberDetail>(`/users/${row.bidder.id}`)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setSignInPassword(data.signInPassword)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSignInPassword(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, row.bidder.id, passwordRefresh])
+
   return (
     <div className="apps-modal" onClick={onClose} role="presentation">
       <div
@@ -464,6 +489,7 @@ function BidderDetailModal({
           {isAdmin ? (
             <LoginPasswordPanel
               personName={row.bidder.name}
+              password={signInPassword}
               onApplyDefault={onResetPassword}
             />
           ) : null}

@@ -5,6 +5,9 @@ import axios, {
 } from 'axios'
 
 const inflightGets = new Map<string, Promise<AxiosResponse>>()
+const getCache = new Map<string, { at: number; response: AxiosResponse }>()
+const GET_TTL_MS = 12_000
+const GET_CACHE_MAX = 80
 
 function serializeParams(params: unknown) {
   if (!params || typeof params !== 'object') {
@@ -19,6 +22,42 @@ function serializeParams(params: unknown) {
 
 function requestKey(config: InternalAxiosRequestConfig) {
   return `${(config.method ?? 'get').toLowerCase()} ${config.url ?? ''}?${serializeParams(config.params)}`
+}
+
+function takeCachedGet(key: string) {
+  const hit = getCache.get(key)
+  if (!hit) {
+    return null
+  }
+  if (Date.now() - hit.at >= GET_TTL_MS) {
+    getCache.delete(key)
+    return null
+  }
+  getCache.delete(key)
+  getCache.set(key, hit)
+  return hit.response
+}
+
+function storeCachedGet(key: string, response: AxiosResponse) {
+  if (response.status < 200 || response.status >= 300) {
+    return
+  }
+  getCache.set(key, { at: Date.now(), response })
+  while (getCache.size > GET_CACHE_MAX) {
+    const oldest = getCache.keys().next().value
+    if (oldest === undefined) {
+      break
+    }
+    getCache.delete(oldest)
+  }
+}
+
+export function invalidateApiGets() {
+  getCache.clear()
+}
+
+function wantsFreshGet(config: InternalAxiosRequestConfig) {
+  return Boolean((config as InternalAxiosRequestConfig & { skipGetCache?: boolean }).skipGetCache)
 }
 
 const TOKEN_KEY = 'bp_access_token'
@@ -56,17 +95,34 @@ export const api = axios.create({
 const dispatch = axios.getAdapter(axios.defaults.adapter)
 
 api.defaults.adapter = (config) => {
-  if ((config.method ?? 'get').toLowerCase() !== 'get') {
-    return dispatch(config)
+  const method = (config.method ?? 'get').toLowerCase()
+  if (method !== 'get') {
+    return Promise.resolve(dispatch(config)).then((response) => {
+      if (response.status >= 200 && response.status < 300) {
+        getCache.clear()
+      }
+      return response
+    })
   }
   const key = requestKey(config)
+  if (!wantsFreshGet(config)) {
+    const cached = takeCachedGet(key)
+    if (cached) {
+      return Promise.resolve(cached)
+    }
+  }
   const existing = inflightGets.get(key)
   if (existing) {
     return existing
   }
-  const pending = Promise.resolve(dispatch(config)).finally(() => {
-    inflightGets.delete(key)
-  }) as Promise<AxiosResponse>
+  const pending = Promise.resolve(dispatch(config))
+    .then((response) => {
+      storeCachedGet(key, response)
+      return response
+    })
+    .finally(() => {
+      inflightGets.delete(key)
+    }) as Promise<AxiosResponse>
   inflightGets.set(key, pending)
   return pending
 }
@@ -76,8 +132,6 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
-  config.headers['Cache-Control'] = 'no-cache'
-  config.headers.Pragma = 'no-cache'
   return config
 })
 

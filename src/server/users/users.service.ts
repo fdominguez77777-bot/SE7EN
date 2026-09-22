@@ -7,6 +7,7 @@ import {
   OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
@@ -15,8 +16,10 @@ import { DataSource, Repository } from 'typeorm';
 import { AuditService } from '../audit/audit.service';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { assignmentRejectedReason } from '../bidder-profiles/assignment.rules';
+import { decryptSecret, encryptSecret } from '../calendar/calendar-crypto';
 import { BidManagerCompensation } from '../compensation/bid-manager-compensation.entity';
 import { BidManagerWeeklyPayment } from '../compensation/bid-manager-weekly-payment.entity';
+import { EnvironmentVariables } from '../config/env.validation';
 import {
   AVATAR_MAX_BYTES,
   detectImageKind,
@@ -27,8 +30,13 @@ import {
   detachUserReferences,
   isTransientDbError,
 } from './detach-user-references';
+import { ChangeOwnPasswordDto } from './dto/change-own-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
-import { MemberDetailDto, UserResponseDto } from './dto/user-response.dto';
+import {
+  MemberDetailDto,
+  MemberListItemDto,
+  UserResponseDto,
+} from './dto/user-response.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import {
@@ -73,6 +81,7 @@ export class UsersService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly dataSource: DataSource,
     private readonly files: FileStorageService,
+    private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.byIdCache = new Map();
     this.byIdInflight = new Map();
@@ -101,6 +110,7 @@ export class UsersService implements OnModuleInit {
         name: 'Admin',
         email,
         password: await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, BCRYPT_ROUNDS),
+        passwordVault: this.encryptPassword(DEFAULT_ADMIN_PASSWORD),
         role: UserRole.ADMIN,
         isActive: true,
       }),
@@ -126,6 +136,7 @@ export class UsersService implements OnModuleInit {
       name: input.name.trim(),
       email,
       password: await bcrypt.hash(input.password, BCRYPT_ROUNDS),
+      passwordVault: this.encryptPassword(input.password),
       role: input.role,
       isActive: true,
     });
@@ -145,8 +156,76 @@ export class UsersService implements OnModuleInit {
     return this.usersRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
+      .addSelect('user.passwordVault')
       .where('user.email = :email', { email: this.normalizeEmail(email) })
       .getOne();
+  }
+
+  async rememberPlainPassword(
+    userId: number,
+    plain: string,
+    existingVault?: string | null,
+  ): Promise<void> {
+    if (existingVault && this.decryptPassword(existingVault) === plain) {
+      return;
+    }
+    await this.usersRepository.update(userId, {
+      passwordVault: this.encryptPassword(plain),
+    });
+  }
+
+  async changeOwnPassword(
+    actor: User,
+    dto: ChangeOwnPasswordDto,
+  ): Promise<{ message: string }> {
+    const current = dto.currentPassword;
+    const next = dto.newPassword;
+    if (next.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters.');
+    }
+    if (current === next) {
+      throw new BadRequestException(
+        'Choose a different password from your current one.',
+      );
+    }
+    const user = await this.usersRepository
+      .createQueryBuilder('account')
+      .addSelect('account.password')
+      .where('account.id = :id', { id: actor.id })
+      .getOne();
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const matches = await bcrypt.compare(current, user.password);
+    if (!matches) {
+      throw new BadRequestException('Current password is incorrect.');
+    }
+    await this.usersRepository.update(actor.id, {
+      password: await bcrypt.hash(next, BCRYPT_ROUNDS),
+      passwordVault: this.encryptPassword(next),
+    });
+    this.forgetUserCaches(actor.id);
+    await this.audit.record('user', actor.id, 'change_password', actor.id, {
+      userId: actor.id,
+    });
+    return { message: 'Password updated.' };
+  }
+
+  async listMembersForAdmin(): Promise<MemberListItemDto[]> {
+    const users = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .addSelect('user.passwordVault')
+      .orderBy('user.id', 'ASC')
+      .getMany();
+    const rows: MemberListItemDto[] = [];
+    for (const user of users) {
+      rows.push({
+        ...this.toPublicUser(user),
+        signInPassword: await this.resolvePlainPassword(user),
+      });
+    }
+    return rows;
   }
 
   async findById(id: number): Promise<User | null> {
@@ -230,13 +309,19 @@ export class UsersService implements OnModuleInit {
   }
 
   async getMember(id: number): Promise<MemberDetailDto> {
-    const user = await this.findByIdOrFail(id);
-    const assignedProfileCount = await this.profiles.count({
-      where: { assignedBidderId: id },
-    });
+    const [secrets, assignedProfileCount] = await Promise.all([
+      this.findByIdWithSecrets(id),
+      this.profiles.count({
+        where: { assignedBidderId: id },
+      }),
+    ]);
+    if (!secrets) {
+      throw new NotFoundException('User not found');
+    }
     return {
-      ...this.toPublicUser(user),
+      ...this.toPublicUser(secrets),
       assignedProfileCount,
+      signInPassword: await this.resolvePlainPassword(secrets),
     };
   }
 
@@ -295,7 +380,7 @@ export class UsersService implements OnModuleInit {
       user.isActive = dto.isActive;
     }
 
-    const saved = await this.usersRepository.save(user);
+    const saved = await this.persistPublicUser(user);
     this.forgetUserCaches(id);
     this.byIdCache.set(id, { at: Date.now(), user: saved });
     await this.audit.record('user', id, 'update', actor.id, {
@@ -319,7 +404,10 @@ export class UsersService implements OnModuleInit {
       );
     }
     const password = await bcrypt.hash(plain, BCRYPT_ROUNDS);
-    await this.usersRepository.update(id, { password });
+    await this.usersRepository.update(id, {
+      password,
+      passwordVault: this.encryptPassword(plain),
+    });
     this.forgetUserCaches(id);
     await this.audit.record('user', id, 'reset_password', actor.id, {
       userId: id,
@@ -437,7 +525,7 @@ export class UsersService implements OnModuleInit {
     const nextPath = `avatars/${user.id}/${randomUUID()}.${kind.ext}`;
     await this.files.put(nextPath, file.buffer);
     user.avatarPath = nextPath;
-    const saved = await this.usersRepository.save(user);
+    const saved = await this.persistPublicUser(user);
     this.forgetUserCaches(user.id);
     this.byIdCache.set(user.id, { at: Date.now(), user: saved });
     if (previous && previous !== nextPath) {
@@ -454,7 +542,7 @@ export class UsersService implements OnModuleInit {
     const user = await this.findByIdOrFail(targetId);
     const previous = user.avatarPath;
     user.avatarPath = null;
-    const saved = await this.usersRepository.save(user);
+    const saved = await this.persistPublicUser(user);
     this.forgetUserCaches(user.id);
     this.byIdCache.set(user.id, { at: Date.now(), user: saved });
     await this.files.delete(previous);
@@ -462,6 +550,67 @@ export class UsersService implements OnModuleInit {
       userId: user.id,
     });
     return this.toPublicUser(saved);
+  }
+
+  private async persistPublicUser(user: User): Promise<User> {
+    await this.usersRepository.update(user.id, {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      avatarPath: user.avatarPath,
+    });
+    return user;
+  }
+
+  private vaultSecret(): string {
+    return this.config.get('JWT_SECRET', { infer: true });
+  }
+
+  private encryptPassword(plain: string): string {
+    return encryptSecret(plain, this.vaultSecret());
+  }
+
+  private decryptPassword(payload: string | null | undefined): string | null {
+    if (!payload) {
+      return null;
+    }
+    try {
+      return decryptSecret(payload, this.vaultSecret());
+    } catch {
+      return null;
+    }
+  }
+
+  private async findByIdWithSecrets(id: number): Promise<User | null> {
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .addSelect('user.passwordVault')
+      .where('user.id = :id', { id })
+      .getOne();
+  }
+
+  private async resolvePlainPassword(user: User): Promise<string | null> {
+    const known = this.decryptPassword(user.passwordVault);
+    if (known) {
+      return known;
+    }
+    if (!user.password) {
+      return null;
+    }
+    if (await bcrypt.compare(DEFAULT_MEMBER_PASSWORD, user.password)) {
+      await this.rememberPlainPassword(user.id, DEFAULT_MEMBER_PASSWORD);
+      return DEFAULT_MEMBER_PASSWORD;
+    }
+    if (
+      user.role === UserRole.ADMIN &&
+      (await bcrypt.compare(DEFAULT_ADMIN_PASSWORD, user.password))
+    ) {
+      await this.rememberPlainPassword(user.id, DEFAULT_ADMIN_PASSWORD);
+      return DEFAULT_ADMIN_PASSWORD;
+    }
+    return null;
   }
 
   private assertCanEditAvatar(actor: User, targetId: number) {

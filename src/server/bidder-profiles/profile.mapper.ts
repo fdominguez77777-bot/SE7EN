@@ -48,6 +48,8 @@ export function toCandidateDto(
       email: string;
       avatarUrl?: string | null;
     } | null;
+    applicationCount?: number;
+    interviewCount?: number;
   },
 ) {
   const dto: Record<string, unknown> = {
@@ -68,6 +70,8 @@ export function toCandidateDto(
     status: profile.status,
     assignedBidderId: profile.assignedBidderId ?? null,
     assignedUser: options.assignedUser ?? null,
+    applicationCount: options.applicationCount ?? 0,
+    interviewCount: options.interviewCount ?? 0,
     experiences: (profile.experiences ?? [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)

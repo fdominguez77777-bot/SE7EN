@@ -3,13 +3,13 @@ import { Link } from '@/lib/navigation'
 import { Loader2, Plus, Search } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
-import type { CandidateProfile, Education, Interview, JobApplication, User, WorkExperience } from '../api/types'
+import type { CandidateProfile, Education, JobApplication, User, WorkExperience } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { Alert, Button } from '../ui/chrome'
 import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
-import { CardSkeleton } from '../ui/loading/page-skeletons'
+import { FunLoader } from '../ui/loading/fun-loader'
 import { PageHeader } from '../ui/page-header'
 import { ROLE_LABEL } from '../ui/roles'
 import { StatusBadge } from '../ui/StatusBadge'
@@ -227,22 +227,17 @@ export function CandidatesPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [applications, setApplications] = useState<JobApplication[]>([])
-  const [interviews, setInterviews] = useState<Interview[]>([])
 
   async function load() {
-    const [{ data }, { data: appRows }, { data: interviewRows }] = await Promise.all([
+    const [{ data }] = await Promise.all([
       api.get<CandidateProfile[]>('/bidder-profiles'),
-      api.get<JobApplication[]>('/job-applications'),
-      api.get<Interview[]>('/interviews'),
+      isAdmin
+        ? api.get<User[]>('/users').then(({ data: userRows }) => {
+            setUsers(userRows)
+          })
+        : Promise.resolve(),
     ])
     setProfiles(data)
-    setApplications(appRows)
-    setInterviews(interviewRows)
-    if (isAdmin) {
-      const { data: userRows } = await api.get<User[]>('/users')
-      setUsers(userRows)
-    }
     return data
   }
 
@@ -341,11 +336,7 @@ export function CandidatesPage() {
               />
             </label>
             {loading ? (
-              <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-                <CardSkeleton className="h-36" />
-                <CardSkeleton className="h-36" />
-                <CardSkeleton className="h-36" />
-              </div>
+              <FunLoader label="Loading profiles" />
             ) : filtered.length === 0 ? (
               <div className="mt-5">
                 <EmptyState
@@ -369,12 +360,8 @@ export function CandidatesPage() {
               <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {filtered.map((profile) => {
                   const name = fullName(profile)
-                  const appCount = applications.filter(
-                    (row) => row.candidateProfileId === profile.id,
-                  ).length
-                  const interviewCount = interviews.filter(
-                    (row) => row.candidateProfileId === profile.id,
-                  ).length
+                  const appCount = profile.applicationCount ?? 0
+                  const interviewCount = profile.interviewCount ?? 0
                   const openEditor = () => {
                     setEditingId(profile.id)
                     setMode('editor')

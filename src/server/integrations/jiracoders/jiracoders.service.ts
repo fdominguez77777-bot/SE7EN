@@ -23,7 +23,7 @@ import {
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
-const FETCH_BATCH = 5;
+const FETCH_BATCH = 8;
 const CACHE_MS = 180_000;
 
 export type CreditedApplication = {

@@ -13,6 +13,14 @@ export class TtlCache<T> {
 
   set(key: string, value: T) {
     this.store.set(key, { at: Date.now(), value });
+    if (this.store.size > 80) {
+      const now = Date.now();
+      for (const [cachedKey, hit] of this.store) {
+        if (now - hit.at >= this.ttlMs) {
+          this.store.delete(cachedKey);
+        }
+      }
+    }
   }
 
   clear() {

@@ -93,19 +93,26 @@ export class BidderProfilesService {
   }
 
   private async loadAll(actor: User) {
-    if (isStaff(actor)) {
-      const rows = await this.profiles.find({
-        relations: PROFILE_RELATIONS,
-        order: { id: 'ASC' },
-      });
-      return Promise.all(rows.map((row) => this.toDto(row, actor)));
-    }
-    const rows = await this.profiles.find({
-      where: { assignedBidderId: actor.id },
-      relations: PROFILE_RELATIONS,
-      order: { id: 'ASC' },
-    });
-    return Promise.all(rows.map((row) => this.toDto(row, actor)));
+    const scope =
+      isStaff(actor)
+        ? this.profiles.find({
+            relations: PROFILE_RELATIONS,
+            order: { id: 'ASC' },
+          })
+        : this.profiles.find({
+            where: { assignedBidderId: actor.id },
+            relations: PROFILE_RELATIONS,
+            order: { id: 'ASC' },
+          });
+    const [rows, counts] = await Promise.all([scope, this.profileActivityCounts()]);
+    return Promise.all(
+      rows.map((row) =>
+        this.toDto(row, actor, {
+          applicationCount: counts.applications.get(row.id) ?? 0,
+          interviewCount: counts.interviews.get(row.id) ?? 0,
+        }),
+      ),
+    );
   }
 
   async findOne(id: number, actor: User) {
@@ -393,7 +400,11 @@ export class BidderProfilesService {
     return false;
   }
 
-  private async toDto(profile: BidderProfile, actor: User) {
+  private async toDto(
+    profile: BidderProfile,
+    actor: User,
+    counts?: { applicationCount?: number; interviewCount?: number },
+  ) {
       const assigned = profile.assignedBidder
       ? {
           id: profile.assignedBidder.id,
@@ -405,7 +416,32 @@ export class BidderProfilesService {
     return toCandidateDto(profile, {
       includeSensitive: this.includeSensitive(actor, profile),
       assignedUser: assigned,
+      applicationCount: counts?.applicationCount,
+      interviewCount: counts?.interviewCount,
     });
+  }
+
+  private async profileActivityCounts() {
+    const [apps, interviews] = await Promise.all([
+      this.dataSource
+        .getRepository(JobApplication)
+        .createQueryBuilder('app')
+        .select('app.candidateProfileId', 'id')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('app.candidateProfileId')
+        .getRawMany<{ id: string | number; count: string }>(),
+      this.dataSource
+        .getRepository(Interview)
+        .createQueryBuilder('interview')
+        .select('interview.candidateProfileId', 'id')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('interview.candidateProfileId')
+        .getRawMany<{ id: string | number; count: string }>(),
+    ]);
+    return {
+      applications: new Map(apps.map((row) => [Number(row.id), Number(row.count)])),
+      interviews: new Map(interviews.map((row) => [Number(row.id), Number(row.count)])),
+    };
   }
 
   private async requireProfile(id: number): Promise<BidderProfile> {

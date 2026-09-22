@@ -161,8 +161,10 @@ describe('member-admin.rules', () => {
       isActive: true,
       created_at: new Date('2026-01-01'),
       password: '$2b$10$secret-hash',
+      passwordVault: 'iv.tag.ciphertext',
     });
     expect(publicUser).not.toHaveProperty('password');
+    expect(publicUser).not.toHaveProperty('passwordVault');
     expect(publicUser).not.toHaveProperty('avatarPath');
     expect(publicUser.avatarUrl).toBeNull();
     expect(JSON.stringify(publicUser)).not.toContain('$2b$');

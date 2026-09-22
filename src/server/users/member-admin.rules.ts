@@ -115,6 +115,7 @@ export function publicUserFields(user: {
   avatarPath?: string | null;
   created_at: Date;
   password?: string;
+  passwordVault?: string | null;
 }) {
   return {
     id: user.id,

@@ -1451,10 +1451,7 @@ function BidderInvoiceCard({
           <div>
             <p className="font-semibold text-[var(--text-primary)]">{row.bidderName}</p>
             <p className="text-[13px] text-[var(--text-secondary)]">
-              {row.assignedProfileCount} assigned profile
-              {row.assignedProfileCount === 1 ? '' : 's'}
-              {row.isActive ? '' : ' · Disabled'}
-              {row.rateSource === 'individual' ? ' · Individual rate' : ''}
+              {`${row.assignedProfileCount} assigned profile${row.assignedProfileCount === 1 ? '' : 's'}${row.isActive ? '' : ' · Disabled'}${row.rateSource === 'individual' ? ' · Individual rate' : ''}`}
             </p>
           </div>
         </div>

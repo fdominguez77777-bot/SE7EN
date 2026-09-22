@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   CalendarClock,
   ChartNoAxesCombined,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -23,6 +24,7 @@ import type { Role } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { AvatarPhotoDialog } from '../ui/AvatarPhotoDialog'
+import { ChangePasswordDialog } from '../ui/ChangePasswordDialog'
 import { BrandLockup, BrandLogo } from '../ui/BrandLogo'
 import { RouteErrorBoundary } from '../ui/RouteErrorBoundary'
 import { StatusBadge } from '../ui/StatusBadge'
@@ -124,9 +126,15 @@ function pageTitle(pathname: string, sections: NavSection[]) {
   for (const section of sections) {
     for (const item of section.items) {
       if (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`)) {
+        if (pathname.startsWith('/interviews/integrations')) {
+          return 'Calendars'
+        }
         return item.label
       }
     }
+  }
+  if (pathname === '/profile' || pathname.startsWith('/profile/')) {
+    return 'Profile'
   }
   return 'SE7EN'
 }
@@ -137,6 +145,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const sections = user ? NAV[user.role] : []
   const title = pageTitle(pathname, sections)
   const unreadDaily = useDailySubmissionInbox(user?.role === 'ADMIN')
@@ -175,8 +184,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                       className={({ isActive }) =>
                         `nav-item flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition duration-150 ${
                           isActive
-                            ? 'bg-white/[0.065] font-medium text-[#f4f4f4] shadow-[inset_3px_0_0_var(--accent)]'
-                            : 'text-[var(--text-secondary)] hover:bg-white/[0.045] hover:text-[var(--text-primary)]'
+                            ? 'bg-white/[0.09] font-medium text-[#f4f4f4] shadow-[inset_3px_0_0_var(--accent)]'
+                            : 'text-[var(--text-secondary)] hover:bg-white/[0.035] hover:text-[var(--text-primary)]'
                         }`
                       }
                       aria-label={
@@ -220,10 +229,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
           <button
             type="button"
-            className="mb-1 flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/[0.045] hover:text-[var(--text-primary)]"
+            className="mb-1 flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/[0.045] hover:text-[var(--text-primary)]"
             onClick={() => setPhotoOpen(true)}
           >
             Change photo
+          </button>
+          <button
+            type="button"
+            className="mb-1 flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/[0.045] hover:text-[var(--text-primary)]"
+            onClick={() => setPasswordOpen(true)}
+          >
+            <KeyRound className="h-4 w-4" aria-hidden="true" />
+            Change password
           </button>
           <button
             type="button"
@@ -325,6 +342,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             setPhotoOpen(false)
           }}
         />
+      ) : null}
+      {passwordOpen ? (
+        <ChangePasswordDialog onClose={() => setPasswordOpen(false)} />
       ) : null}
     </div>
   )

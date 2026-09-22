@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -24,6 +25,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AttachBidderProfileDto } from './dto/attach-bidder-profile.dto';
+import { ChangeOwnPasswordDto } from './dto/change-own-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -69,6 +71,17 @@ export class UsersController {
     return this.usersService.clearAvatar(user.id, user);
   }
 
+  @Patch('me/password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change the current user sign-in password' })
+  changeOwnPassword(
+    @CurrentUser() user: User,
+    @Body() dto: ChangeOwnPasswordDto,
+  ) {
+    return this.usersService.changeOwnPassword(user, dto);
+  }
+
   @Get('bidders')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
@@ -94,7 +107,10 @@ export class UsersController {
   @Roles(...MEMBER_ADMIN_ROLES)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List users (ADMIN)' })
-  async list() {
+  async list(@Query('includePasswords') includePasswords?: string) {
+    if (includePasswords === '1' || includePasswords === 'true') {
+      return this.usersService.listMembersForAdmin();
+    }
     const users = await this.usersService.findAll();
     return users.map((user) => this.usersService.toPublicUser(user));
   }

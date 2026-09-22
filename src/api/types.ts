@@ -8,10 +8,12 @@ export type User = {
   isActive: boolean
   avatarUrl: string | null
   created_at: string
+  signInPassword?: string | null
 }
 
 export type MemberDetail = User & {
   assignedProfileCount: number
+  signInPassword: string | null
 }
 
 export type AuthResponse = {
@@ -65,6 +67,8 @@ export type CandidateProfile = {
   status: string
   assignedBidderId: number | null
   assignedUser: { id: number; name: string; email: string; avatarUrl?: string | null } | null
+  applicationCount?: number
+  interviewCount?: number
   experiences: WorkExperience[]
   educations: Education[]
   created_at: string

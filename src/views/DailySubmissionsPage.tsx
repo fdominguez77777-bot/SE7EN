@@ -240,16 +240,13 @@ export function DailySubmissionsPage() {
   }
 
   async function loadAdmin(nextDate = date, id = selectedId) {
-    const { data } = await api.get<DailySubmissionListItem[]>(
-      '/daily-submissions',
-      { params: { date: nextDate } },
-    )
+    const [{ data }] = await Promise.all([
+      api.get<DailySubmissionListItem[]>('/daily-submissions', {
+        params: { date: nextDate },
+      }),
+      api.post('/daily-submissions/seen').catch(() => null),
+    ])
     setList(data.filter((item) => item.status !== 'DRAFT'))
-    try {
-      await api.post('/daily-submissions/seen')
-    } catch {
-      /* unread count still refreshes below */
-    }
     notifyDailySubmissionInbox()
     if (id) {
       const { data: report } = await api.get<DailySubmissionDetail>(

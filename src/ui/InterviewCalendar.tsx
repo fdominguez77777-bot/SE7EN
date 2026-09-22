@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import type { CalendarBidder, CalendarEvent } from '../api/types'
 import { InterviewEventDetails } from './InterviewEventDetails'
+import { FunLoader } from './loading/fun-loader'
 import {
   CALENDAR_HOURS,
   HOUR_END,
@@ -262,18 +263,5 @@ function blockTone(color: string): { background: string; borderColor: string; co
 }
 
 export function InterviewCalendarSkeleton() {
-  return (
-    <div className="iv-cal iv-cal-skel">
-      <div className="iv-cal-head" style={{ gridTemplateColumns: '56px repeat(7, minmax(0, 1fr))' }}>
-        <div />
-        {Array.from({ length: 7 }).map((_, index) => (
-          <div key={index} className="iv-cal-dayhead">
-            <span>DAY</span>
-            <strong>—</strong>
-          </div>
-        ))}
-      </div>
-      <div className="iv-cal-scroll" />
-    </div>
-  )
+  return <FunLoader label="Loading interviews" />
 }

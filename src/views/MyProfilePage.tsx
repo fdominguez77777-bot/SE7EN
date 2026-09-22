@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link } from '@/lib/navigation'
 
 import { api, getApiErrorMessage } from '../api/client'
-import type { CandidateProfile, Interview, JobApplication } from '../api/types'
+import type { CandidateProfile, Interview } from '../api/types'
 import { CandidateEditor } from './CandidatesPage'
 import { EntityAvatar } from '../ui/avatar'
 import { Alert, Button } from '../ui/chrome'
-import { CardSkeleton } from '../ui/loading/page-skeletons'
+import { FunLoader } from '../ui/loading/fun-loader'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/page-header'
 import { candidateFullName } from '../ui/bidder-report'
@@ -14,20 +14,17 @@ import { isUpcomingInterview } from '../ui/interview-time'
 
 export function MyProfilePage() {
   const [profiles, setProfiles] = useState<CandidateProfile[]>([])
-  const [applications, setApplications] = useState<JobApplication[]>([])
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   async function load() {
-    const [{ data }, { data: appRows }, { data: interviewRows }] = await Promise.all([
+    const [{ data }, { data: interviewRows }] = await Promise.all([
       api.get<CandidateProfile[]>('/bidder-profiles'),
-      api.get<JobApplication[]>('/job-applications'),
       api.get<Interview[]>('/interviews'),
     ])
     setProfiles(data)
-    setApplications(appRows)
     setInterviews(interviewRows)
     setSelectedId((current) => {
       if (current && data.some((row) => row.id === current)) {
@@ -59,10 +56,7 @@ export function MyProfilePage() {
         </div>
       ) : null}
       {loading ? (
-        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <CardSkeleton className="h-28" />
-          <CardSkeleton className="h-28" />
-        </div>
+        <FunLoader label="Loading profiles" />
       ) : profiles.length === 0 ? (
         <div className="mt-6">
           <EmptyState
@@ -74,9 +68,7 @@ export function MyProfilePage() {
         <>
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             {profiles.map((profile) => {
-              const appCount = applications.filter(
-                (row) => row.candidateProfileId === profile.id,
-              ).length
+              const appCount = profile.applicationCount ?? 0
               const upcomingCount = interviews.filter(
                 (row) =>
                   row.candidateProfileId === profile.id && isUpcomingInterview(row),

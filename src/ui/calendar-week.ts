@@ -152,9 +152,12 @@ export function formatWeekLabel(from: Date) {
     month: 'short',
     day: 'numeric',
   })
+  if (fromParts.month === toParts.month && fromParts.year === toParts.year) {
+    return `${fromLabel} – ${toParts.day}, ${toParts.year}`
+  }
   const toLabel = to.toLocaleString('en-US', {
     timeZone: INTERVIEW_TIME_ZONE,
-    month: toParts.month === fromParts.month ? undefined : 'short',
+    month: 'short',
     day: 'numeric',
     year: 'numeric',
   })

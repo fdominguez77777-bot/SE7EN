@@ -46,6 +46,12 @@ export class AuthService {
       throw new UnauthorizedException(MEMBER_MESSAGES.accountDisabled);
     }
 
+    await this.usersService.rememberPlainPassword(
+      user.id,
+      dto.password,
+      user.passwordVault,
+    );
+
     return this.buildAuthResponse(user);
   }
 

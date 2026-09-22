@@ -156,10 +156,10 @@ export function DashboardPage() {
     <section>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-bold tracking-tight text-[var(--text-primary)]">
+          <h1 className="text-[26px] font-bold leading-none tracking-tight text-[var(--text-primary)]">
             Dashboard
           </h1>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          <p className="mt-2 text-sm leading-5 text-[var(--text-secondary)]">
             Team application & interview performance
           </p>
         </div>
@@ -433,9 +433,9 @@ function KpiCard({
       <div className="flex items-start justify-between gap-3">
         <p className="text-[13px] text-[var(--text-secondary)]">{label}</p>
         {sparkline && sparkline.length > 0 ? (
-          <div className="text-right">
+          <div className="shrink-0 text-right">
             <Sparkline values={sparkline} dates={sparkDates} />
-            <p className="mt-0.5 text-[10px] font-medium tracking-wide text-[var(--text-muted)]">
+            <p className="mt-1 text-[10px] font-medium tracking-wide text-[var(--text-muted)]">
               This week
             </p>
           </div>

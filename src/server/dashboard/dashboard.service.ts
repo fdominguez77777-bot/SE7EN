@@ -272,6 +272,7 @@ export class DashboardService {
         from.toISOString(),
         to.toISOString(),
         actor,
+        'lite',
       );
       const names = new Map(bidders.map((row) => [row.id, row.name]));
       return events
