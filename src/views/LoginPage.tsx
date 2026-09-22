@@ -74,7 +74,6 @@ export function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={pending}
-            placeholder="e.g. joe"
           />
         </label>
         <label className="mt-4 block text-sm text-[var(--text-secondary)]">

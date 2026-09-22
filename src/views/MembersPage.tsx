@@ -660,7 +660,6 @@ export function MembersPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="e.g. joe"
               />
             </label>
             <label className="text-sm md:col-span-2 flex items-center gap-2">
@@ -792,7 +791,6 @@ export function MembersPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="e.g. joe"
                 />
               </label>
               <div className="md:col-span-2">
