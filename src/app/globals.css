@@ -3624,9 +3624,9 @@ label .req,
   align-items: center;
   gap: 8px;
   min-width: 220px;
-  height: 36px;
+  height: 40px;
   padding: 0 12px;
-  border: 1px solid var(--border-default);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
   background: var(--input-bg);
   color: var(--text-muted);
@@ -3635,11 +3635,13 @@ label .req,
 .lh-search input {
   flex: 1;
   min-width: 0;
+  height: 100%;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 0.875rem;
+  line-height: 1.25;
 }
 
 .lh-search input::placeholder {
@@ -3647,9 +3649,15 @@ label .req,
 }
 
 .lh-role {
+  box-sizing: border-box;
   width: auto;
   min-width: 9.5rem;
-  height: 36px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  margin: 0;
+  padding: 0 12px;
+  line-height: 38px;
 }
 
 .lh-table-wrap {
