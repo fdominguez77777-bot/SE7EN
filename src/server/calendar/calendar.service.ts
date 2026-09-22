@@ -48,7 +48,7 @@ function cleanEnv(value: string | undefined) {
   return (value ?? '').trim().replace(/^["']|["']$/g, '');
 }
 
-const EVENTS_CACHE_MS = 45_000;
+const EVENTS_CACHE_MS = 15_000;
 const AUTO_ASSIGN_MS = 60_000;
 
 export type CalendarAccountDto = {

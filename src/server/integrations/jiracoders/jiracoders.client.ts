@@ -17,6 +17,8 @@ import {
   JiracodersListQuery,
 } from './jiracoders.types';
 
+const GET_CACHE_MS = 15_000;
+
 type UpstreamError = {
   status: number;
   message: string;
@@ -112,13 +114,13 @@ export class JiracodersClient {
     }
 
     const cached = this.getCache.get(path);
-    if (cached && Date.now() - cached.at < 45_000) {
+    if (cached && Date.now() - cached.at < GET_CACHE_MS) {
       return cached.value as JiracodersEnvelope<T>;
     }
 
     const value = await singleflight(this.getInflight, path, async () => {
       const again = this.getCache.get(path);
-      if (again && Date.now() - again.at < 45_000) {
+      if (again && Date.now() - again.at < GET_CACHE_MS) {
         return again.value;
       }
 

@@ -24,7 +24,7 @@ import {
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 const FETCH_BATCH = 8;
-const CACHE_MS = 180_000;
+const CACHE_MS = 15_000;
 
 export type CreditedApplication = {
   id: number;
@@ -182,7 +182,6 @@ export class JiracodersApplicationsService {
     const bidders = await this.loadLocalBidders();
     const mapped = await this.collectMapped(
       {
-        status: 'applied',
         fromDate: from ? queryDate(from) : undefined,
         toDate: to ? queryDate(new Date(to.getTime() - 1)) : undefined,
       },

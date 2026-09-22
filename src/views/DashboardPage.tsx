@@ -23,7 +23,7 @@ type RankMetric = 'applications' | 'interviews'
 type RankPeriod = 'day' | 'week' | 'custom'
 type ChartMode = 'total' | 'average'
 
-const DASHBOARD_REFRESH_MS = 90_000
+const DASHBOARD_REFRESH_MS = 12_000
 
 function metricForPeriod(
   bidder: DashboardTeamBidder,
@@ -83,6 +83,9 @@ export function DashboardPage() {
       if (inFlight) {
         return
       }
+      if (typeof document !== 'undefined' && document.hidden && !showLoading) {
+        return
+      }
       inFlight = true
       if (showLoading) {
         setLoading(true)
@@ -111,11 +114,16 @@ export function DashboardPage() {
         void refresh(false)
       }
     }
+    function onFocus() {
+      void refresh(false)
+    }
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onFocus)
     return () => {
       cancelled = true
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
     }
   }, [load])
 

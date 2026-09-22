@@ -24,7 +24,7 @@ import {
   type TeamBidderInput,
 } from './dashboard-team';
 
-const SUMMARY_CACHE_MS = 25_000;
+const SUMMARY_CACHE_MS = 8_000;
 
 function parseBound(value?: string): Date | null {
   if (!value?.trim()) {
@@ -362,7 +362,9 @@ export class DashboardService {
         .createQueryBuilder('app')
         .leftJoinAndSelect('app.bidder', 'bidder')
         .where('app.appliedAt >= :from AND app.appliedAt < :to', { from, to })
-        .andWhere('LOWER(app.status) = :status', { status: 'applied' })
+        .andWhere('LOWER(app.status) IN (:...statuses)', {
+          statuses: ['applied', 'draft'],
+        })
         .orderBy('app.appliedAt', 'DESC')
         .getMany();
       return rows.map((row) => ({
