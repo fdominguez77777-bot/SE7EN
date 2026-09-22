@@ -42,7 +42,7 @@ describe('bidder name matching', () => {
       team,
     );
     expect(counts.get(4)).toBe(1);
-    expect(counts.get(2)).toBe(1);
+    expect(counts.get(2)).toBe(2);
     expect(counts.get(9)).toBe(1);
   });
 
@@ -149,14 +149,16 @@ describe('bidder name matching', () => {
 });
 
 describe('application status counting', () => {
-  it('does not count draft applications', () => {
-    expect(countsTowardApplicationTotal('draft')).toBe(false);
-    expect(countsTowardApplicationTotal('Draft')).toBe(false);
+  it('counts applied and draft applications', () => {
+    expect(countsTowardApplicationTotal('draft')).toBe(true);
+    expect(countsTowardApplicationTotal('Draft')).toBe(true);
     expect(countsTowardApplicationTotal('applied')).toBe(true);
     expect(countsTowardApplicationTotal('Applied')).toBe(true);
+    expect(countsTowardApplicationTotal('interviewing')).toBe(false);
+    expect(countsTowardApplicationTotal('')).toBe(false);
   });
 
-  it('credits bidder totals from applied rows only', () => {
+  it('credits bidder totals from applied and draft rows', () => {
     const local = [
       { id: 8, name: 'Yel' },
       { id: 3, name: 'Ada Lovelace' },
@@ -168,10 +170,11 @@ describe('application status counting', () => {
         { bidderName: 'Yel', status: 'draft' },
         { bidderName: 'Yel', status: 'Draft' },
         { bidderName: 'Ada Lovelace', status: 'draft' },
+        { bidderName: 'Ada Lovelace', status: 'interviewing' },
       ],
       local,
     );
-    expect(counts.get(8)).toBe(2);
-    expect(counts.get(3)).toBeUndefined();
+    expect(counts.get(8)).toBe(4);
+    expect(counts.get(3)).toBe(1);
   });
 });

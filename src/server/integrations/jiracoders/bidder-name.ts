@@ -98,8 +98,10 @@ export function sumCountMap(counts: Map<number, number>) {
   return total;
 }
 
+/** Applied and draft rows both count toward dashboard / ranking totals. */
 export function countsTowardApplicationTotal(status: string | null | undefined) {
-  return (status ?? '').trim().toLowerCase() === 'applied';
+  const normalized = (status ?? '').trim().toLowerCase();
+  return normalized === 'applied' || normalized === 'draft';
 }
 
 export function countApplicationsByBidderName(
