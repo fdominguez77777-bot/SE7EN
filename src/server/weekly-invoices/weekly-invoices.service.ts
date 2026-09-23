@@ -327,6 +327,18 @@ export class WeeklyInvoicesService {
     return this.toDetailDto(await this.loadOrFail(id));
   }
 
+  async remove(id: number, actor: User) {
+    if (actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only ADMIN can delete weekly invoices');
+    }
+    const invoice = await this.loadOrFail(id);
+    await this.dailyBidders.delete({ weeklyInvoiceId: invoice.id });
+    await this.sources.delete({ weeklyInvoiceId: invoice.id });
+    await this.rows.delete({ weeklyInvoiceId: invoice.id });
+    await this.invoices.delete(invoice.id);
+    return { ok: true as const, id };
+  }
+
   private async createDraft(
     actor: User,
     period: { periodStart: string; periodEnd: string },

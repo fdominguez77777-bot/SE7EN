@@ -493,6 +493,30 @@ export function WeeklyInvoicesPage() {
     navigate(`/weekly-invoices/${id}`)
   }
 
+  function requestDelete(id: number, label?: string) {
+    ask({
+      title: 'Delete this weekly invoice?',
+      description: label
+        ? `Permanently remove ${label}. This cannot be undone.`
+        : 'Permanently remove this weekly invoice. This cannot be undone.',
+      confirmLabel: 'Delete invoice',
+      pendingLabel: 'Deleting…',
+      confirmTone: 'danger',
+      action: async () => {
+        try {
+          await api.delete(`/weekly-invoices/${id}`)
+          setNotice('Weekly invoice deleted.')
+          setDetail(null)
+          navigate('/weekly-invoices')
+          await loadAdmin(weekStart, null)
+        } catch (err) {
+          setError(getApiErrorMessage(err))
+          throw err
+        }
+      },
+    })
+  }
+
   async function adminAction(path: string, noticeText: string) {
     if (!detail) return
     setPending(true)
@@ -583,6 +607,12 @@ export function WeeklyInvoicesPage() {
           thisMonday={thisMonday}
           onWeekChange={setFocusWeek}
           onView={(id) => void openAdminInvoice(id)}
+          onDelete={(item) =>
+            requestDelete(
+              item.id,
+              `${item.manager?.name ?? 'Bid Manager'} · ${invoiceWeekLabel(item.periodStart, item.periodEnd)}`,
+            )
+          }
         />
       ) : null}
 
@@ -657,6 +687,12 @@ export function WeeklyInvoicesPage() {
               },
             })
           }
+          onDelete={() =>
+            requestDelete(
+              detail.id,
+              `${detail.manager?.name ?? 'Bid Manager'} · ${invoiceWeekLabel(detail.periodStart, detail.periodEnd)}`,
+            )
+          }
           onBack={
             isAdmin ? () => navigate('/weekly-invoices') : undefined
           }
@@ -679,12 +715,14 @@ function AdminList({
   thisMonday,
   onWeekChange,
   onView,
+  onDelete,
 }: {
   items: WeeklyInvoiceListItem[]
   weekStart: string
   thisMonday: string
   onWeekChange: (next: string) => void
   onView: (id: number) => void
+  onDelete: (item: WeeklyInvoiceListItem) => void
 }) {
   const [filter, setFilter] = useState<AdminListFilter>('all')
   const [rangeEnd, setRangeEnd] = useState(thisMonday)
@@ -974,13 +1012,22 @@ function AdminList({
                           className="ds-open"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <Button
-                            variant="ghost"
-                            className="!h-8 !px-2.5 !text-xs"
-                            onClick={() => onView(item.id)}
-                          >
-                            Open
-                          </Button>
+                          <div className="flex flex-wrap items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              className="!h-8 !px-2.5 !text-xs"
+                              onClick={() => onView(item.id)}
+                            >
+                              Open
+                            </Button>
+                            <Button
+                              variant="danger"
+                              className="!h-8 !px-2.5 !text-xs"
+                              onClick={() => onDelete(item)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1014,6 +1061,7 @@ function InvoiceWorkspace({
   onSubmit,
   onApprove,
   onReopen,
+  onDelete,
   onBack,
 }: {
   detail: WeeklyInvoiceDetail
@@ -1040,6 +1088,7 @@ function InvoiceWorkspace({
   onSubmit: () => void
   onApprove: () => void
   onReopen: () => void
+  onDelete: () => void
   onBack?: () => void
 }) {
   const missing = detail.coverage.filter(
@@ -1404,6 +1453,15 @@ function InvoiceWorkspace({
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onReopen}>
             Return to Draft
+          </Button>
+          <Button variant="danger" disabled={pending} onClick={onDelete}>
+            Delete invoice
+          </Button>
+        </div>
+      ) : isAdmin ? (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="danger" disabled={pending} onClick={onDelete}>
+            Delete invoice
           </Button>
         </div>
       ) : null}

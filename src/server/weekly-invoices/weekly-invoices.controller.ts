@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -103,5 +104,12 @@ export class WeeklyInvoicesController {
   @ApiOperation({ summary: 'Return a weekly invoice to draft (ADMIN)' })
   reopen(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User) {
     return this.weeklyInvoices.reopen(id, actor);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete a weekly invoice (ADMIN)' })
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User) {
+    return this.weeklyInvoices.remove(id, actor);
   }
 }

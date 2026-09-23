@@ -439,6 +439,31 @@ export function DailySubmissionsPage() {
     })
   }
 
+  function requestDelete(id: number, label?: string) {
+    ask({
+      title: 'Delete this daily report?',
+      description: label
+        ? `Permanently remove ${label}. This cannot be undone.`
+        : 'Permanently remove this daily report. This cannot be undone.',
+      confirmLabel: 'Delete report',
+      pendingLabel: 'Deleting…',
+      confirmTone: 'danger',
+      action: async () => {
+        try {
+          await api.delete(`/daily-submissions/${id}`)
+          notifyDailySubmissionInbox()
+          setNotice('Daily report deleted.')
+          setDetail(null)
+          navigate('/daily-submissions')
+          await loadAdmin(date, null)
+        } catch (err) {
+          setError(getApiErrorMessage(err))
+          throw err
+        }
+      },
+    })
+  }
+
   async function markReviewed() {
     if (!detail) {
       return
@@ -523,6 +548,12 @@ export function DailySubmissionsPage() {
           items={list}
           onDateChange={setDate}
           onView={(id) => void openAdminReport(id)}
+          onDelete={(item) =>
+            requestDelete(
+              item.id,
+              `${item.manager?.name ?? 'Bid Manager'} · ${formatReportDay(reportingDay(item))}`,
+            )
+          }
         />
       ) : null}
 
@@ -542,6 +573,12 @@ export function DailySubmissionsPage() {
           onSave={() => void saveDraft()}
           onSubmit={requestSubmit}
           onReopen={requestReopen}
+          onDelete={() =>
+            requestDelete(
+              detail.id,
+              `${detail.manager?.name ?? 'Bid Manager'} · ${formatReportDay(detail.reportingDate)}`,
+            )
+          }
           onReview={() => void markReviewed()}
           onBack={
             isAdmin ? () => navigate('/daily-submissions') : undefined
@@ -566,11 +603,13 @@ function AdminList({
   items,
   onDateChange,
   onView,
+  onDelete,
 }: {
   date: string
   items: DailySubmissionListItem[]
   onDateChange: (next: string) => void
   onView: (id: number) => void
+  onDelete: (item: DailySubmissionListItem) => void
 }) {
   const [filter, setFilter] = useState<AdminListFilter>('all')
   const todayIso = toIsoDate(new Date())
@@ -893,13 +932,22 @@ function AdminList({
                           className="ds-open"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <Button
-                            variant="ghost"
-                            className="!h-8 !px-2.5 !text-xs"
-                            onClick={() => openRow(item.id)}
-                          >
-                            Open
-                          </Button>
+                          <div className="flex flex-wrap items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              className="!h-8 !px-2.5 !text-xs"
+                              onClick={() => openRow(item.id)}
+                            >
+                              Open
+                            </Button>
+                            <Button
+                              variant="danger"
+                              className="!h-8 !px-2.5 !text-xs"
+                              onClick={() => onDelete(item)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -927,6 +975,7 @@ function ReportWorkspace({
   onSave,
   onSubmit,
   onReopen,
+  onDelete,
   onReview,
   onBack,
 }: {
@@ -956,6 +1005,7 @@ function ReportWorkspace({
   onSave: () => void
   onSubmit: () => void
   onReopen: () => void
+  onDelete: () => void
   onReview: () => void
   onBack?: () => void
 }) {
@@ -1202,6 +1252,15 @@ function ReportWorkspace({
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onReopen}>
             Return to Draft
+          </Button>
+          <Button variant="danger" disabled={pending} onClick={onDelete}>
+            Delete report
+          </Button>
+        </div>
+      ) : isAdmin ? (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="danger" disabled={pending} onClick={onDelete}>
+            Delete report
           </Button>
         </div>
       ) : null}

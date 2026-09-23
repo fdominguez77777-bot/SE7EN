@@ -272,6 +272,15 @@ export class DailySubmissionsService {
     return this.toDetailDto(await this.loadOrFail(id));
   }
 
+  async remove(id: number, actor: User) {
+    this.assertAdmin(actor);
+    const submission = await this.loadOrFail(id);
+    await this.reads.delete({ dailySubmissionId: submission.id });
+    await this.rows.delete({ dailySubmissionId: submission.id });
+    await this.submissions.delete(submission.id);
+    return { ok: true as const, id };
+  }
+
   private async createDraft(manager: User, reportingDate: string) {
     const submission = await this.submissions.save(
       this.submissions.create({

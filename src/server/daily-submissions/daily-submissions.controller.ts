@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -93,5 +94,12 @@ export class DailySubmissionsController {
   @ApiOperation({ summary: 'Approve a daily report (ADMIN)' })
   review(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User) {
     return this.dailySubmissions.review(id, actor);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete a daily report (ADMIN)' })
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User) {
+    return this.dailySubmissions.remove(id, actor);
   }
 }
