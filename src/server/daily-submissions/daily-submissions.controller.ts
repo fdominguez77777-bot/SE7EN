@@ -50,6 +50,19 @@ export class DailySubmissionsController {
     return this.dailySubmissions.unreadCount(actor);
   }
 
+  @Get('weekly-work-status')
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER)
+  @ApiOperation({
+    summary:
+      'Manager-confirmed Gmail apps and interviews by bidder for a period',
+  })
+  weeklyWorkStatus(
+    @CurrentUser() actor: User,
+    @Query('period') period?: string,
+  ) {
+    return this.dailySubmissions.weeklyWorkStatus(actor, period);
+  }
+
   @Post('seen')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Mark all daily reports as seen by the current admin' })

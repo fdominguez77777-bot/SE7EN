@@ -1035,7 +1035,7 @@ label .req,
 
 .apps-modal-panel {
   display: flex;
-  width: min(1180px, 100%);
+  width: min(1320px, 100%);
   max-height: calc(100vh - 48px);
   flex-direction: column;
   overflow: hidden;
@@ -1128,7 +1128,38 @@ label .req,
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+}
+
+.apps-modal-docs {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.apps-modal-doc {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.apps-modal-doc + .apps-modal-doc {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.apps-modal-doc .apps-block-bar {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.apps-modal-doc .apps-block-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
 }
 
 .apps-modal-main {
@@ -1229,9 +1260,21 @@ label .req,
   border-top: 1px solid var(--border-subtle);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .apps-modal-split {
     grid-template-columns: 1fr;
+  }
+
+  .apps-modal-docs {
+    grid-template-columns: 1fr;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    max-height: min(70vh, 720px);
+  }
+
+  .apps-modal-doc + .apps-modal-doc {
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
   }
 
   .apps-modal-main {
@@ -1239,6 +1282,13 @@ label .req,
     border-bottom: 1px solid var(--border-subtle);
   }
 
+  .apps-bulk {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
   .apps-bulk {
     margin-left: 0;
     width: 100%;

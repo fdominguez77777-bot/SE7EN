@@ -2,7 +2,12 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
-import type { CandidateProfile, MemberDetail, User } from '../api/types'
+import type {
+  BidderWeeklyWorkStatusResponse,
+  CandidateProfile,
+  MemberDetail,
+  User,
+} from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { Alert, Button } from '../ui/chrome'
@@ -18,13 +23,74 @@ import {
   candidateFullName,
   type BidderReportRow,
 } from '../ui/bidder-report'
+import { formatRangeLabel, parseLocalDate } from '../ui/reporting-period'
+
+type WorkPeriod = 'current' | 'previous' | 'days14' | 'days30'
+type WorkSort = 'apps' | 'interviews' | 'name'
+
+const WORK_PERIODS: Array<{ id: WorkPeriod; label: string }> = [
+  { id: 'current', label: 'This Week' },
+  { id: 'previous', label: 'Last Week' },
+  { id: 'days14', label: '2 Weeks' },
+  { id: 'days30', label: '30 Days' },
+]
+
+function weekdayShort(iso: string) {
+  return parseLocalDate(iso.slice(0, 10)).toLocaleDateString('en-US', {
+    weekday: 'short',
+  })
+}
+
+function dayNumber(iso: string) {
+  return parseLocalDate(iso.slice(0, 10)).getDate()
+}
+
+function DayCell({
+  applications,
+  interviews,
+  emphasis = false,
+}: {
+  applications: number
+  interviews: number
+  emphasis?: boolean
+}) {
+  const empty = applications === 0 && interviews === 0
+  return (
+    <div
+      className={`inline-flex min-w-[3.25rem] flex-col items-center leading-tight ${
+        emphasis ? 'rounded-md bg-white/[0.05] px-1.5 py-1' : ''
+      }`}
+    >
+      <span
+        className={`tabular-nums text-[13px] font-semibold ${
+          empty ? 'text-[var(--text-muted)]' : 'text-[#9cc6f8]'
+        }`}
+      >
+        {applications.toLocaleString()}
+      </span>
+      <span
+        className={`tabular-nums text-[11px] font-medium ${
+          empty ? 'text-[var(--text-muted)]' : 'text-[#ddb46e]'
+        }`}
+      >
+        {interviews.toLocaleString()}
+      </span>
+    </div>
+  )
+}
 
 export function BiddersPage() {
   const { user } = useAuth()
   const { ask, dialog } = useConfirmDialog()
   const isAdmin = user?.role === 'ADMIN'
+  const isStaff = user?.role === 'ADMIN' || user?.role === 'BID_MANAGER'
   const [bidders, setBidders] = useState<User[]>([])
   const [profiles, setProfiles] = useState<CandidateProfile[]>([])
+  const [weekWork, setWeekWork] = useState<BidderWeeklyWorkStatusResponse | null>(
+    null,
+  )
+  const [workPeriod, setWorkPeriod] = useState<WorkPeriod>('current')
+  const [workSort, setWorkSort] = useState<WorkSort>('apps')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
@@ -40,25 +106,145 @@ export function BiddersPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [passwordRefresh, setPasswordRefresh] = useState(0)
 
-  async function load() {
-    const [{ data: bidderRows }, { data: profileRows }] = await Promise.all([
+  async function load(period = workPeriod) {
+    const requests: [
+      Promise<{ data: User[] }>,
+      Promise<{ data: CandidateProfile[] } | null>,
+      Promise<{ data: BidderWeeklyWorkStatusResponse }>,
+    ] = [
       api.get<User[]>('/users/bidders'),
-      api.get<CandidateProfile[]>('/bidder-profiles'),
-    ])
-    setBidders(bidderRows)
-    setProfiles(profileRows)
+      isStaff
+        ? api.get<CandidateProfile[]>('/bidder-profiles')
+        : Promise.resolve(null),
+      api.get<BidderWeeklyWorkStatusResponse>(
+        '/daily-submissions/weekly-work-status',
+        { params: { period } },
+      ),
+    ]
+    const [bidderRes, profileRes, workRes] = await Promise.all(requests)
+    setBidders(bidderRes.data)
+    setProfiles(profileRes?.data ?? [])
+    setWeekWork(workRes.data)
   }
 
   useEffect(() => {
     setLoading(true)
-    load()
+    load(workPeriod)
       .catch((err) => setError(getApiErrorMessage(err)))
       .finally(() => setLoading(false))
-  }, [])
+  }, [workPeriod, isStaff])
 
   const rows = useMemo(
     () => buildBidderReport(bidders, profiles, []),
     [bidders, profiles],
+  )
+  const workByBidder = useMemo(() => {
+    const map = new Map<
+      number,
+      {
+        applications: number
+        interviews: number
+        confirmedDays: number
+        days: Array<{
+          reportingDate: string
+          applications: number
+          interviews: number
+        }>
+      }
+    >()
+    const periodDays = weekWork?.days ?? []
+    for (const row of weekWork?.bidders ?? []) {
+      const dayMap = new Map(
+        (row.days ?? []).map((day) => [day.reportingDate.slice(0, 10), day]),
+      )
+      map.set(row.bidderId, {
+        applications: row.applications,
+        interviews: row.interviews,
+        confirmedDays: row.confirmedDays,
+        days: periodDays.map((date) => {
+          const day = dayMap.get(date)
+          return {
+            reportingDate: date,
+            applications: day?.applications ?? 0,
+            interviews: day?.interviews ?? 0,
+          }
+        }),
+      })
+    }
+    return map
+  }, [weekWork])
+  const workDays = weekWork?.days ?? []
+  const weekLabel = useMemo(() => {
+    if (!weekWork) {
+      return 'This week'
+    }
+    const from = parseLocalDate(weekWork.periodStart)
+    const toExclusive = parseLocalDate(weekWork.periodEnd)
+    toExclusive.setDate(toExclusive.getDate() + 1)
+    return formatRangeLabel(from, toExclusive)
+  }, [weekWork])
+  const trackingRows = useMemo(() => {
+    const emptyDays = workDays.map((date) => ({
+      reportingDate: date,
+      applications: 0,
+      interviews: 0,
+    }))
+    const list = rows.map((row) => {
+      const work = workByBidder.get(row.bidder.id) ?? {
+        applications: 0,
+        interviews: 0,
+        confirmedDays: 0,
+        days: emptyDays,
+      }
+      return {
+        bidder: row.bidder,
+        applications: work.applications,
+        interviews: work.interviews,
+        days: work.days,
+      }
+    })
+    return list.sort((a, b) => {
+      if (workSort === 'name') {
+        return a.bidder.name.localeCompare(b.bidder.name)
+      }
+      if (workSort === 'interviews') {
+        return (
+          b.interviews - a.interviews ||
+          b.applications - a.applications ||
+          a.bidder.name.localeCompare(b.bidder.name)
+        )
+      }
+      return (
+        b.applications - a.applications ||
+        b.interviews - a.interviews ||
+        a.bidder.name.localeCompare(b.bidder.name)
+      )
+    })
+  }, [rows, workByBidder, workSort, workDays])
+  const trackingTotals = useMemo(
+    () =>
+      trackingRows.reduce(
+        (acc, row) => ({
+          applications: acc.applications + row.applications,
+          interviews: acc.interviews + row.interviews,
+        }),
+        { applications: 0, interviews: 0 },
+      ),
+    [trackingRows],
+  )
+  const dayTotals = useMemo(
+    () =>
+      workDays.map((date) => {
+        let applications = 0
+        let interviews = 0
+        for (const row of trackingRows) {
+          const day = row.days.find((item) => item.reportingDate === date)
+          applications += day?.applications ?? 0
+          interviews += day?.interviews ?? 0
+        }
+        return { reportingDate: date, applications, interviews }
+      }),
+    [workDays, trackingRows],
   )
   const selected = rows.find((row) => row.bidder.id === selectedId) ?? null
   const unassignedProfiles = profiles.filter((profile) => !profile.assignedUser)
@@ -176,9 +362,13 @@ export function BiddersPage() {
     <section>
       {dialog}
       <PageHeader
-        eyebrow="Operations"
+        eyebrow={isStaff ? 'Operations' : 'Team'}
         title="Bidders"
-        description="Manage bidder accounts, credentials, and assigned profiles."
+        description={
+          isStaff
+            ? 'Manager-confirmed applications and interviews by bidder, plus account and profile management.'
+            : 'Manager-confirmed applications and interviews by bidder, day by day.'
+        }
         actions={
           isAdmin ? (
             <Button onClick={() => setCreateOpen((open) => !open)}>
@@ -276,21 +466,203 @@ export function BiddersPage() {
           <EmptyState title="No bidder users yet." />
         </div>
       ) : (
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {rows.map((row) => (
-            <BidderCard
-              key={row.bidder.id}
-              row={row}
-              canDelete={isAdmin}
-              deleting={deletingId === row.bidder.id}
-              onDelete={() => onDeleteBidder(row.bidder.id)}
-              onSelect={() => setSelectedId(row.bidder.id)}
-            />
-          ))}
-        </div>
+        <>
+          <section className="mt-5 rounded-xl border border-[var(--border-glass)] bg-[var(--bg-glass-solid)] px-4 py-4 md:px-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                  Work status
+                </h2>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  {weekLabel} · {trackingRows.length} bidder
+                  {trackingRows.length === 1 ? '' : 's'} · manager confirmed
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center rounded-full border border-[rgba(96,165,250,0.28)] bg-[rgba(59,130,246,0.12)] px-2.5 py-1 text-xs font-medium text-[#9cc6f8]">
+                    {trackingTotals.applications.toLocaleString()} applications
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-[rgba(215,169,93,0.28)] bg-[rgba(215,169,93,0.12)] px-2.5 py-1 text-xs font-medium text-[#ddb46e]">
+                    {trackingTotals.interviews.toLocaleString()} interviews
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                <div className="flex flex-wrap justify-end gap-1">
+                  {WORK_PERIODS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
+                        workPeriod === option.id
+                          ? 'bg-white/[0.1] text-[var(--text-primary)]'
+                          : 'text-[var(--text-muted)] hover:bg-white/[0.05] hover:text-[var(--text-secondary)]'
+                      }`}
+                      onClick={() => setWorkPeriod(option.id)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap justify-end gap-1">
+                  {(
+                    [
+                      { id: 'apps', label: 'By apps' },
+                      { id: 'interviews', label: 'By interviews' },
+                      { id: 'name', label: 'By name' },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold tracking-wide uppercase transition ${
+                        workSort === option.id
+                          ? 'bg-[var(--accent)] text-[#111214]'
+                          : 'text-[var(--text-muted)] hover:bg-white/[0.05] hover:text-[var(--text-secondary)]'
+                      }`}
+                      onClick={() => setWorkSort(option.id)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-max text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)] text-[11px] font-semibold tracking-wide text-[var(--text-muted)] uppercase">
+                    <th className="sticky left-0 z-10 bg-[var(--bg-glass-solid)] py-2 pr-3 font-semibold">
+                      Bidder
+                    </th>
+                    {workDays.map((date) => (
+                      <th
+                        key={date}
+                        className="min-w-[72px] px-1.5 py-2 text-center font-semibold"
+                      >
+                        <span className="block">{weekdayShort(date)}</span>
+                        <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-[var(--text-muted)]">
+                          {dayNumber(date)}
+                        </span>
+                      </th>
+                    ))}
+                    <th className="min-w-[72px] px-1.5 py-2 text-center font-semibold">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trackingRows.map((row) => (
+                    <tr
+                      key={row.bidder.id}
+                      className="border-b border-[var(--border-subtle)] last:border-b-0"
+                    >
+                      <td className="sticky left-0 z-10 bg-[var(--bg-glass-solid)] py-3 pr-3">
+                        {isStaff ? (
+                          <button
+                            type="button"
+                            className="flex min-w-0 items-center gap-2.5 text-left"
+                            onClick={() => setSelectedId(row.bidder.id)}
+                          >
+                            <EntityAvatar
+                              name={row.bidder.name}
+                              src={row.bidder.avatarUrl}
+                              size="sm"
+                            />
+                            <span className="truncate font-medium text-[var(--text-primary)]">
+                              {row.bidder.name}
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <EntityAvatar
+                              name={row.bidder.name}
+                              src={row.bidder.avatarUrl}
+                              size="sm"
+                            />
+                            <span className="truncate font-medium text-[var(--text-primary)]">
+                              {row.bidder.name}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      {row.days.map((day) => (
+                        <td
+                          key={day.reportingDate}
+                          className="px-1.5 py-3 text-center align-middle"
+                        >
+                          <DayCell
+                            applications={day.applications}
+                            interviews={day.interviews}
+                          />
+                        </td>
+                      ))}
+                      <td className="px-1.5 py-3 text-center align-middle">
+                        <DayCell
+                          applications={row.applications}
+                          interviews={row.interviews}
+                          emphasis
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {workDays.length > 0 ? (
+                  <tfoot>
+                    <tr className="border-t border-[var(--border-subtle)]">
+                      <td className="sticky left-0 z-10 bg-[var(--bg-glass-solid)] py-3 pr-3 text-xs font-semibold tracking-wide text-[var(--text-muted)] uppercase">
+                        Team
+                      </td>
+                      {dayTotals.map((day) => (
+                        <td
+                          key={day.reportingDate}
+                          className="px-1.5 py-3 text-center align-middle"
+                        >
+                          <DayCell
+                            applications={day.applications}
+                            interviews={day.interviews}
+                          />
+                        </td>
+                      ))}
+                      <td className="px-1.5 py-3 text-center align-middle">
+                        <DayCell
+                          applications={trackingTotals.applications}
+                          interviews={trackingTotals.interviews}
+                          emphasis
+                        />
+                      </td>
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
+            </div>
+            <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+              Each day shows{' '}
+              <span className="font-medium text-[#9cc6f8]">applications</span>
+              {' / '}
+              <span className="font-medium text-[#ddb46e]">interviews</span>
+              {' '}from manager-confirmed daily reports.
+            </p>
+          </section>
+
+          {isStaff ? (
+            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {rows.map((row) => (
+                <BidderCard
+                  key={row.bidder.id}
+                  row={row}
+                  canDelete={isAdmin}
+                  deleting={deletingId === row.bidder.id}
+                  onDelete={() => onDeleteBidder(row.bidder.id)}
+                  onSelect={() => setSelectedId(row.bidder.id)}
+                />
+              ))}
+            </div>
+          ) : null}
+        </>
       )}
 
-      {selected ? (
+      {isStaff && selected ? (
         <BidderDetailModal
           row={selected}
           isAdmin={isAdmin}

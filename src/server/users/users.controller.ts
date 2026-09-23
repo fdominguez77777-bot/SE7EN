@@ -84,9 +84,9 @@ export class UsersController {
 
   @Get('bidders')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List BIDDER users (staff)' })
+  @ApiOperation({ summary: 'List BIDDER users' })
   async listBidders() {
     const users = await this.usersService.findBidders();
     return users.map((user) => this.usersService.toPublicUser(user));

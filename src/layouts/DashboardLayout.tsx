@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquareQuote,
   Send,
   UserRoundCog,
   Users,
@@ -74,6 +75,11 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/admin/members', label: 'Members', icon: UsersRound },
         { to: '/admin/login-history', label: 'Login history', icon: History },
         { to: '/settings/compensation', label: 'Compensation', icon: WalletCards },
+        {
+          to: '/settings/interview-prompt',
+          label: 'Interview prompt',
+          icon: MessageSquareQuote,
+        },
       ],
     },
   ],
@@ -112,6 +118,7 @@ const NAV: Record<Role, NavSection[]> = {
       label: 'My work',
       items: [
         { to: '/profile', label: 'My Profiles', icon: Users },
+        { to: '/bidders', label: 'Bidders', icon: UserRoundCog },
         { to: '/applications', label: 'Applications', icon: Send },
         { to: '/interviews', label: 'Interviews', icon: CalendarClock },
       ],

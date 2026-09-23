@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { CalendarDays, Clock, ExternalLink, MapPin, Users, Video, X } from 'lucide-react'
 
 import type { CalendarBidder, CalendarEvent, CalendarGuest } from '../api/types'
+import { useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from './avatar'
 import { formatEventWhen } from './calendar-week'
 import { Button } from './chrome'
@@ -24,6 +25,8 @@ export function InterviewEventDetails({
   owner: CalendarBidder | null
   onClose: () => void
 }) {
+  const { user } = useAuth()
+  const canJoinMeeting = user?.role === 'ADMIN'
   const when = formatEventWhen(event.start, event.end, event.allDay)
   const description = descriptionToPlainText(event.description)
   const joinUrl = safeHttpUrl(event.joinUrl) ?? firstHttpUrl(description)
@@ -88,7 +91,7 @@ export function InterviewEventDetails({
           </div>
         </div>
         <div className="iv-detail-body">
-          {joinUrl ? (
+          {canJoinMeeting && joinUrl ? (
             <a className="iv-detail-join" href={joinUrl} target="_blank" rel="noreferrer">
               <Video className="h-4 w-4" />
               Join meeting

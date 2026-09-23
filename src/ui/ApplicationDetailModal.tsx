@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Check, Copy, ExternalLink, X } from 'lucide-react'
+import { Check, Copy, ExternalLink, MessageSquareQuote, X } from 'lucide-react'
 
 import type { ApplicationTableRow } from '../api/types'
+import { useAuth } from '../auth/AuthContext'
 import { formatApplicationCopy } from './application-resume'
+import { formatInterviewPrompt } from './interview-prompt'
 import { ApplicationResume } from './ApplicationResume'
 import { Button } from './chrome'
 import { jobApplicationStatusLabel, safeHttpUrl } from './job-application'
@@ -37,11 +39,14 @@ export function ApplicationDetailModal({
   loading: boolean
   onClose: () => void
 }) {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'ADMIN'
   const jobUrl = safeHttpUrl(application.jobUrl)
   const resumeUrl = safeHttpUrl(application.resumeUrl)
   const interviews = application.interviews ?? []
   const history = application.statusHistory ?? []
   const [copied, setCopied] = useState(false)
+  const [promptCopied, setPromptCopied] = useState(false)
 
   async function copyApplication() {
     const text = formatApplicationCopy({
@@ -56,6 +61,24 @@ export function ApplicationDetailModal({
       window.setTimeout(() => setCopied(false), 1600)
     } catch {
       setCopied(false)
+    }
+  }
+
+  async function copyInterviewPrompt() {
+    const text = formatInterviewPrompt({
+      companyName: application.companyName,
+      jobTitle: application.jobTitle,
+      jobDescriptionText: application.jobDescriptionText,
+      resumeText: application.resumeText,
+      workHistory: application.profileWorkHistory,
+      educationHistory: application.profileEducation,
+    })
+    try {
+      await navigator.clipboard.writeText(text)
+      setPromptCopied(true)
+      window.setTimeout(() => setPromptCopied(false), 1600)
+    } catch {
+      setPromptCopied(false)
     }
   }
 
@@ -121,6 +144,26 @@ export function ApplicationDetailModal({
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="apps-icon-btn"
+                onClick={() => void copyInterviewPrompt()}
+                title={
+                  promptCopied ? 'Interview prompt copied' : 'Copy interview prompt'
+                }
+                aria-label={
+                  promptCopied ? 'Interview prompt copied' : 'Copy interview prompt'
+                }
+                disabled={loading}
+              >
+                {promptCopied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <MessageSquareQuote className="h-4 w-4" />
+                )}
+              </button>
+            ) : null}
             <Button variant="ghost" onClick={onClose} className="shrink-0">
               <X className="h-4 w-4" />
               Close
@@ -146,35 +189,43 @@ export function ApplicationDetailModal({
           <p className="px-[22px] py-8 text-[13px] text-[var(--text-muted)]">Loading details…</p>
         ) : (
           <div className="apps-modal-split">
-            <div className="apps-modal-main">
-              <div className="apps-block-bar">Job Description</div>
-              <div className="apps-block-body">
-                {application.jobDescriptionText || 'No job description available.'}
-              </div>
-              <div className="apps-block-bar">Resume</div>
-              <div className="apps-block-body">
-                {resumeUrl ? (
-                  <p className="mb-3">
-                    <a
-                      href={resumeUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--accent)] hover:text-[var(--accent-hover)]"
-                    >
-                      Open resume
-                    </a>
-                  </p>
-                ) : null}
-                {application.resumeText ? (
-                  <ApplicationResume
-                    content={application.resumeText}
-                    workHistory={application.profileWorkHistory}
-                    educationHistory={application.profileEducation}
-                  />
-                ) : resumeUrl ? null : (
-                  <p>No resume text available.</p>
-                )}
-              </div>
+            <div className="apps-modal-docs">
+              <section className="apps-modal-doc">
+                <div className="apps-block-bar">Job Description</div>
+                <div className="apps-block-body">
+                  {application.jobDescriptionText || 'No job description available.'}
+                </div>
+              </section>
+              <section className="apps-modal-doc">
+                <div className="apps-block-bar">Resume</div>
+                <div className="apps-block-body">
+                  {resumeUrl ? (
+                    <p className="mb-3">
+                      <a
+                        href={resumeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[var(--accent)] hover:text-[var(--accent-hover)]"
+                      >
+                        Open resume
+                      </a>
+                    </p>
+                  ) : null}
+                  {application.resumeText ? (
+                    <ApplicationResume
+                      content={application.resumeText}
+                      workHistory={application.profileWorkHistory}
+                      educationHistory={application.profileEducation}
+                    />
+                  ) : resumeUrl ? (
+                    <p className="text-[var(--text-muted)]">
+                      Resume text is not available inline. Use Open resume above.
+                    </p>
+                  ) : (
+                    <p>No resume text available.</p>
+                  )}
+                </div>
+              </section>
             </div>
             <aside className="apps-modal-side">
               <h3 className="text-[13px] font-bold text-[var(--text-primary)]">Status history</h3>

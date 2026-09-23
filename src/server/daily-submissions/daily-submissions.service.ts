@@ -13,6 +13,7 @@ import { Interview } from '../interviews/interview.entity';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { avatarPublicUrl } from '../storage/image-kind';
+import { mondaySundayWeek } from '../reporting/week-range';
 import { DailySubmissionBidder } from './daily-submission-bidder.entity';
 import { DailySubmissionRead } from './daily-submission-read.entity';
 import { DailySubmission } from './daily-submission.entity';
@@ -104,6 +105,100 @@ export class DailySubmissionsService {
       .andWhere('(r.id IS NULL OR r.readAt < s.contentChangedAt)')
       .getCount();
     return { count };
+  }
+
+  /**
+   * Manager-confirmed Gmail apps + verified interviews by bidder and day.
+   */
+  async weeklyWorkStatus(actor: User, periodRaw?: string) {
+    this.assertTeamMember(actor);
+    const period = resolveWorkStatusPeriod(periodRaw);
+    const days = enumerateInclusiveDates(period.periodStart, period.periodEnd);
+    const rows = await this.rows
+      .createQueryBuilder('row')
+      .innerJoin('row.dailySubmission', 'submission')
+      .select('row.bidderId', 'bidderId')
+      .addSelect('submission.reportingDate', 'reportingDate')
+      .addSelect(
+        'COALESCE(SUM(row.gmailConfirmedApplicationCount), 0)',
+        'applications',
+      )
+      .addSelect(
+        'COALESCE(SUM(row.verifiedInterviewCount), 0)',
+        'interviews',
+      )
+      .where('submission.reportingDate >= :periodStart', {
+        periodStart: period.periodStart,
+      })
+      .andWhere('submission.reportingDate <= :periodEnd', {
+        periodEnd: period.periodEnd,
+      })
+      .andWhere('submission.status IN (:...statuses)', {
+        statuses: [
+          DailySubmissionStatus.SUBMITTED,
+          DailySubmissionStatus.REVIEWED,
+        ],
+      })
+      .groupBy('row.bidderId')
+      .addGroupBy('submission.reportingDate')
+      .getRawMany<{
+        bidderId: string;
+        reportingDate: string | Date;
+        applications: string;
+        interviews: string;
+      }>();
+
+    const byBidder = new Map<
+      number,
+      {
+        applications: number;
+        interviews: number;
+        confirmedDays: number;
+        dayMap: Map<string, { applications: number; interviews: number }>;
+      }
+    >();
+
+    for (const row of rows) {
+      const bidderId = Number(row.bidderId);
+      const date = this.reportingDateString(row.reportingDate);
+      const applications = Number(row.applications) || 0;
+      const interviews = Number(row.interviews) || 0;
+      let entry = byBidder.get(bidderId);
+      if (!entry) {
+        entry = {
+          applications: 0,
+          interviews: 0,
+          confirmedDays: 0,
+          dayMap: new Map(),
+        };
+        byBidder.set(bidderId, entry);
+      }
+      entry.applications += applications;
+      entry.interviews += interviews;
+      entry.confirmedDays += 1;
+      entry.dayMap.set(date, { applications, interviews });
+    }
+
+    return {
+      period: period.key,
+      periodStart: period.periodStart,
+      periodEnd: period.periodEnd,
+      days,
+      bidders: [...byBidder.entries()].map(([bidderId, entry]) => ({
+        bidderId,
+        applications: entry.applications,
+        interviews: entry.interviews,
+        confirmedDays: entry.confirmedDays,
+        days: days.map((date) => {
+          const day = entry.dayMap.get(date);
+          return {
+            reportingDate: date,
+            applications: day?.applications ?? 0,
+            interviews: day?.interviews ?? 0,
+          };
+        }),
+      })),
+    };
   }
 
   async markInboxSeen(actor: User) {
@@ -461,6 +556,16 @@ export class DailySubmissionsService {
     }
   }
 
+  private assertTeamMember(actor: User) {
+    if (
+      actor.role !== UserRole.ADMIN &&
+      actor.role !== UserRole.BID_MANAGER &&
+      actor.role !== UserRole.BIDDER
+    ) {
+      throw new ForbiddenException('Not allowed.');
+    }
+  }
+
   private assertAdmin(actor: User) {
     if (actor.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Only ADMIN can perform this action');
@@ -645,4 +750,76 @@ export class DailySubmissionsService {
       unread,
     };
   }
+}
+
+function toDateOnly(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function resolveWorkStatusPeriod(periodRaw?: string) {
+  const key = (periodRaw ?? 'current').trim().toLowerCase();
+  if (key === 'previous') {
+    const { from, to } = mondaySundayWeek(
+      new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    );
+    return {
+      key: 'previous' as const,
+      periodStart: toDateOnly(from),
+      periodEnd: toDateOnly(new Date(to.getTime() - 1)),
+    };
+  }
+  if (key === 'days14') {
+    const end = startOfLocalDay();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 13);
+    return {
+      key: 'days14' as const,
+      periodStart: toDateOnly(start),
+      periodEnd: toDateOnly(end),
+    };
+  }
+  if (key === 'days30') {
+    const end = startOfLocalDay();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 29);
+    return {
+      key: 'days30' as const,
+      periodStart: toDateOnly(start),
+      periodEnd: toDateOnly(end),
+    };
+  }
+  const { from, to } = mondaySundayWeek();
+  return {
+    key: 'current' as const,
+    periodStart: toDateOnly(from),
+    periodEnd: toDateOnly(new Date(to.getTime() - 1)),
+  };
+}
+
+function startOfLocalDay(reference = new Date()) {
+  const date = new Date(reference);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function enumerateInclusiveDates(periodStart: string, periodEnd: string) {
+  const days: string[] = [];
+  const cursor = new Date(
+    Number(periodStart.slice(0, 4)),
+    Number(periodStart.slice(5, 7)) - 1,
+    Number(periodStart.slice(8, 10)),
+  );
+  const end = new Date(
+    Number(periodEnd.slice(0, 4)),
+    Number(periodEnd.slice(5, 7)) - 1,
+    Number(periodEnd.slice(8, 10)),
+  );
+  while (cursor.getTime() <= end.getTime()) {
+    days.push(toDateOnly(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
 }

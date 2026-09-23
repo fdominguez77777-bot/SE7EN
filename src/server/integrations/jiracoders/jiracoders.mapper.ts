@@ -64,6 +64,7 @@ export type ApplicationBidderOption = {
   username: string | null;
   isActive: boolean;
   applicationsCount: number;
+  role?: string | null;
 };
 
 function text(value: unknown): string | null {

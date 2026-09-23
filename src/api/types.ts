@@ -483,6 +483,28 @@ export type DailySubmissionListItem = {
   unread: boolean
 }
 
+export type BidderWeeklyWorkDay = {
+  reportingDate: string
+  applications: number
+  interviews: number
+}
+
+export type BidderWeeklyWorkStatus = {
+  bidderId: number
+  applications: number
+  interviews: number
+  confirmedDays: number
+  days: BidderWeeklyWorkDay[]
+}
+
+export type BidderWeeklyWorkStatusResponse = {
+  period: 'current' | 'previous' | 'days14' | 'days30'
+  periodStart: string
+  periodEnd: string
+  days: string[]
+  bidders: BidderWeeklyWorkStatus[]
+}
+
 export type WeeklyInvoiceStatus =
   | 'DRAFT'
   | 'SUBMITTED'

@@ -25,7 +25,7 @@ import { PageSkeleton } from '../ui/loading/page-skeletons'
 import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/page-header'
-import { formatMemberDate, ROLE_LABEL } from '../ui/roles'
+import { ROLE_LABEL } from '../ui/roles'
 import { isWeekend, parseLocalDate, toIsoDate } from '../ui/reporting-period'
 import { StatusBadge } from '../ui/StatusBadge'
 
@@ -87,7 +87,7 @@ function formatCount(value: number) {
 }
 
 function formatReportDay(iso: string) {
-  return parseLocalDate(iso).toLocaleDateString('en-US', {
+  return parseLocalDate(iso.slice(0, 10)).toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
@@ -95,8 +95,16 @@ function formatReportDay(iso: string) {
   })
 }
 
+function formatReportingDateLabel(iso: string) {
+  return parseLocalDate(iso.slice(0, 10)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 function formatShortDay(iso: string) {
-  return parseLocalDate(iso).toLocaleDateString('en-US', {
+  return parseLocalDate(iso.slice(0, 10)).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   })
@@ -386,8 +394,8 @@ export function DailySubmissionsPage() {
     const isUpdate = detail.status !== 'DRAFT'
     ask({
       title: isUpdate
-        ? `Update the daily report for ${formatMemberDate(detail.reportingDate)}?`
-        : `Submit the daily report for ${formatMemberDate(detail.reportingDate)}?`,
+        ? `Update the daily report for ${formatReportingDateLabel(detail.reportingDate)}?`
+        : `Submit the daily report for ${formatReportingDateLabel(detail.reportingDate)}?`,
       description: `Gmail confirmed applications: ${totals.gmail}. Verified interview schedules: ${totals.verified}.${
         isUpdate
           ? ' You can keep editing until a manager approves this report.'
@@ -1027,10 +1035,10 @@ function ReportWorkspace({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-medium tracking-wide text-[var(--text-muted)] uppercase">
-              Today's Report
+              Daily Report
             </p>
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-              {formatMemberDate(detail.reportingDate)}
+              {formatReportDay(detail.reportingDate)}
             </h2>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
               {detail.manager?.name}

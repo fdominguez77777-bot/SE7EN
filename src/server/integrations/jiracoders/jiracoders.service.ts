@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { UsersService } from '../../users/users.service';
+import { User } from '../../users/user.entity';
+import { UserRole } from '../../users/user-role.enum';
 import { singleflight } from '../../cache/singleflight';
 import {
   ApplicationColumnFilters,
@@ -11,6 +13,7 @@ import {
   countApplicationsByBidderName,
   countsFromBidderStats,
   countsTowardApplicationTotal,
+  normalizeBidderName,
 } from './bidder-name';
 import { JiracodersClient } from './jiracoders.client';
 import {
@@ -50,22 +53,25 @@ export class JiracodersApplicationsService {
     this.listInflight = new Map();
   }
 
-  async list(query: {
-    page?: number;
-    limit?: number;
-    keyword?: string;
-    status?: string;
-    cursor?: string;
-    bidderId?: number;
-    fromDate?: string;
-    toDate?: string;
-    company?: string;
-    position?: string;
-    source?: string;
-    statusContains?: string;
-    applied?: string;
-    bidderName?: string;
-  }): Promise<{
+  async list(
+    actor: User,
+    query: {
+      page?: number;
+      limit?: number;
+      keyword?: string;
+      status?: string;
+      cursor?: string;
+      bidderId?: number;
+      fromDate?: string;
+      toDate?: string;
+      company?: string;
+      position?: string;
+      source?: string;
+      statusContains?: string;
+      applied?: string;
+      bidderName?: string;
+    },
+  ): Promise<{
     items: ApplicationTableRow[];
     count: number | null;
     page: number;
@@ -77,6 +83,10 @@ export class JiracodersApplicationsService {
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, Math.max(1, query.limit ?? 25));
     const bidders = await this.loadLocalBidders();
+    const hideAdminApps = actor.role !== UserRole.ADMIN;
+    const adminOwned = hideAdminApps
+      ? await this.loadAdminOwnership()
+      : emptyAdminOwnership();
     const needsScan = Boolean(
       bidderFilter ||
         query.fromDate ||
@@ -86,6 +96,11 @@ export class JiracodersApplicationsService {
 
     if (needsScan) {
       let credited = await this.collectMapped(query, bidders);
+      if (hideAdminApps) {
+        credited = credited.filter(
+          (row) => !isAdminOwnedApplication(row, adminOwned),
+        );
+      }
       if (bidderFilter) {
         credited = credited.filter((row) => row.bidderId === bidderFilter);
       }
@@ -104,6 +119,10 @@ export class JiracodersApplicationsService {
         page,
         limit,
       };
+    }
+
+    if (hideAdminApps) {
+      return this.listHidingAdminApps(query, bidders, adminOwned, page, limit);
     }
 
     const list = await this.client.listApplications({
@@ -129,10 +148,73 @@ export class JiracodersApplicationsService {
     };
   }
 
-  async getOne(id: number): Promise<ApplicationTableDetail> {
-    const [details, bidders] = await Promise.all([
+  /** Page through Jira without a full scan; skip apps credited to local admins. */
+  private async listHidingAdminApps(
+    query: {
+      keyword?: string;
+      status?: string;
+      cursor?: string;
+      fromDate?: string;
+      toDate?: string;
+    },
+    bidders: ApplicationBidderOption[],
+    adminOwned: AdminOwnership,
+    page: number,
+    limit: number,
+  ): Promise<{
+    items: ApplicationTableRow[];
+    count: number | null;
+    page: number;
+    limit: number;
+  }> {
+    const skip = (page - 1) * limit;
+    const items: ApplicationTableRow[] = [];
+    let visibleSeen = 0;
+    let jiraPage = 1;
+    let upstreamCount: number | null = null;
+
+    while (items.length < limit && jiraPage <= MAX_PAGES) {
+      const list = await this.client.listApplications({
+        page: jiraPage,
+        limit: PAGE_SIZE,
+        keyword: query.keyword,
+        status: query.status,
+        cursor: jiraPage === 1 ? query.cursor : undefined,
+        fromDate: query.fromDate,
+        toDate: query.toDate,
+        includeCount: jiraPage === 1,
+      });
+      if (jiraPage === 1 && typeof list.count === 'number') {
+        upstreamCount = list.count;
+      }
+      const rows = Array.isArray(list.data) ? list.data : [];
+      for (const row of rows) {
+        const mapped = mapApplicationListItem(row, bidders);
+        if (!mapped) {
+          continue;
+        }
+        if (isAdminOwnedApplication(mapped, adminOwned)) {
+          continue;
+        }
+        if (visibleSeen >= skip && items.length < limit) {
+          items.push(mapped);
+        }
+        visibleSeen += 1;
+      }
+      if (rows.length < PAGE_SIZE) {
+        break;
+      }
+      jiraPage += 1;
+    }
+
+    return { items, count: upstreamCount, page, limit };
+  }
+
+  async getOne(id: number, actor: User): Promise<ApplicationTableDetail> {
+    const [details, bidders, adminOwned] = await Promise.all([
       this.client.getApplicationDetails(id),
       this.loadLocalBidders(),
+      this.loadAdminOwnership(),
     ]);
     const mapped = details.data
       ? mapApplicationDetails(details.data, bidders)
@@ -140,23 +222,35 @@ export class JiracodersApplicationsService {
     if (!mapped) {
       throw new NotFoundException('Job application not found.');
     }
+    if (
+      actor.role !== UserRole.ADMIN &&
+      isAdminOwnedApplication(mapped, adminOwned)
+    ) {
+      throw new ForbiddenException(
+        'You cannot view applications credited to an admin.',
+      );
+    }
     return mapped;
   }
 
-  async listBidders(): Promise<ApplicationBidderOption[]> {
+  async listBidders(actor: User): Promise<ApplicationBidderOption[]> {
     const bidders = await this.loadLocalBidders();
+    const visible =
+      actor.role === UserRole.ADMIN
+        ? bidders
+        : bidders.filter((bidder) => bidder.role !== UserRole.ADMIN);
     try {
       const envelope = await this.client.listBidderStats();
       const stats = Array.isArray(envelope.data) ? envelope.data : [];
-      const counts = countsFromBidderStats(stats, bidders);
-      return bidders
+      const counts = countsFromBidderStats(stats, visible);
+      return visible
         .map((bidder) => ({
           ...bidder,
           applicationsCount: counts.get(bidder.id) ?? 0,
         }))
         .sort((left, right) => left.name.localeCompare(right.name));
     } catch {
-      return bidders.sort((left, right) => left.name.localeCompare(right.name));
+      return visible.sort((left, right) => left.name.localeCompare(right.name));
     }
   }
 
@@ -306,8 +400,46 @@ export class JiracodersApplicationsService {
       username: null,
       isActive: user.isActive !== false,
       applicationsCount: 0,
+      role: user.role,
     }));
   }
+
+  private async loadAdminOwnership(): Promise<AdminOwnership> {
+    const bidders = await this.loadLocalBidders();
+    const ids = new Set<number>();
+    const names = new Set<string>();
+    for (const bidder of bidders) {
+      if (bidder.role !== UserRole.ADMIN) {
+        continue;
+      }
+      ids.add(bidder.id);
+      const key = normalizeBidderName(bidder.name);
+      if (key) {
+        names.add(key);
+      }
+    }
+    return { ids, names };
+  }
+}
+
+type AdminOwnership = {
+  ids: Set<number>;
+  names: Set<string>;
+};
+
+function emptyAdminOwnership(): AdminOwnership {
+  return { ids: new Set(), names: new Set() };
+}
+
+function isAdminOwnedApplication(
+  row: { bidderId: number | null; bidderName: string | null },
+  adminOwned: AdminOwnership,
+) {
+  if (row.bidderId != null && adminOwned.ids.has(row.bidderId)) {
+    return true;
+  }
+  const key = normalizeBidderName(row.bidderName);
+  return Boolean(key) && adminOwned.names.has(key);
 }
 
 function pushMapped(

@@ -8,9 +8,11 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { User } from '../../users/user.entity';
 import { UserRole } from '../../users/user-role.enum';
 import { JiracodersApplicationsService } from './jiracoders.service';
 
@@ -24,8 +26,8 @@ export class JiracodersApplicationsController {
 
   @Get('bidders')
   @ApiOperation({ summary: 'JiraCoders bidder stats for the Applications filters' })
-  listBidders() {
-    return this.applications.listBidders();
+  listBidders(@CurrentUser() actor: User) {
+    return this.applications.listBidders(actor);
   }
 
   @Get()
@@ -33,6 +35,7 @@ export class JiracodersApplicationsController {
     summary: 'List JiraCoders job applications for the Applications table',
   })
   list(
+    @CurrentUser() actor: User,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('keyword') keyword?: string,
@@ -48,7 +51,7 @@ export class JiracodersApplicationsController {
     @Query('applied') applied?: string,
     @Query('bidderName') bidderName?: string,
   ) {
-    return this.applications.list({
+    return this.applications.list(actor, {
       page: parsePositiveInt(page),
       limit: parsePositiveInt(limit),
       keyword,
@@ -68,8 +71,8 @@ export class JiracodersApplicationsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'JiraCoders job application details' })
-  getOne(@Param('id', ParseIntPipe) id: number) {
-    return this.applications.getOne(id);
+  getOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User) {
+    return this.applications.getOne(id, actor);
   }
 }
 
