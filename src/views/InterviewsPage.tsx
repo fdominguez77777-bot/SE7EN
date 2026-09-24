@@ -78,6 +78,7 @@ export function InterviewsPage() {
   const [query, setQuery] = useState('')
   const [focusDay, setFocusDay] = useState<string>('all')
   const [error, setError] = useState('')
+  const [syncErrors, setSyncErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   const days = useMemo(() => weekDays(weekStart), [weekStart])
@@ -89,14 +90,27 @@ export function InterviewsPage() {
       setLoading(true)
     }
     setError('')
+    setSyncErrors([])
     try {
-      const [{ data: bidderRows }, { data: eventRows }] = await Promise.all([
+      const [{ data: bidderRows }, { data: eventPayload }] = await Promise.all([
         api.get<CalendarBidder[]>('/calendar/bidders'),
-        api.get<CalendarEvent[]>('/calendar/events', { params: { from, to } }),
+        api.get<CalendarEvent[] | { events: CalendarEvent[]; syncErrors?: string[] }>(
+          '/calendar/events',
+          { params: { from, to } },
+        ),
       ])
+      const eventRows = Array.isArray(eventPayload)
+        ? eventPayload
+        : Array.isArray(eventPayload?.events)
+          ? eventPayload.events
+          : []
+      const nextSyncErrors = Array.isArray(eventPayload)
+        ? []
+        : eventPayload?.syncErrors ?? []
       setBidders(bidderRows)
       setSelected((current) => current.filter((id) => bidderRows.some((row) => row.id === id)))
       setEvents(eventRows)
+      setSyncErrors(nextSyncErrors)
     } catch (err) {
       setError(getApiErrorMessage(err))
       setEvents([])
@@ -191,6 +205,31 @@ export function InterviewsPage() {
       {error ? (
         <div className="mt-2">
           <Alert>{error}</Alert>
+        </div>
+      ) : null}
+      {syncErrors.length > 0 ? (
+        <div className="mt-2 rounded-lg border border-[rgba(215,169,93,0.22)] bg-[rgba(215,169,93,0.09)] px-4 py-3 text-sm text-[#ddb46e]">
+          <p className="font-semibold text-[var(--text-primary)]">
+            {syncErrors.length} calendar{syncErrors.length === 1 ? '' : 's'} need reconnecting
+          </p>
+          <p className="mt-1 text-[var(--text-secondary)]">
+            These Google logins expired (common while the Cloud project is in Testing
+            mode — about every 7 days). Disconnect each failed Gmail, then connect it
+            again. Maani still works because that login has not expired yet.
+          </p>
+          <ul className="mt-2 space-y-1 font-mono text-[12px] text-[var(--text-secondary)]">
+            {syncErrors.map((row) => (
+              <li key={row}>{row}</li>
+            ))}
+          </ul>
+          {canConnectCalendars ? (
+            <Link
+              to="/interviews/integrations"
+              className="mt-3 inline-flex text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]"
+            >
+              Open Connect calendars →
+            </Link>
+          ) : null}
         </div>
       ) : null}
 

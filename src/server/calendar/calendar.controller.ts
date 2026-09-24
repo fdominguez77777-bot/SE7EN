@@ -52,7 +52,7 @@ export class CalendarController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.calendar.listEvents(from || '', to || '', user);
+    return this.calendar.listEventsWithMeta(from || '', to || '', user);
   }
 
   @Post('accounts/google/link')

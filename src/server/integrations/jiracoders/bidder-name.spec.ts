@@ -24,6 +24,35 @@ describe('bidder name matching', () => {
     expect(matchBidderIdByName('Unknown', bidders)).toBeNull();
   });
 
+  it('matches near-miss Jira spellings onto the local bidder name', () => {
+    const team = [
+      { id: 5, name: 'Maani' },
+      { id: 4, name: 'Joe' },
+      { id: 8, name: 'Yel' },
+    ];
+    // JiraCoders historically uses "Manni" while the platform user is "Maani".
+    expect(matchBidderIdByName('Manni', team)).toBe(5);
+    expect(matchBidderIdByName('maani', team)).toBe(5);
+    expect(
+      countApplicationsByBidderName(
+        [
+          { bidderName: 'Manni', status: 'applied' },
+          { bidderName: 'Manni', status: 'draft' },
+          { bidderName: 'Joe', status: 'applied' },
+        ],
+        team,
+      ).get(5),
+    ).toBe(2);
+  });
+
+  it('does not fuzzy-match when two local names are equally close', () => {
+    const team = [
+      { id: 1, name: 'Maani' },
+      { id: 2, name: 'Manni' },
+    ];
+    expect(matchBidderIdByName('Mani', team)).toBeNull();
+  });
+
   it('credits admin and bid manager names the same way as bidders', () => {
     const team = [
       { id: 2, name: 'admin' },

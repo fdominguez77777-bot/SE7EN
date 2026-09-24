@@ -6,6 +6,50 @@ export function normalizeBidderEmail(value: string | null | undefined) {
   return (value ?? '').trim().toLowerCase();
 }
 
+/** Small edit distance for near-miss spellings (Maani vs Manni). */
+export function bidderNameDistance(left: string, right: string) {
+  if (left === right) {
+    return 0;
+  }
+  const a = left;
+  const b = right;
+  if (Math.abs(a.length - b.length) > 2) {
+    return Math.max(a.length, b.length);
+  }
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const matrix: number[][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => 0),
+  );
+  for (let i = 0; i < rows; i += 1) {
+    matrix[i][0] = i;
+  }
+  for (let j = 0; j < cols; j += 1) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+}
+
+function maxFuzzyDistance(name: string) {
+  if (name.length >= 6) {
+    return 2;
+  }
+  if (name.length >= 4) {
+    return 1;
+  }
+  return 0;
+}
+
 export function matchBidderIdByName(
   name: string | null | undefined,
   bidders: Array<{ id: number; name: string }>,
@@ -14,10 +58,35 @@ export function matchBidderIdByName(
   if (!key) {
     return null;
   }
-  const matches = bidders
+  const exact = bidders
     .filter((bidder) => normalizeBidderName(bidder.name) === key)
     .sort((left, right) => left.id - right.id);
-  return matches[0]?.id ?? null;
+  if (exact.length > 0) {
+    return exact[0]?.id ?? null;
+  }
+
+  const fuzzyLimit = maxFuzzyDistance(key);
+  if (fuzzyLimit <= 0) {
+    return null;
+  }
+  const near = bidders
+    .map((bidder) => ({
+      id: bidder.id,
+      distance: bidderNameDistance(key, normalizeBidderName(bidder.name)),
+    }))
+    .filter((row) => row.distance > 0 && row.distance <= fuzzyLimit)
+    .sort(
+      (left, right) =>
+        left.distance - right.distance || left.id - right.id,
+    );
+  if (near.length === 0) {
+    return null;
+  }
+  // Only credit when one bidder is clearly closest (no tie at best distance).
+  if (near.length > 1 && near[0].distance === near[1].distance) {
+    return null;
+  }
+  return near[0]?.id ?? null;
 }
 
 export function matchBidderIdByEmail(

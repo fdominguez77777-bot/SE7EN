@@ -101,8 +101,14 @@ export type CalendarEventDto = {
 
 @Injectable()
 export class CalendarService {
-  private readonly eventsCache: TtlCache<CalendarEventDto[]>;
-  private readonly eventsInflight: Map<string, Promise<CalendarEventDto[]>>;
+  private readonly eventsCache: TtlCache<{
+    events: CalendarEventDto[];
+    syncErrors: string[];
+  }>;
+  private readonly eventsInflight: Map<
+    string,
+    Promise<{ events: CalendarEventDto[]; syncErrors: string[] }>
+  >;
   private readonly biddersInflight: Map<string, Promise<CalendarBidderDto[]>>;
   private lastAutoAssignAt: number;
 
@@ -283,6 +289,16 @@ export class CalendarService {
     actor?: User,
     detail: 'full' | 'lite' = 'full',
   ): Promise<CalendarEventDto[]> {
+    const result = await this.listEventsWithMeta(fromIso, toIso, actor, detail);
+    return result.events;
+  }
+
+  async listEventsWithMeta(
+    fromIso: string,
+    toIso: string,
+    actor?: User,
+    detail: 'full' | 'lite' = 'full',
+  ): Promise<{ events: CalendarEventDto[]; syncErrors: string[] }> {
     const from = new Date(fromIso);
     const to = new Date(toIso);
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
@@ -298,9 +314,9 @@ export class CalendarService {
       if (again) {
         return again;
       }
-      const events = await this.fetchEvents(from, to, actor, detail);
-      this.eventsCache.set(key, events);
-      return events;
+      const value = await this.fetchEvents(from, to, actor, detail);
+      this.eventsCache.set(key, value);
+      return value;
     });
   }
 
@@ -309,7 +325,7 @@ export class CalendarService {
     to: Date,
     actor?: User,
     detail: 'full' | 'lite' = 'full',
-  ): Promise<CalendarEventDto[]> {
+  ): Promise<{ events: CalendarEventDto[]; syncErrors: string[] }> {
     await this.maybeAutoAssignByEmail();
     const people = await this.users.findCalendarPeople();
     const hiddenOwnerIds = new Set(
@@ -321,7 +337,7 @@ export class CalendarService {
       (account) =>
         !account.assignedBidderId || !hiddenOwnerIds.has(account.assignedBidderId),
     );
-    const failures: string[] = [];
+    const syncErrors: string[] = [];
     const batches = await Promise.all(
       accounts.map(async (account) => {
         try {
@@ -332,23 +348,27 @@ export class CalendarService {
                   accessToken: access,
                   from,
                   to,
-                  calendarId: account.email,
+                  calendarId: account.calendarId || 'primary',
+                  email: account.email,
                   detail,
                 })
               : await microsoftEvents({ accessToken: access, from, to, detail });
           return events.map((event) => this.toEventDto(account, event));
         } catch (error) {
-          const detailMessage = error instanceof Error ? error.message : 'Calendar sync failed.';
-          failures.push(`${account.email}: ${detailMessage}`);
+          const detailMessage =
+            error instanceof Error ? error.message : 'Calendar sync failed.';
+          syncErrors.push(`${account.email}: ${detailMessage}`);
           return [] as CalendarEventDto[];
         }
       }),
     );
-    const events = batches.flat().sort((left, right) => left.start.localeCompare(right.start));
-    if (events.length === 0 && failures.length > 0) {
-      throw new BadGatewayException(failures.join(' '));
+    const events = batches
+      .flat()
+      .sort((left, right) => left.start.localeCompare(right.start));
+    if (events.length === 0 && syncErrors.length > 0) {
+      throw new BadGatewayException(syncErrors.join(' '));
     }
-    return events;
+    return { events, syncErrors };
   }
 
   connectedPageUrl() {
@@ -379,24 +399,44 @@ export class CalendarService {
       return access;
     }
     if (!account.refreshToken) {
-      return access;
+      throw new Error(
+        'Google login expired — reconnect this Gmail under Connect calendars.',
+      );
     }
     const refresh = decryptSecret(account.refreshToken, secret);
-    const tokens =
-      account.provider === CalendarProvider.GOOGLE
-        ? await refreshGoogleToken({
-            refreshToken: refresh,
-            clientId: this.google().clientId,
-            clientSecret: this.google().clientSecret,
-          })
-        : await refreshMicrosoftToken({
-            refreshToken: refresh,
-            clientId: this.microsoft().clientId,
-            clientSecret: this.microsoft().clientSecret,
-          });
-    this.applyTokens(account, tokens, account.refreshToken);
-    await this.accounts.save(account);
-    return tokens.accessToken;
+    try {
+      const tokens =
+        account.provider === CalendarProvider.GOOGLE
+          ? await refreshGoogleToken({
+              refreshToken: refresh,
+              clientId: this.google().clientId,
+              clientSecret: this.google().clientSecret,
+            })
+          : await refreshMicrosoftToken({
+              refreshToken: refresh,
+              clientId: this.microsoft().clientId,
+              clientSecret: this.microsoft().clientSecret,
+            });
+      this.applyTokens(account, tokens, account.refreshToken);
+      await this.accounts.save(account);
+      return tokens.accessToken;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Calendar login expired.';
+      // Prefer a clear reconnect instruction over Google's raw 401 text.
+      if (
+        /invalid_grant|expired|revoked|invalid authentication credentials/i.test(
+          message,
+        )
+      ) {
+        throw new Error(
+          'Google login expired — reconnect this Gmail under Connect calendars.',
+        );
+      }
+      throw error instanceof Error
+        ? error
+        : new Error('Google login expired — reconnect this Gmail under Connect calendars.');
+    }
   }
 
   private applyTokens(

@@ -105,7 +105,19 @@ export async function refreshGoogleToken(params: {
   });
   const json = await readJson(response);
   if (!response.ok || typeof json.access_token !== 'string') {
-    throw new Error('Google refresh failed.');
+    const code = typeof json.error === 'string' ? json.error : '';
+    const detail =
+      typeof json.error_description === 'string' && json.error_description.trim()
+        ? json.error_description.trim()
+        : '';
+    if (code === 'invalid_grant') {
+      throw new Error(
+        'Google login expired — reconnect this Gmail under Connect calendars.',
+      );
+    }
+    throw new Error(
+      detail || (code ? `Google refresh failed (${code}).` : 'Google refresh failed.'),
+    );
   }
   return {
     accessToken: json.access_token,
@@ -135,26 +147,44 @@ export async function googleEvents(params: {
   from: Date;
   to: Date;
   calendarId?: string | null;
+  email?: string | null;
   detail?: 'full' | 'lite';
 }): Promise<UpstreamEvent[]> {
   const calendars = [
     params.calendarId?.trim() || '',
     'primary',
+    params.email?.trim().toLowerCase() || '',
   ].filter((value, index, all) => value && all.indexOf(value) === index);
 
   let lastError = 'Google Calendar request failed.';
+  let sawSuccess = false;
+  const merged: UpstreamEvent[] = [];
+  const seen = new Set<string>();
+
   for (const calendarId of calendars) {
     try {
-      return await listGoogleCalendar(
+      const events = await listGoogleCalendar(
         params.accessToken,
         calendarId,
         params.from,
         params.to,
         params.detail ?? 'full',
       );
+      sawSuccess = true;
+      for (const event of events) {
+        if (seen.has(event.id)) {
+          continue;
+        }
+        seen.add(event.id);
+        merged.push(event);
+      }
     } catch (error) {
       lastError = error instanceof Error ? error.message : lastError;
     }
+  }
+
+  if (sawSuccess) {
+    return merged;
   }
   throw new Error(lastError);
 }
@@ -191,7 +221,7 @@ async function listGoogleCalendar(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${query}`,
       {
         headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(8_000),
+        signal: AbortSignal.timeout(15_000),
       },
     );
     const json = await readJson(response);
