@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type { DashboardSummary, DashboardTeamBidder } from '../api/types'
@@ -9,6 +9,7 @@ import { PageSkeleton } from '../ui/loading/page-skeletons'
 import { PeriodSelector, usePeriodFilter } from '../ui/PeriodSelector'
 import { rangeQuery, resolveRange } from '../ui/reporting-period'
 import { ActivityChart } from './dashboard/ActivityChart'
+import { CentralClock } from './dashboard/CentralClock'
 import {
   assignDenseRanks,
   formatRate,
@@ -63,7 +64,6 @@ export function DashboardPage() {
     } else if (period.applied.preset === 'weekdays') {
       setRankPeriod('week')
     } else {
-      // Yesterday and custom ranges use the filtered period slice on each bidder.
       setRankPeriod('custom')
     }
   }, [period.applied])
@@ -164,7 +164,6 @@ export function DashboardPage() {
       if (role === 'BIDDER' || role === 'BID_MANAGER') {
         return true
       }
-      // Keep the signed-in admin on the board so their credited apps show.
       return user?.id != null && bidder.id === user.id
     })
     const rows = pool.map((bidder) => {
@@ -183,12 +182,9 @@ export function DashboardPage() {
   }, [summary, rankMetric, rankPeriod, user?.id])
 
   const rankingHasActivity = performance.some((row) => row.value > 0)
-
   const weekRate = interviewRate(weekInts, weekApps)
   const appsPerBidder =
     activeBidderCount > 0 ? weekApps / activeBidderCount : null
-
-  // Today / This week KPIs mirror the sidebar; every other preset uses the filtered period.
   const filterPreset = period.applied.preset
   const appsKpi =
     filterPreset === 'today'
@@ -206,6 +202,25 @@ export function DashboardPage() {
     filterPreset === 'today' || filterPreset === 'weekdays' ? null : appChange
   const intsKpiChange =
     filterPreset === 'today' || filterPreset === 'weekdays' ? null : intChange
+  const rankingTotal = (
+    rankMetric === 'interviews'
+      ? rankPeriod === 'day'
+        ? todayInts
+        : rankPeriod === 'week'
+          ? weekInts
+          : periodInts
+      : rankPeriod === 'day'
+        ? todayApps
+        : rankPeriod === 'week'
+          ? weekApps
+          : periodApps
+  ).toLocaleString()
+  const rankingScope =
+    rankPeriod === 'day'
+      ? 'Today'
+      : rankPeriod === 'week'
+        ? 'This week'
+        : range.label
 
   function selectAppsRanking() {
     setRankMetric('applications')
@@ -230,64 +245,59 @@ export function DashboardPage() {
   }
 
   return (
-    <section>
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[26px] font-bold leading-none tracking-tight text-[var(--text-primary)]">
-            Dashboard
-          </h1>
-          <p className="mt-2 text-sm leading-5 text-[var(--text-secondary)]">
-            Team application & interview performance
+    <section className="dash-page">
+      <header className="dash-hero">
+        <div className="dash-hero-copy">
+          <p className="dash-hero-kicker">Operations</p>
+          <h1 className="dash-hero-title">Dashboard</h1>
+          <p className="dash-hero-subtitle">
+            Team application & interview performance · {range.label}
           </p>
         </div>
+        <CentralClock />
       </header>
-      <div className="mt-4">
-        <PeriodSelector
-          preset={period.preset}
-          fromDate={period.fromDate}
-          toDate={period.toDate}
-          onPreset={period.onPreset}
-          onFromDate={period.setFromDate}
-          onToDate={period.setToDate}
-          onFilter={period.applyFilter}
-          onRefresh={() => {
-            setLoading(true)
-            load()
-              .catch((err) => setError(getApiErrorMessage(err)))
-              .finally(() => setLoading(false))
-          }}
-          label={range.label}
-        />
-      </div>
 
-      {error ? (
-        <div className="mt-4">
-          <Alert>{error}</Alert>
-        </div>
-      ) : null}
+      <PeriodSelector
+        preset={period.preset}
+        fromDate={period.fromDate}
+        toDate={period.toDate}
+        onPreset={period.onPreset}
+        onFromDate={period.setFromDate}
+        onToDate={period.setToDate}
+        onFilter={period.applyFilter}
+        onRefresh={() => {
+          setLoading(true)
+          load()
+            .catch((err) => setError(getApiErrorMessage(err)))
+            .finally(() => setLoading(false))
+        }}
+        label={range.label}
+      />
+
+      {error ? <Alert>{error}</Alert> : null}
 
       {loading ? (
-        <div className="mt-6">
-          <PageSkeleton metrics={3} rows={6} />
-        </div>
+        <PageSkeleton metrics={3} rows={6} />
       ) : (
         <>
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="dash-kpi-row">
             <KpiCard
               label="Active bidders"
               value={activeBidderCount}
-              hint={`${bidderCount} bidder${bidderCount === 1 ? '' : 's'} on the team`}
+              hint={`${bidderCount} on the team`}
             />
             <KpiCard
               label="Applications"
               value={appsKpi}
               change={appsKpiChange}
               hint={
-                filterPreset === 'today'
-                  ? 'same total as Today below'
-                  : filterPreset === 'weekdays'
-                    ? 'same total as This week below'
-                    : 'vs previous equivalent period'
+                appsKpiChange != null
+                  ? 'vs previous period'
+                  : filterPreset === 'today'
+                    ? 'Today'
+                    : filterPreset === 'weekdays'
+                      ? 'This week'
+                      : range.label
               }
               selected={rankMetric === 'applications'}
               onSelect={selectAppsRanking}
@@ -297,11 +307,13 @@ export function DashboardPage() {
               value={intsKpi}
               change={intsKpiChange}
               hint={
-                filterPreset === 'today'
-                  ? 'same total as Today below'
-                  : filterPreset === 'weekdays'
-                    ? 'same total as This week below'
-                    : 'vs previous equivalent period'
+                intsKpiChange != null
+                  ? 'vs previous period'
+                  : filterPreset === 'today'
+                    ? 'Today'
+                    : filterPreset === 'weekdays'
+                      ? 'This week'
+                      : range.label
               }
               sparkline={intSpark}
               sparkDates={sparkDates}
@@ -310,32 +322,24 @@ export function DashboardPage() {
             />
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-10">
+          <div className="dash-main-grid">
             <SectionCard
-              className="lg:col-span-7"
+              className="dash-panel dash-panel--chart"
               title={
                 rankMetric === 'interviews'
-                  ? 'Interview Activity'
-                  : 'Application Activity'
+                  ? 'Interview activity'
+                  : 'Application activity'
               }
               description={weekdays.label}
               action={
-                <div className="flex rounded-lg border border-[var(--border-default)] p-0.5">
-                  {(['total', 'average'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition duration-150 ${
-                        chartMode === mode
-                          ? 'bg-white/[0.08] text-[var(--text-primary)]'
-                          : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                      }`}
-                      onClick={() => setChartMode(mode)}
-                    >
-                      {mode}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  value={chartMode}
+                  onChange={setChartMode}
+                  options={[
+                    { id: 'total', label: 'Total' },
+                    { id: 'average', label: 'Average' },
+                  ]}
+                />
               }
             >
               <ActivityChart
@@ -345,24 +349,17 @@ export function DashboardPage() {
               />
             </SectionCard>
 
-            <SectionCard className="lg:col-span-3" title="Today / This week">
-              <div
-                className={`rounded-lg px-2 py-2 ${
-                  rankPeriod === 'day'
-                    ? 'bg-white/[0.06] shadow-[inset_2px_0_0_var(--accent)]'
-                    : ''
-                }`}
-              >
-                <button
-                  type="button"
-                  className="w-full text-left"
-                  onClick={() => setRankPeriod('day')}
+            <SectionCard
+              className="dash-panel dash-panel--snapshot"
+              title="Snapshot"
+              description="Quick period totals"
+            >
+              <div className="dash-snapshot">
+                <SnapshotBlock
+                  title="Today"
+                  active={rankPeriod === 'day'}
+                  onSelect={() => setRankPeriod('day')}
                 >
-                  <p className="text-[11px] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
-                    Today
-                  </p>
-                </button>
-                <dl className="mt-2 space-y-1">
                   <SummaryRow
                     label="Applications"
                     value={todayApps}
@@ -381,26 +378,13 @@ export function DashboardPage() {
                       setRankMetric('interviews')
                     }}
                   />
-                </dl>
-              </div>
-              <div className="my-3 border-t border-[var(--border-subtle)]" />
-              <div
-                className={`rounded-lg px-2 py-2 ${
-                  rankPeriod === 'week'
-                    ? 'bg-white/[0.06] shadow-[inset_2px_0_0_var(--accent)]'
-                    : ''
-                }`}
-              >
-                <button
-                  type="button"
-                  className="w-full text-left"
-                  onClick={() => setRankPeriod('week')}
+                </SnapshotBlock>
+
+                <SnapshotBlock
+                  title="This week"
+                  active={rankPeriod === 'week'}
+                  onSelect={() => setRankPeriod('week')}
                 >
-                  <p className="text-[11px] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
-                    This week
-                  </p>
-                </button>
-                <dl className="mt-2 space-y-1">
                   <SummaryRow
                     label="Applications"
                     value={weekApps}
@@ -420,41 +404,25 @@ export function DashboardPage() {
                     }}
                   />
                   <SummaryRow
-                    label="Applications per bidder"
+                    label="Apps / bidder"
                     value={
                       appsPerBidder == null ? '—' : appsPerBidder.toFixed(1)
                     }
                   />
                   <SummaryRow label="Interview rate" value={formatRate(weekRate)} />
-                </dl>
+                </SnapshotBlock>
               </div>
             </SectionCard>
           </div>
 
           <SectionCard
-            className="mt-6"
+            className="dash-panel"
             title="Team ranking"
-            description={`${rankMetric === 'interviews' ? 'Interviews' : 'Applications'} · ${
-              rankPeriod === 'day'
-                ? 'Today'
-                : rankPeriod === 'week'
-                  ? 'This week'
-                  : range.label
-            } · ${(
-              rankMetric === 'interviews'
-                ? rankPeriod === 'day'
-                  ? todayInts
-                  : rankPeriod === 'week'
-                    ? weekInts
-                    : periodInts
-                : rankPeriod === 'day'
-                  ? todayApps
-                  : rankPeriod === 'week'
-                    ? weekApps
-                    : periodApps
-            ).toLocaleString()} total`}
+            description={`${
+              rankMetric === 'interviews' ? 'Interviews' : 'Applications'
+            } · ${rankingScope} · ${rankingTotal} total`}
             action={
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="dash-rank-tools">
                 <Segmented
                   value={rankPeriod}
                   onChange={setRankPeriod}
@@ -507,6 +475,27 @@ export function DashboardPage() {
   )
 }
 
+function SnapshotBlock({
+  title,
+  active,
+  onSelect,
+  children,
+}: {
+  title: string
+  active?: boolean
+  onSelect?: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className={`dash-snapshot-block${active ? ' is-active' : ''}`}>
+      <button type="button" className="dash-snapshot-heading" onClick={onSelect}>
+        {title}
+      </button>
+      <div className="dash-snapshot-rows">{children}</div>
+    </div>
+  )
+}
+
 function KpiCard({
   label,
   value,
@@ -533,35 +522,30 @@ function KpiCard({
       : change > 0
         ? 'text-[var(--semantic-success)]'
         : 'text-[var(--semantic-danger)]'
-  const className = `glass-card w-full px-5 py-4 text-left ${
-    selected ? 'ring-1 ring-[var(--accent)]/45' : ''
-  } ${onSelect ? 'cursor-pointer transition duration-150 hover:bg-white/[0.03]' : ''}`
+  const className = `dash-kpi${selected ? ' is-selected' : ''}${
+    onSelect ? ' is-interactive' : ''
+  }`
   const body = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[13px] text-[var(--text-secondary)]">{label}</p>
+      <div className="dash-kpi-top">
+        <p className="dash-kpi-label">{label}</p>
         {sparkline && sparkline.length > 0 ? (
-          <div className="shrink-0 text-right">
+          <div className="dash-kpi-spark">
             <Sparkline values={sparkline} dates={sparkDates} />
-            <p className="mt-1 text-[10px] font-medium tracking-wide text-[var(--text-muted)]">
-              This week
-            </p>
           </div>
         ) : null}
       </div>
-      <p className="num-metric mt-3 text-[2rem] leading-none tracking-tight">
-        {value.toLocaleString()}
-      </p>
+      <p className="dash-kpi-value">{value.toLocaleString()}</p>
       {changeLabel ? (
-        <p className={`mt-2 text-[13px] font-medium ${changeTone}`}>
-          {changeLabel}
-          <span className="ml-1 font-normal text-[var(--text-muted)]">
-            {hint}
-          </span>
+        <p className={`dash-kpi-hint ${changeTone}`}>
+          <span className="dash-kpi-change">{changeLabel}</span>
+          {hint ? <span>{hint}</span> : null}
         </p>
       ) : hint ? (
-        <p className="mt-2 text-[13px] text-[var(--text-muted)]">{hint}</p>
-      ) : null}
+        <p className="dash-kpi-hint">{hint}</p>
+      ) : (
+        <p className="dash-kpi-hint dash-kpi-hint--spacer">&nbsp;</p>
+      )}
     </>
   )
   if (onSelect) {
@@ -590,25 +574,15 @@ function SummaryRow({
   active?: boolean
   onClick?: () => void
 }) {
-  const className = `flex w-full items-baseline justify-between gap-3 rounded-md px-1 py-1 text-left ${
-    active ? 'bg-white/[0.05]' : ''
-  } ${onClick ? 'cursor-pointer hover:bg-white/[0.05]' : ''}`
+  const className = `dash-summary-row${active ? ' is-active' : ''}${
+    onClick ? ' is-interactive' : ''
+  }`
   const content = (
     <>
-      <dt
-        className={`text-sm ${
-          active ? 'font-medium text-[var(--accent)]' : 'text-[var(--text-secondary)]'
-        }`}
-      >
-        {label}
-      </dt>
-      <dd
-        className={`num-metric text-base ${
-          active ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'
-        }`}
-      >
+      <span className="dash-summary-label">{label}</span>
+      <span className="dash-summary-value">
         {typeof value === 'number' ? value.toLocaleString() : value}
-      </dd>
+      </span>
     </>
   )
   if (onClick) {
@@ -631,16 +605,12 @@ function Segmented<T extends string>({
   options: { id: T; label: string }[]
 }) {
   return (
-    <div className="flex rounded-lg border border-[var(--border-default)] p-0.5">
+    <div className="dash-segmented">
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition duration-150 ${
-            value === option.id
-              ? 'bg-white/[0.08] text-[var(--text-primary)]'
-              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-          }`}
+          className={`dash-segmented-btn${value === option.id ? ' is-active' : ''}`}
           onClick={() => onChange(option.id)}
         >
           {option.label}
