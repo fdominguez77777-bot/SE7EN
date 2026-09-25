@@ -105,6 +105,7 @@ export function InterviewsPage() {
   const [error, setError] = useState('')
   const [syncErrors, setSyncErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [board, setBoard] = useState(0)
 
   const days = useMemo(() => weekDays(weekStart), [weekStart])
   const from = weekStart.toISOString()
@@ -141,6 +142,7 @@ export function InterviewsPage() {
       setEvents([])
     } finally {
       setLoading(false)
+      setBoard((current) => current + 1)
     }
   }
 
@@ -359,6 +361,7 @@ export function InterviewsPage() {
             events={visibleEvents}
             bidderByAccount={bidderByAccount}
             focusDay={focusDay}
+            board={board}
             accentPersonId={showAll ? hovered : selected.length === 1 ? selected[0] : hovered}
             onSelectDay={setFocusDay}
           />

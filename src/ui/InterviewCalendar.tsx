@@ -32,6 +32,7 @@ type InterviewCalendarProps = {
   events: CalendarEvent[]
   bidderByAccount: Map<number, CalendarBidder>
   focusDay?: string
+  board?: number
   accentPersonId?: number | null
   onSelectDay?: (key: string) => void
 }
@@ -41,6 +42,7 @@ export function InterviewCalendar({
   events,
   bidderByAccount,
   focusDay = 'all',
+  board = 0,
   accentPersonId = null,
   onSelectDay,
 }: InterviewCalendarProps) {
@@ -220,10 +222,13 @@ export function InterviewCalendar({
                 const persona = eventPersona(event, owner)
                 return (
                   <button
-                    key={event.id}
+                    key={`${board}:${event.id}`}
                     type="button"
                     className={`iv-block iv-block-allday ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
-                    style={blockTone(owner?.color ?? event.color)}
+                    style={{
+                      ...blockTone(owner?.color ?? event.color),
+                      ...dealMotion(event.id, board),
+                    }}
                     title={`${event.title} · ${persona || event.email}`}
                     onClick={() => setOpenId(event.id)}
                   >
@@ -298,7 +303,7 @@ export function InterviewCalendar({
                   const time = formatEventTime(event.start, event.end)
                   return (
                     <button
-                      key={`${event.id}:${placed.startMin}`}
+                      key={`${board}:${event.id}:${placed.startMin}`}
                       type="button"
                       className={`iv-block ${compact ? 'is-compact' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
                       style={{
@@ -308,6 +313,7 @@ export function InterviewCalendar({
                         left: `calc(${placed.col * unit}% + 2px)`,
                         width: `calc(${placed.span * unit}% - 4px)`,
                         zIndex: 2 + placed.col,
+                        ...dealMotion(event.id, board),
                       }}
                       title={`${event.title} · ${time}${persona ? ` · ${persona}` : ''}`}
                       onClick={(click) => {
@@ -355,6 +361,21 @@ function blockState(
   }
   const ownerId = bidderByAccount.get(event.accountId)?.id ?? event.bidderId
   return ownerId === accentPersonId ? 'is-hot' : 'is-dim'
+}
+
+function dealMotion(id: string, board: number) {
+  let hash = board + 1
+  for (let index = 0; index < id.length; index += 1) {
+    hash = (hash * 33 + id.charCodeAt(index)) >>> 0
+  }
+  const tilt = (hash % 25) - 12
+  return {
+    animationDelay: `${hash % 1100}ms`,
+    animationDuration: `${480 + (hash % 420)}ms`,
+    '--deal-tilt': `${tilt}deg`,
+    '--deal-drop': `${28 + (hash % 56)}px`,
+    '--deal-spin': `${Math.sign(tilt || 1) * (2 + (hash % 5))}deg`,
+  } as CSSProperties
 }
 
 function eventPersona(event: CalendarEvent, owner: CalendarBidder | undefined) {
