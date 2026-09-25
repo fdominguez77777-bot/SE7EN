@@ -118,6 +118,38 @@ export function InterviewCalendar({
     ),
   )
   const cols = `52px repeat(${columns}, minmax(0, 1fr))`
+  const scheduleKey = `${days.map((day) => chicagoDateKey(day)).join()}|${events.map((event) => event.id).join()}|${Math.round(hourHeight)}`
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const node = scrollRef.current
+      if (!node) {
+        return
+      }
+      const placed = timedByDay.flat()
+      const rangeStart = HOUR_START * 60
+      const toTop = (minutes: number) => ((minutes - rangeStart) / 60) * hourHeight
+      const pad = 16
+      if (placed.length === 0) {
+        node.scrollTop = showNow ? Math.max(0, nowTop - node.clientHeight * 0.3) : 0
+        return
+      }
+      const startMin = Math.min(...placed.map((row) => row.startMin))
+      const endMin = Math.max(...placed.map((row) => row.endMin))
+      const top = Math.max(0, toTop(startMin))
+      const bottom = toTop(endMin)
+      const view = node.clientHeight
+      if (bottom - top + pad * 2 <= view) {
+        node.scrollTop = Math.max(0, top - pad)
+        return
+      }
+      const nowInRange = showNow && nowTop >= top && nowTop <= bottom
+      node.scrollTop = nowInRange
+        ? Math.max(0, Math.min(top, nowTop - view * 0.28))
+        : Math.max(0, top - pad)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [scheduleKey])
 
   function ownerColors(dayIndex: number) {
     const colors = new Set<string>()
@@ -195,9 +227,12 @@ export function InterviewCalendar({
                     title={`${event.title} · ${persona || event.email}`}
                     onClick={() => setOpenId(event.id)}
                   >
-                    {persona ? <i className="iv-avatar">{personaInitials(persona)}</i> : null}
                     <em>{event.title}</em>
-                    {persona ? <b className="iv-block-owner">{persona}</b> : null}
+                    {persona ? (
+                      <span>
+                        <b className="iv-block-owner">{persona}</b>
+                      </span>
+                    ) : null}
                   </button>
                 )
               })}
@@ -250,7 +285,7 @@ export function InterviewCalendar({
                     <i />
                   </div>
                 ) : null}
-                {timedByDay[dayIndex].map((placed, index) => {
+                {timedByDay[dayIndex].map((placed) => {
                   const event = placed.item
                   const layout = layoutFromMinutes(placed.startMin, placed.endMin, hourHeight)
                   if (!layout) {
@@ -259,27 +294,20 @@ export function InterviewCalendar({
                   const owner = bidderByAccount.get(event.accountId)
                   const persona = eventPersona(event, owner)
                   const unit = 100 / placed.colCount
-                  const compact = layout.height < 44
-                  const done = key < todayKey || (isToday && placed.endMin <= nowMinutes)
+                  const compact = layout.height < 36
                   const time = formatEventTime(event.start, event.end)
                   return (
                     <button
                       key={`${event.id}:${placed.startMin}`}
                       type="button"
-                      className={[
-                        'iv-block',
-                        compact ? 'is-compact' : '',
-                        done ? 'is-done' : '',
-                        blockState(event, bidderByAccount, accentPersonId, openId),
-                      ].join(' ')}
+                      className={`iv-block ${compact ? 'is-compact' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
                       style={{
                         ...blockTone(owner?.color ?? event.color),
-                        top: layout.top + 1,
-                        height: layout.height - 2,
-                        left: `calc(${placed.col * unit}% + 4px)`,
-                        width: `calc(${placed.span * unit}% - 8px)`,
+                        top: layout.top,
+                        height: layout.height,
+                        left: `calc(${placed.col * unit}% + 2px)`,
+                        width: `calc(${placed.span * unit}% - 4px)`,
                         zIndex: 2 + placed.col,
-                        animationDelay: `${Math.min(index, 8) * 40 + dayIndex * 25}ms`,
                       }}
                       title={`${event.title} · ${time}${persona ? ` · ${persona}` : ''}`}
                       onClick={(click) => {
@@ -287,14 +315,12 @@ export function InterviewCalendar({
                         setOpenId(event.id)
                       }}
                     >
-                      <span className="iv-block-time">{time}</span>
                       <strong>{event.title}</strong>
-                      {persona ? (
-                        <span className="iv-block-who">
-                          <i className="iv-avatar">{personaInitials(persona)}</i>
-                          <b className="iv-block-owner">{persona}</b>
-                        </span>
-                      ) : null}
+                      <span>
+                        {persona ? <b className="iv-block-owner">{persona}</b> : null}
+                        {persona ? ' · ' : ''}
+                        {time}
+                      </span>
                     </button>
                   )
                 })}
@@ -333,14 +359,6 @@ function blockState(
 
 function eventPersona(event: CalendarEvent, owner: CalendarBidder | undefined) {
   return event.profileName?.trim() || owner?.name || ''
-}
-
-function personaInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
-  return name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase()
 }
 
 function blockTone(color: string) {

@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { CalendarDays, Clock, ExternalLink, MapPin, Users, Video, X } from 'lucide-react'
 
 import type { CalendarBidder, CalendarEvent, CalendarGuest } from '../api/types'
@@ -58,7 +59,11 @@ export function InterviewEventDetails({
     return () => window.removeEventListener('keydown', onKey)
   }, [leaving])
 
-  return (
+  if (typeof document === 'undefined') {
+    return null
+  }
+
+  return createPortal(
     <div
       className={`apps-modal iv-detail-overlay ${leaving ? 'is-out' : ''}`}
       onClick={close}
@@ -71,18 +76,19 @@ export function InterviewEventDetails({
     >
       <div
         className="apps-modal-panel iv-detail"
+        style={{ '--ev': owner?.color ?? event.color } as CSSProperties}
         role="dialog"
         aria-modal="true"
         aria-labelledby="iv-detail-title"
         onClick={(click) => click.stopPropagation()}
       >
-        <div className="iv-detail-accent" style={{ background: owner?.color ?? event.color }} />
+        <div className="iv-detail-accent" />
         <div className="apps-modal-head">
           <div className="min-w-0">
-            <h2 id="iv-detail-title" className="text-[22px] font-bold text-[var(--text-primary)]">
+            <p className="iv-detail-kicker">{when.dateLabel}</p>
+            <h2 id="iv-detail-title" className="iv-detail-title">
               {event.title}
             </h2>
-            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{when.dateLabel}</p>
           </div>
           <div className="apps-modal-actions">
             <button type="button" className="apps-icon-btn" aria-label="Close" onClick={close}>
@@ -136,7 +142,7 @@ export function InterviewEventDetails({
                       <strong>{guest.name || guest.email}</strong>
                       <small>{guest.email}</small>
                     </span>
-                    <em>{RSVP[guest.status]}</em>
+                    <em className={`iv-rsvp is-${guest.status}`}>{RSVP[guest.status]}</em>
                   </li>
                 ))}
               </ul>
@@ -163,7 +169,8 @@ export function InterviewEventDetails({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
