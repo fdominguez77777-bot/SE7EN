@@ -4,6 +4,7 @@ export type ApplicationColumnFilters = {
   source?: string;
   status?: string;
   applied?: string;
+  profileName?: string;
   bidderName?: string;
 };
 
@@ -18,6 +19,7 @@ export function matchesApplicationColumnFilters(
     source: string;
     status: string;
     appliedAt: string;
+    profileName?: string | null;
     bidderName: string | null;
   },
   filters: ApplicationColumnFilters,
@@ -28,6 +30,7 @@ export function matchesApplicationColumnFilters(
     contains(row.source, filters.source) &&
     contains(row.status, filters.status) &&
     contains(appliedSearchText(row.appliedAt), filters.applied) &&
+    contains(row.profileName ?? '', filters.profileName) &&
     contains(row.bidderName ?? '', filters.bidderName)
   );
 }

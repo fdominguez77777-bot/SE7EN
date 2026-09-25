@@ -32,7 +32,7 @@ export function InterviewEventDetails({
   const joinUrl = safeHttpUrl(event.joinUrl) ?? firstHttpUrl(description)
   const calendarUrl = safeHttpUrl(event.htmlLink)
   const guests = event.guests ?? []
-  const calendarLabel = owner?.name || event.email
+  const calendarLabel = event.profileName?.trim() || owner?.name || event.email
   const calendarEmail = owner?.calendarEmail || event.email
 
   const [leaving, setLeaving] = useState(false)
@@ -76,7 +76,7 @@ export function InterviewEventDetails({
         aria-labelledby="iv-detail-title"
         onClick={(click) => click.stopPropagation()}
       >
-        <div className="iv-detail-accent" style={{ background: event.color }} />
+        <div className="iv-detail-accent" style={{ background: owner?.color ?? event.color }} />
         <div className="apps-modal-head">
           <div className="min-w-0">
             <h2 id="iv-detail-title" className="text-[22px] font-bold text-[var(--text-primary)]">
@@ -112,7 +112,10 @@ export function InterviewEventDetails({
           ) : null}
           <DetailRow icon={CalendarDays}>
             <p>{calendarLabel}</p>
-            <small>{calendarEmail}</small>
+            <small>
+              {owner?.name && owner.name !== calendarLabel ? `${owner.name} · ` : ''}
+              {calendarEmail}
+            </small>
           </DetailRow>
           {event.organizerEmail || event.organizerName ? (
             <DetailRow icon={Users}>

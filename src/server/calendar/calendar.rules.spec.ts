@@ -1,6 +1,7 @@
 import {
   calendarColor,
   calendarInitials,
+  resolveCalendarProfileName,
   canAssignCalendar,
   canConnectCalendar,
   canSeeCalendarPerson,
@@ -12,6 +13,36 @@ describe('calendar.rules', () => {
   it('picks a stable color by id', () => {
     expect(calendarColor(1)).toBe(calendarColor(9));
     expect(calendarColor(1)).not.toBe(calendarColor(2));
+  });
+
+  it('labels a calendar with the matching profile name', () => {
+    const profiles = [
+      { name: 'Fabian Dominguez', email: 'fdominguez0420@gamil.com', assignedBidderId: 2 },
+      { name: 'David Barberis', email: 'davidbarberis1001@gmail.com', assignedBidderId: 7 },
+      { name: 'Cameron Hicks', email: 'cameronhicks10001@gmail.com', assignedBidderId: 4 },
+    ];
+    expect(
+      resolveCalendarProfileName(
+        { email: 'cameronhicks10001@gmail.com', displayName: 'Joe', assignedBidderId: 4 },
+        profiles,
+      ),
+    ).toBe('Cameron Hicks');
+    expect(
+      resolveCalendarProfileName(
+        {
+          email: 'dbarberis071994@gmail.com',
+          displayName: 'David Barberis',
+          assignedBidderId: 7,
+        },
+        profiles,
+      ),
+    ).toBe('David Barberis');
+    expect(
+      resolveCalendarProfileName(
+        { email: 'solo@gmail.com', displayName: 'Gmail', assignedBidderId: 4 },
+        profiles,
+      ),
+    ).toBe('Cameron Hicks');
   });
 
   it('builds initials from a name or email', () => {

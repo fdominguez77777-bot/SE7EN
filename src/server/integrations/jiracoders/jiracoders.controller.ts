@@ -49,6 +49,7 @@ export class JiracodersApplicationsController {
     @Query('source') source?: string,
     @Query('statusContains') statusContains?: string,
     @Query('applied') applied?: string,
+    @Query('profileName') profileName?: string,
     @Query('bidderName') bidderName?: string,
   ) {
     return this.applications.list(actor, {
@@ -65,6 +66,7 @@ export class JiracodersApplicationsController {
       source,
       statusContains,
       applied,
+      profileName,
       bidderName,
     });
   }

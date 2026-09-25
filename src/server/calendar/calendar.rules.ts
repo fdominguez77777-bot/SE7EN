@@ -7,14 +7,14 @@ export type CalendarProviderName =
   (typeof CalendarProvider)[keyof typeof CalendarProvider];
 
 export const CALENDAR_COLORS = [
-  '#3b82f6',
-  '#22c55e',
-  '#eab308',
-  '#ec4899',
-  '#8b5cf6',
-  '#06b6d4',
-  '#f97316',
-  '#14b8a6',
+  '#5b8def',
+  '#3fb68b',
+  '#e0a84e',
+  '#e0678f',
+  '#9b7be6',
+  '#3eb3c9',
+  '#e5824f',
+  '#9cc25a',
 ];
 
 export const CONNECT_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -39,6 +39,48 @@ export function canSeeCalendarPerson(
     return false;
   }
   return true;
+}
+
+export type CalendarProfileRef = {
+  name: string;
+  email: string | null;
+  assignedBidderId: number | null;
+};
+
+/** Persona on a connected calendar: profile email, then profile name, then the only profile that bidder owns. */
+export function resolveCalendarProfileName(
+  account: {
+    email: string;
+    displayName: string | null;
+    assignedBidderId: number | null;
+  },
+  profiles: CalendarProfileRef[],
+) {
+  const email = account.email.trim().toLowerCase();
+  const byEmail = email
+    ? profiles.find((row) => (row.email ?? '').trim().toLowerCase() === email)
+    : undefined;
+  if (byEmail?.name.trim()) {
+    return byEmail.name.trim();
+  }
+
+  const display = (account.displayName ?? '').trim().toLowerCase();
+  if (display) {
+    const byName = profiles.find((row) => row.name.trim().toLowerCase() === display);
+    if (byName?.name.trim()) {
+      return byName.name.trim();
+    }
+  }
+
+  if (account.assignedBidderId != null) {
+    const owned = profiles.filter((row) => row.assignedBidderId === account.assignedBidderId);
+    if (owned.length === 1 && owned[0].name.trim()) {
+      return owned[0].name.trim();
+    }
+  }
+
+  const fallback = account.displayName?.trim() ?? '';
+  return fallback && !fallback.includes('@') ? fallback : null;
 }
 
 export function calendarInitials(name: string, email: string) {

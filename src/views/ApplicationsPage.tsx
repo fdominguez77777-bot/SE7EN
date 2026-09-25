@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { Link, useSearchParams } from '@/lib/navigation'
-import { ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, GripVertical, Search } from 'lucide-react'
+import { ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, GripVertical, Search, X } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type {
@@ -26,7 +26,14 @@ const TABLE_STATUSES = [
   { value: 'applied', label: 'Applied' },
 ]
 
-type ColumnKey = 'companyName' | 'jobTitle' | 'source' | 'status' | 'appliedAt' | 'bidderName'
+type ColumnKey =
+  | 'companyName'
+  | 'jobTitle'
+  | 'source'
+  | 'status'
+  | 'appliedAt'
+  | 'profileName'
+  | 'bidderName'
 
 const COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'companyName', label: 'Company' },
@@ -34,6 +41,7 @@ const COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'source', label: 'Source' },
   { key: 'status', label: 'Status' },
   { key: 'appliedAt', label: 'Applied' },
+  { key: 'profileName', label: 'Profile' },
   { key: 'bidderName', label: 'Bidder' },
 ]
 
@@ -49,6 +57,7 @@ const EMPTY_COLUMN_FILTERS: Record<ColumnKey, string> = {
   source: '',
   status: '',
   appliedAt: '',
+  profileName: '',
   bidderName: '',
 }
 
@@ -96,9 +105,17 @@ function loadColumnOrder(): ColumnKey[] {
     if (!Array.isArray(parsed)) {
       return DEFAULT_COLUMN_ORDER
     }
-    const valid = parsed.filter((key): key is ColumnKey => typeof key === 'string' && isColumnKey(key))
-    const missing = DEFAULT_COLUMN_ORDER.filter((key) => !valid.includes(key))
-    return [...valid, ...missing]
+    const order = parsed.filter((key): key is ColumnKey => typeof key === 'string' && isColumnKey(key))
+    // Columns added after the order was saved go before their default successor.
+    DEFAULT_COLUMN_ORDER.forEach((key, index) => {
+      if (order.includes(key)) {
+        return
+      }
+      const next = DEFAULT_COLUMN_ORDER.slice(index + 1).find((k) => order.includes(k))
+      const at = next ? order.indexOf(next) : order.length
+      order.splice(at, 0, key)
+    })
+    return order
   } catch {
     return DEFAULT_COLUMN_ORDER
   }
@@ -114,12 +131,24 @@ function moveColumn(order: ColumnKey[], from: ColumnKey, to: ColumnKey) {
   return next
 }
 
+const PROFILE_TONES = 8
+
+function profileTone(name: string) {
+  let hash = 0
+  for (const char of name.trim().toLowerCase()) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  }
+  return hash % PROFILE_TONES
+}
+
 function ApplicationCell({
   item,
   column,
+  onProfileClick,
 }: {
   item: ApplicationTableRow
   column: ColumnKey
+  onProfileClick?: (name: string) => void
 }) {
   if (column === 'companyName') {
     return <td className="font-semibold text-[var(--text-primary)]">{item.companyName}</td>
@@ -147,6 +176,28 @@ function ApplicationCell({
     return (
       <td className="whitespace-nowrap">
         {item.appliedAt ? formatApplied(item.appliedAt) : '—'}
+      </td>
+    )
+  }
+  if (column === 'profileName') {
+    const name = item.profileName
+    return (
+      <td>
+        {name ? (
+          <button
+            type="button"
+            className={`apps-profile-badge tone-${profileTone(name)}`}
+            title={`Show only ${name}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onProfileClick?.(name)
+            }}
+          >
+            {name}
+          </button>
+        ) : (
+          '—'
+        )}
       </td>
     )
   }
@@ -184,6 +235,25 @@ export function ApplicationsPage() {
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(loadColumnOrder)
   const [draggingColumn, setDraggingColumn] = useState<ColumnKey | null>(null)
   const [dropTarget, setDropTarget] = useState<ColumnKey | null>(null)
+  const [knownProfiles, setKnownProfiles] = useState<string[]>([])
+
+  useEffect(() => {
+    const names = items.map((item) => item.profileName).filter((name): name is string => !!name)
+    if (names.length === 0) {
+      return
+    }
+    setKnownProfiles((current) => {
+      const merged = new Set(current)
+      names.forEach((name) => merged.add(name))
+      return merged.size === current.length
+        ? current
+        : [...merged].sort((a, b) => a.localeCompare(b))
+    })
+  }, [items])
+
+  function setProfileFilter(name: string) {
+    setColumnFilters((current) => ({ ...current, profileName: name }))
+  }
 
   useEffect(() => {
     setBidderFilter(urlBidderId)
@@ -205,6 +275,7 @@ export function ApplicationsPage() {
             source: appliedColumnFilters.source.trim() || undefined,
             statusContains: appliedColumnFilters.status.trim() || undefined,
             applied: appliedColumnFilters.appliedAt.trim() || undefined,
+            profileName: appliedColumnFilters.profileName.trim() || undefined,
             bidderName: appliedColumnFilters.bidderName.trim() || undefined,
           },
         })
@@ -415,6 +486,34 @@ export function ApplicationsPage() {
           </div>
         ) : null}
         <div className="apps-field">
+          <label htmlFor="apps-profile">Profile</label>
+          <div className="apps-profile-filter">
+            <input
+              id="apps-profile"
+              className="input-field"
+              list="apps-profile-options"
+              placeholder="All profiles"
+              value={columnFilters.profileName}
+              onChange={(e) => setProfileFilter(e.target.value)}
+            />
+            {columnFilters.profileName ? (
+              <button
+                type="button"
+                className="apps-profile-clear"
+                aria-label="Clear profile filter"
+                onClick={() => setProfileFilter('')}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+          <datalist id="apps-profile-options">
+            {knownProfiles.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        </div>
+        <div className="apps-field">
           <label htmlFor="apps-status">Status</label>
           <select
             id="apps-status"
@@ -622,7 +721,12 @@ export function ApplicationsPage() {
                     onClick={() => void openView(item)}
                   >
                     {visibleColumns.map((column) => (
-                      <ApplicationCell key={`${item.id}-${column}`} item={item} column={column} />
+                      <ApplicationCell
+                        key={`${item.id}-${column}`}
+                        item={item}
+                        column={column}
+                        onProfileClick={setProfileFilter}
+                      />
                     ))}
                   </tr>
                 ))

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module';
+import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { UsersModule } from '../users/users.module';
 import { CalendarAccount } from './calendar-account.entity';
 import { CalendarConnectLink } from './calendar-connect-link.entity';
@@ -11,7 +12,7 @@ import { CalendarService } from './calendar.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CalendarAccount, CalendarConnectLink]),
+    TypeOrmModule.forFeature([CalendarAccount, CalendarConnectLink, BidderProfile]),
     AuthModule,
     UsersModule,
   ],

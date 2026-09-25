@@ -645,6 +645,7 @@ export type CalendarEvent = {
   color: string
   email: string
   initials: string
+  profileName: string | null
   location: string | null
   description: string | null
   joinUrl: string | null

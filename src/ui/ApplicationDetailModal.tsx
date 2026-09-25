@@ -240,7 +240,6 @@ export function ApplicationDetailModal({
                     <li key={entry.id}>
                       {jobApplicationStatusLabel(entry.status || '')}
                       {entry.changedAt ? ` at ${formatStamp(entry.changedAt)}` : ''}
-                      {entry.changedBy ? ` by ${entry.changedBy}` : ''}
                     </li>
                   ))
                 )}

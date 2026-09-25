@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Link } from '@/lib/navigation'
 import { Check, ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react'
 
@@ -17,6 +17,31 @@ import {
 } from '../ui/calendar-week'
 
 const SELECTED_KEY = 'bp_interview_bidder'
+
+const PERSON_COLORS = [
+  '#3d8bfd',
+  '#14d6a5',
+  '#f5b42a',
+  '#ff4f8b',
+  '#a06bff',
+  '#22d3ee',
+  '#ff7a3d',
+  '#b6f04a',
+  '#ff5d5d',
+  '#60a5fa',
+  '#e879f9',
+  '#2ee6a6',
+]
+
+/** Hand out colors by position so no two people on the board share one. */
+function withDistinctColors(people: CalendarBidder[]) {
+  return [...people]
+    .sort((a, b) => a.id - b.id)
+    .map((person, index) => ({
+      ...person,
+      color: PERSON_COLORS[index % PERSON_COLORS.length],
+    }))
+}
 
 function loadSelected(): number[] {
   try {
@@ -107,7 +132,7 @@ export function InterviewsPage() {
       const nextSyncErrors = Array.isArray(eventPayload)
         ? []
         : eventPayload?.syncErrors ?? []
-      setBidders(bidderRows)
+      setBidders(withDistinctColors(bidderRows))
       setSelected((current) => current.filter((id) => bidderRows.some((row) => row.id === id)))
       setEvents(eventRows)
       setSyncErrors(nextSyncErrors)
@@ -156,7 +181,7 @@ export function InterviewsPage() {
         return false
       }
     }
-    const haystack = `${event.title} ${event.email}`.toLowerCase()
+    const haystack = `${event.title} ${event.email} ${event.profileName ?? ''}`.toLowerCase()
     return haystack.includes(query.trim().toLowerCase())
   })
 
@@ -289,29 +314,19 @@ export function InterviewsPage() {
                     ? `Hide ${bidder.name}`
                     : `Show ${bidder.name}`
               }
-              style={{
-                borderColor: bidder.color,
-                background: on
-                  ? `color-mix(in srgb, ${bidder.color} 28%, #15171b)`
-                  : `color-mix(in srgb, ${bidder.color} 12%, #15171b)`,
-              }}
+              style={{ '--person': bidder.color } as CSSProperties}
               onMouseEnter={() => setHovered(bidder.id)}
               onMouseLeave={() => setHovered(null)}
               onFocus={() => setHovered(bidder.id)}
               onBlur={() => setHovered(null)}
               onClick={() => setSelected((current) => toggleSelected(current, bidder.id))}
             >
-              <span
-                className={`iv-check ${on ? 'is-on' : ''}`}
-                style={on ? { background: bidder.color, borderColor: bidder.color } : { borderColor: bidder.color }}
-              >
+              <span className={`iv-check ${on ? 'is-on' : ''}`}>
                 {on ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
               </span>
-              <span className="iv-chip-swatch" style={{ background: bidder.color }}>
-                {bidder.initials.slice(0, 2)}
-              </span>
+              <span className="iv-chip-swatch">{bidder.initials.slice(0, 2)}</span>
               <span className="iv-chip-copy">
-                <span style={{ color: bidder.color }}>{bidder.name}</span>
+                <span>{bidder.name}</span>
                 <small>{personChipHint(bidder, user?.id)}</small>
               </span>
             </button>

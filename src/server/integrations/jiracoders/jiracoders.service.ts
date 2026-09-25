@@ -69,6 +69,7 @@ export class JiracodersApplicationsService {
       source?: string;
       statusContains?: string;
       applied?: string;
+      profileName?: string;
       bidderName?: string;
     },
   ): Promise<{
@@ -461,6 +462,7 @@ function columnFiltersFromQuery(query: {
   source?: string;
   statusContains?: string;
   applied?: string;
+  profileName?: string;
   bidderName?: string;
 }): ApplicationColumnFilters {
   return {
@@ -469,6 +471,7 @@ function columnFiltersFromQuery(query: {
     source: query.source,
     status: query.statusContains,
     applied: query.applied,
+    profileName: query.profileName,
     bidderName: query.bidderName,
   };
 }

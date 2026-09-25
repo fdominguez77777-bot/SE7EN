@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { EnvironmentVariables } from '../config/env.validation';
+import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { User } from '../users/user.entity';
 import { UsersService } from '../users/users.service';
 import { singleflight, TtlCache } from '../cache/singleflight';
@@ -37,6 +38,7 @@ import {
   CONNECT_LINK_TTL_MS,
   calendarColor,
   calendarInitials,
+  resolveCalendarProfileName,
   canAssignCalendar,
   canSeeCalendarPerson,
   isConnectLinkOpen,
@@ -86,6 +88,7 @@ export type CalendarEventDto = {
   color: string;
   email: string;
   initials: string;
+  profileName: string | null;
   location: string | null;
   description: string | null;
   joinUrl: string | null;
@@ -117,6 +120,8 @@ export class CalendarService {
     private readonly accounts: Repository<CalendarAccount>,
     @InjectRepository(CalendarConnectLink)
     private readonly links: Repository<CalendarConnectLink>,
+    @InjectRepository(BidderProfile)
+    private readonly profiles: Repository<BidderProfile>,
     private readonly users: UsersService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {
@@ -333,6 +338,7 @@ export class CalendarService {
         .filter((person) => !canSeeCalendarPerson(actor?.role, person.role))
         .map((person) => person.id),
     );
+    const profileRows = await this.profiles.find();
     const accounts = (await this.accounts.find({ order: { id: 'ASC' } })).filter(
       (account) =>
         !account.assignedBidderId || !hiddenOwnerIds.has(account.assignedBidderId),
@@ -353,7 +359,7 @@ export class CalendarService {
                   detail,
                 })
               : await microsoftEvents({ accessToken: access, from, to, detail });
-          return events.map((event) => this.toEventDto(account, event));
+          return events.map((event) => this.toEventDto(account, event, profileRows));
         } catch (error) {
           const detailMessage =
             error instanceof Error ? error.message : 'Calendar sync failed.';
@@ -468,7 +474,11 @@ export class CalendarService {
     };
   }
 
-  private toEventDto(account: CalendarAccount, event: UpstreamEvent): CalendarEventDto {
+  private toEventDto(
+    account: CalendarAccount,
+    event: UpstreamEvent,
+    profiles: BidderProfile[],
+  ): CalendarEventDto {
     const dto = this.toAccountDto(account);
     return {
       id: `${account.id}:${event.id}`,
@@ -483,6 +493,7 @@ export class CalendarService {
         : dto.color,
       email: dto.email,
       initials: dto.initials,
+      profileName: resolveCalendarProfileName(account, profiles),
       location: event.location,
       description: event.description,
       joinUrl: event.joinUrl,
