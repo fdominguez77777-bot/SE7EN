@@ -10,7 +10,9 @@
     "lint": "oxlint",
     "migration:run": "npx tsx src/server/run-migrations.ts",
     "migration:revert": "npx tsx src/server/run-migrations.ts revert",
-    "test:api": "jest --config jest.api.config.ts"
+    "test:api": "jest --config jest.api.config.ts",
+    "desktop": "npm --prefix desktop start",
+    "desktop:dist": "npm --prefix desktop run dist"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

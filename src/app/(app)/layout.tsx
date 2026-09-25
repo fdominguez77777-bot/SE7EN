@@ -6,9 +6,11 @@ import { useAuth } from '@/auth/AuthContext'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { Navigate } from '@/lib/navigation'
 import { AppLoadingScreen } from '@/ui/loading/AppLoadingScreen'
+import { useInterviewReminders } from '@/ui/useInterviewReminders'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { status, workspaceError, message, retry } = useAuth()
+  useInterviewReminders(status === 'authenticated')
 
   if (workspaceError) {
     return <AppLoadingScreen error onRetry={retry} />
