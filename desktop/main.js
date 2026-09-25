@@ -1,12 +1,24 @@
 const path = require('node:path')
 const fs = require('node:fs')
-const { app, BrowserWindow, Notification, ipcMain, shell, Menu } = require('electron')
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Notification,
+  Tray,
+  ipcMain,
+  nativeImage,
+  shell,
+} = require('electron')
 
 const APP_URL = (process.env.SE7EN_URL || 'https://seven-pi-nine.vercel.app').replace(/\/$/, '')
 const APP_ORIGIN = new URL(APP_URL).origin
 const ICON = path.join(__dirname, 'build', 'icon.png')
+const START_HIDDEN = process.argv.includes('--hidden')
 
 let mainWindow = null
+let tray = null
+let quitting = false
 
 function boundsFile() {
   return path.join(app.getPath('userData'), 'window.json')
@@ -31,6 +43,7 @@ function saveBounds(win) {
 
 function showWindow() {
   if (!mainWindow) {
+    createWindow(true)
     return
   }
   if (mainWindow.isMinimized()) {
@@ -40,7 +53,7 @@ function showWindow() {
   mainWindow.focus()
 }
 
-function createWindow() {
+function createWindow(visible) {
   const saved = loadBounds()
   mainWindow = new BrowserWindow({
     x: saved.x,
@@ -59,6 +72,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Reminder timers must keep firing while the window sits hidden in the tray.
+      backgroundThrottling: false,
     },
   })
 
@@ -66,8 +81,19 @@ function createWindow() {
     mainWindow.maximize()
   }
 
-  mainWindow.once('ready-to-show', () => mainWindow.show())
-  mainWindow.on('close', () => saveBounds(mainWindow))
+  mainWindow.once('ready-to-show', () => {
+    if (visible) {
+      mainWindow.show()
+    }
+  })
+
+  mainWindow.on('close', (event) => {
+    saveBounds(mainWindow)
+    if (!quitting) {
+      event.preventDefault()
+      mainWindow.hide()
+    }
+  })
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -88,6 +114,53 @@ function createWindow() {
   })
 
   void mainWindow.loadURL(APP_URL)
+}
+
+function createTray() {
+  tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 }))
+  tray.setToolTip('SE7EN')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open SE7EN', click: showWindow },
+      { type: 'separator' },
+      {
+        label: 'Start with Windows',
+        type: 'checkbox',
+        checked: app.getLoginItemSettings().openAtLogin,
+        enabled: app.isPackaged,
+        click: (item) => setStartWithWindows(item.checked),
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit SE7EN',
+        click: () => {
+          quitting = true
+          app.quit()
+        },
+      },
+    ]),
+  )
+  tray.on('click', showWindow)
+}
+
+function setStartWithWindows(enabled) {
+  if (!app.isPackaged) {
+    return
+  }
+  app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] })
+}
+
+function enableStartWithWindowsOnce() {
+  const marker = path.join(app.getPath('userData'), 'autostart.json')
+  if (fs.existsSync(marker)) {
+    return
+  }
+  setStartWithWindows(true)
+  try {
+    fs.writeFileSync(marker, JSON.stringify({ enabledAt: new Date().toISOString() }))
+  } catch {
+    // Without the marker we simply re-enable on next launch.
+  }
 }
 
 ipcMain.on('se7en:notify', (_event, payload) => {
@@ -117,8 +190,15 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     app.setAppUserModelId('com.se7en.platform')
     Menu.setApplicationMenu(null)
-    createWindow()
+    enableStartWithWindowsOnce()
+    createTray()
+    createWindow(!START_HIDDEN)
   })
 
-  app.on('window-all-closed', () => app.quit())
+  app.on('before-quit', () => {
+    quitting = true
+  })
+
+  // The tray keeps SE7EN running for reminders after its window is closed.
+  app.on('window-all-closed', () => {})
 }

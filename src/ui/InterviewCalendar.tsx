@@ -324,8 +324,10 @@ export function InterviewCalendar({
                       <strong>{event.title}</strong>
                       <span>
                         {persona ? <b className="iv-block-owner">{persona}</b> : null}
-                        {persona ? ' · ' : ''}
-                        {time}
+                        <i className="iv-block-time">
+                          {persona ? ' · ' : ''}
+                          {time}
+                        </i>
                       </span>
                     </button>
                   )

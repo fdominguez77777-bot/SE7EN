@@ -2098,7 +2098,29 @@ label .req,
   -webkit-line-clamp: unset;
 }
 
+.iv-block-time {
+  font-style: normal;
+}
+
+.iv-block.is-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iv-block.is-compact strong,
+.iv-block.is-compact em {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .iv-block.is-compact span {
+  max-width: 48%;
+  flex: 0 1 auto;
+  margin-top: 0;
+}
+
+.iv-block.is-compact .iv-block-time {
   display: none;
 }
 

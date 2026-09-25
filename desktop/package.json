@@ -17,7 +17,7 @@
     "appId": "com.se7en.platform",
     "productName": "SE7EN",
     "directories": {
-      "output": "dist",
+      "output": "../../SE7EN-installer",
       "buildResources": "build"
     },
     "files": [
@@ -36,5 +36,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "SE7EN"
     }
+  },
+  "allowScripts": {
+    "electron@38.8.6": true,
+    "electron-winstaller@5.4.0": true
   }
 }

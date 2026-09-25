@@ -15,19 +15,24 @@ declare global {
   }
 }
 
-const POLL_MS = 2 * 60_000
+const POLL_MS = 3 * 60_000
 const LEAD_MS = 10 * 60_000
+const LOOKAHEAD_MS = 60 * 60_000
 const SEEN_KEY = 'bp_interview_reminded'
 
 function loadSeen() {
   try {
-    return new Set<string>(JSON.parse(sessionStorage.getItem(SEEN_KEY) ?? '[]') as string[])
+    return new Set<string>(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[])
   } catch {
     return new Set<string>()
   }
 }
 
-/** Windows notification shortly before each interview; only runs inside the desktop app. */
+function reminderKey(event: CalendarEvent) {
+  return `${event.id}@${event.start}`
+}
+
+/** Windows notification 10 minutes before each interview; only runs inside the desktop app. */
 export function useInterviewReminders(enabled: boolean) {
   useEffect(() => {
     const bridge = typeof window === 'undefined' ? undefined : window.se7enDesktop
@@ -35,7 +40,25 @@ export function useInterviewReminders(enabled: boolean) {
       return
     }
     const seen = loadSeen()
+    const timers = new Map<string, number>()
     let cancelled = false
+
+    function remind(event: CalendarEvent) {
+      const key = reminderKey(event)
+      timers.delete(key)
+      if (cancelled || seen.has(key) || !bridge) {
+        return
+      }
+      seen.add(key)
+      localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-300)))
+      const minutes = Math.max(1, Math.round((new Date(event.start).getTime() - Date.now()) / 60_000))
+      const who = event.profileName ? ` · ${event.profileName}` : ''
+      bridge.notify(
+        `Interview in ${minutes} min`,
+        `${event.title}${who}\n${formatEventTime(event.start, event.end)}`,
+        '/interviews',
+      )
+    }
 
     async function check() {
       const now = Date.now()
@@ -45,42 +68,43 @@ export function useInterviewReminders(enabled: boolean) {
           {
             params: {
               from: new Date(now).toISOString(),
-              to: new Date(now + LEAD_MS + POLL_MS).toISOString(),
+              to: new Date(now + LOOKAHEAD_MS).toISOString(),
             },
           },
         )
-        if (cancelled || !bridge) {
+        if (cancelled) {
           return
         }
         const events = Array.isArray(data) ? data : data?.events ?? []
         for (const event of events) {
-          if (event.allDay || seen.has(event.id)) {
+          const key = reminderKey(event)
+          if (event.allDay || seen.has(key) || timers.has(key)) {
             continue
           }
-          const startsIn = new Date(event.start).getTime() - now
-          if (startsIn < 0 || startsIn > LEAD_MS) {
+          const startsAt = new Date(event.start).getTime()
+          if (!Number.isFinite(startsAt) || startsAt <= now) {
             continue
           }
-          seen.add(event.id)
-          const minutes = Math.max(1, Math.round(startsIn / 60_000))
-          const who = event.profileName ? ` · ${event.profileName}` : ''
-          bridge.notify(
-            `Interview in ${minutes} min`,
-            `${event.title}${who}\n${formatEventTime(event.start, event.end)}`,
-            '/interviews',
-          )
+          const fireIn = startsAt - LEAD_MS - now
+          if (fireIn <= 0) {
+            remind(event)
+          } else {
+            timers.set(key, window.setTimeout(() => remind(event), fireIn))
+          }
         }
-        sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seen]))
       } catch {
         // Reminders are best-effort; the next poll retries.
       }
     }
 
     void check()
-    const timer = window.setInterval(() => void check(), POLL_MS)
+    const poll = window.setInterval(() => void check(), POLL_MS)
     return () => {
       cancelled = true
-      window.clearInterval(timer)
+      window.clearInterval(poll)
+      for (const timer of timers.values()) {
+        window.clearTimeout(timer)
+      }
     }
   }, [enabled])
 }
