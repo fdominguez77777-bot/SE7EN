@@ -103,6 +103,8 @@ export class LoginHistoryService {
   async list(query?: {
     userId?: number;
     limit?: number;
+    from?: Date;
+    to?: Date;
   }): Promise<{
     items: LoginHistoryRow[];
     summary: {
@@ -110,17 +112,30 @@ export class LoginHistoryService {
       today: number;
       uniqueUsersToday: number;
       uniqueCountries: number;
+      uniqueUsers: number;
+      totalDurationMs: number;
     };
   }> {
-    const limit = Math.min(Math.max(query?.limit ?? 100, 1), 300);
+    const ranged = Boolean(query?.from || query?.to);
+    const limit = Math.min(
+      Math.max(query?.limit ?? (ranged ? 1000 : 100), 1),
+      ranged ? 2000 : 300,
+    );
     const qb = this.history
       .createQueryBuilder('h')
-      .orderBy('h.lastSeenAt', 'DESC')
+      .orderBy(ranged ? 'h.createdAt' : 'h.lastSeenAt', 'DESC')
       .take(limit);
     if (query?.userId && query.userId > 0) {
       qb.andWhere('h.userId = :userId', { userId: query.userId });
     }
+    if (query?.from) {
+      qb.andWhere('h.createdAt >= :from', { from: query.from });
+    }
+    if (query?.to) {
+      qb.andWhere('h.createdAt < :to', { to: query.to });
+    }
     const rows = await qb.getMany();
+    const items = rows.map((row) => this.toRow(row));
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -133,12 +148,14 @@ export class LoginHistoryService {
     ).size;
 
     return {
-      items: rows.map((row) => this.toRow(row)),
+      items,
       summary: {
         total: rows.length,
         today: todayRows.length,
         uniqueUsersToday,
         uniqueCountries,
+        uniqueUsers: new Set(rows.map((row) => row.userId)).size,
+        totalDurationMs: items.reduce((sum, row) => sum + row.durationMs, 0),
       },
     };
   }

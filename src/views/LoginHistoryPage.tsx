@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
   Globe2,
   History,
   Laptop,
   MapPin,
   RefreshCw,
   Search,
-  Shield,
   Smartphone,
+  Users,
 } from 'lucide-react'
 import { Navigate } from '@/lib/navigation'
 
@@ -60,40 +63,76 @@ function relativeLabel(iso: string) {
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return formatWhen(iso).date
+  return formatWhen(iso).time
+}
+
+function dayKey(date: Date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function parseDayKey(key: string) {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, (m ?? 1) - 1, d ?? 1)
+}
+
+function shiftDay(key: string, delta: number) {
+  const date = parseDayKey(key)
+  date.setDate(date.getDate() + delta)
+  return dayKey(date)
+}
+
+function dayTitle(key: string, todayKey: string) {
+  const long = parseDayKey(key).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  if (key === todayKey) return `Today · ${long}`
+  if (key === shiftDay(todayKey, -1)) return `Yesterday · ${long}`
+  return long
 }
 
 export function LoginHistoryPage() {
   const { user } = useAuth()
+  const todayKey = dayKey(new Date())
+  const [day, setDay] = useState(todayKey)
   const [data, setData] = useState<LoginHistoryListResponse | null>(null)
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | Role>('all')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const isToday = day === todayKey
 
-  const load = useCallback(async (soft = false) => {
-    if (soft) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-    setError('')
-    try {
-      const { data: payload } = await api.get<LoginHistoryListResponse>(
-        '/login-history',
-        { params: { limit: 200 } },
-      )
-      setData(payload)
-    } catch (err) {
-      setError(getApiErrorMessage(err))
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [])
+  const load = useCallback(
+    async (soft = false) => {
+      if (soft) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
+      setError('')
+      try {
+        const from = parseDayKey(day)
+        const to = parseDayKey(shiftDay(day, 1))
+        const { data: payload } = await api.get<LoginHistoryListResponse>(
+          '/login-history',
+          { params: { from: from.toISOString(), to: to.toISOString() } },
+        )
+        setData(payload)
+      } catch (err) {
+        setError(getApiErrorMessage(err))
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [day],
+  )
 
   useEffect(() => {
     void load()
@@ -140,6 +179,44 @@ export function LoginHistoryPage() {
         }
       />
 
+      <div className="lh-daybar glass-card mt-6">
+        <div className="lh-daybar-nav">
+          <button
+            type="button"
+            className="lh-daybar-btn"
+            onClick={() => setDay((key) => shiftDay(key, -1))}
+            aria-label="Previous day"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <input
+            type="date"
+            className="input-field lh-daybar-date"
+            value={day}
+            max={todayKey}
+            onChange={(e) => {
+              if (e.target.value) setDay(e.target.value)
+            }}
+            aria-label="Select day"
+          />
+          <button
+            type="button"
+            className="lh-daybar-btn"
+            onClick={() => setDay((key) => shiftDay(key, 1))}
+            disabled={isToday}
+            aria-label="Next day"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="lh-daybar-title">{dayTitle(day, todayKey)}</p>
+        {!isToday ? (
+          <Button variant="secondary" onClick={() => setDay(todayKey)}>
+            Today
+          </Button>
+        ) : null}
+      </div>
+
       {error ? (
         <div className="mt-4">
           <Alert>{error}</Alert>
@@ -155,30 +232,34 @@ export function LoginHistoryPage() {
           <div className="lh-stats mt-6">
             <Stat
               icon={History}
-              label="Shown"
+              label="Visits"
               value={data?.summary.total ?? 0}
-              hint="Recent visits"
+              hint={isToday ? 'Opened today' : 'Opened this day'}
             />
             <Stat
-              icon={Shield}
-              label="Today"
-              value={data?.summary.today ?? 0}
-              hint={`${data?.summary.uniqueUsersToday ?? 0} member${
-                (data?.summary.uniqueUsersToday ?? 0) === 1 ? '' : 's'
-              }`}
+              icon={Users}
+              label="Members"
+              value={data?.summary.uniqueUsers ?? 0}
+              hint="Signed in this day"
+            />
+            <Stat
+              icon={Clock3}
+              label="Time on platform"
+              value={formatDuration(data?.summary.totalDurationMs ?? 0)}
+              hint="Across all visits"
             />
             <Stat
               icon={Globe2}
               label="Countries"
               value={data?.summary.uniqueCountries ?? 0}
-              hint="In this list"
+              hint="Visit locations"
             />
           </div>
 
           <SectionCard
             className="mt-6"
             title="Platform visits"
-            description="Opens when someone loads the app. Duration updates while the tab stays active."
+            description="Visits opened on the selected day. Duration updates while the tab stays active."
             action={
               <div className="lh-filters">
                 <label className="lh-search">
@@ -204,11 +285,11 @@ export function LoginHistoryPage() {
           >
             {items.length === 0 ? (
               <EmptyState
-                title={data?.items.length ? 'No matching visits' : 'No visits recorded yet'}
+                title={data?.items.length ? 'No matching visits' : 'No visits on this day'}
                 description={
                   data?.items.length
                     ? 'Try a different search or role filter.'
-                    : 'Visits appear when a member opens the platform while signed in.'
+                    : 'Use the arrows or date picker to browse another day.'
                 }
               />
             ) : (
@@ -247,7 +328,7 @@ function Stat({
 }: {
   icon: typeof History
   label: string
-  value: number
+  value: number | string
   hint: string
 }) {
   return (
@@ -257,7 +338,9 @@ function Stat({
       </div>
       <div className="min-w-0">
         <p className="lh-stat-label">{label}</p>
-        <p className="lh-stat-value">{value.toLocaleString()}</p>
+        <p className="lh-stat-value">
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </p>
         <p className="lh-stat-hint">{hint}</p>
       </div>
     </div>

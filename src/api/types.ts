@@ -50,6 +50,8 @@ export type LoginHistoryListResponse = {
     today: number
     uniqueUsersToday: number
     uniqueCountries: number
+    uniqueUsers: number
+    totalDurationMs: number
   }
 }
 

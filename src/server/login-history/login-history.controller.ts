@@ -47,12 +47,18 @@ export class LoginHistoryController {
   list(
     @Query('userId') userIdRaw?: string,
     @Query('limit') limitRaw?: string,
+    @Query('from') fromRaw?: string,
+    @Query('to') toRaw?: string,
   ) {
     const userId = userIdRaw ? Number(userIdRaw) : undefined;
     const limit = limitRaw ? Number(limitRaw) : undefined;
+    const from = fromRaw ? new Date(fromRaw) : undefined;
+    const to = toRaw ? new Date(toRaw) : undefined;
     return this.loginHistory.list({
       userId: Number.isFinite(userId) ? userId : undefined,
       limit: Number.isFinite(limit) ? limit : undefined,
+      from: from && !Number.isNaN(from.getTime()) ? from : undefined,
+      to: to && !Number.isNaN(to.getTime()) ? to : undefined,
     });
   }
 }
