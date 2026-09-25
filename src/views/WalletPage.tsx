@@ -1,6 +1,19 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  FormEvent,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react'
 import {
   ArrowDownLeft,
+  Eye,
+  EyeOff,
   Landmark,
   Plus,
   Receipt,
@@ -261,6 +274,37 @@ function normalizeAmount(value: string) {
   return value.replace(/[$,\s]/g, '')
 }
 
+const RevealAllContext = createContext(false)
+
+/** Money stays masked until clicked; the header eye reveals every amount at once. */
+function Secret({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const revealAll = useContext(RevealAllContext)
+  const [shown, setShown] = useState(false)
+  const visible = revealAll || shown
+
+  function toggle(event: ReactMouseEvent | ReactKeyboardEvent) {
+    event.stopPropagation()
+    event.preventDefault()
+    setShown((value) => !value)
+  }
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-label={visible ? 'Hide amount' : 'Show amount'}
+      title={visible ? 'Click to hide' : 'Click to show amount'}
+      className={`wal-secret${visible ? ' is-shown' : ''}${className ? ` ${className}` : ''}`}
+      onClick={toggle}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') toggle(event)
+      }}
+    >
+      {visible ? children : '••••••'}
+    </span>
+  )
+}
+
 export function WalletPage() {
   const [ledger, setLedger] = useState<WalletLedger>(EMPTY_LEDGER)
   const [loading, setLoading] = useState(true)
@@ -276,6 +320,7 @@ export function WalletPage() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
+  const [revealAll, setRevealAll] = useState(false)
   const { ask, dialog } = useConfirmDialog()
 
   const query = useMemo(() => {
@@ -392,6 +437,7 @@ export function WalletPage() {
   }
 
   return (
+    <RevealAllContext.Provider value={revealAll}>
     <section className="wal">
       {dialog}
       <PageHeader
@@ -399,10 +445,16 @@ export function WalletPage() {
         title="Wallet"
         description="Your private cash ledger. Only you can see these entries. Record received money, payments, bills, and payroll by hand. Void an entry to keep it off the balance, or delete it to erase it from history."
         actions={
-          <Button onClick={() => setComposerOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Record transaction
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setRevealAll((value) => !value)}>
+              {revealAll ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {revealAll ? 'Hide amounts' : 'Show amounts'}
+            </Button>
+            <Button onClick={() => setComposerOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Record transaction
+            </Button>
+          </>
         }
       />
 
@@ -426,7 +478,7 @@ export function WalletPage() {
           <div className="wal-hero">
             <div className="wal-hero-main">
               <p className="wal-kicker">Available cash</p>
-              <p className="wal-balance">{formatUsd(ledger.summary.balance)}</p>
+              <p className="wal-balance"><Secret>{formatUsd(ledger.summary.balance)}</Secret></p>
               <p className="wal-hero-meta">
                 {ledger.summary.postedCount} posted
                 {latestPosted
@@ -437,41 +489,41 @@ export function WalletPage() {
             <div className="wal-hero-side">
               <div>
                 <span>In {viewLabel}</span>
-                <strong className={Number(ledger.summary.periodIn) > 0 ? 'is-in' : ''}>{formatUsdDelta(ledger.summary.periodIn)}</strong>
+                <strong className={Number(ledger.summary.periodIn) > 0 ? 'is-in' : ''}><Secret>{formatUsdDelta(ledger.summary.periodIn)}</Secret></strong>
               </div>
               <div>
                 <span>Out {viewLabel}</span>
-                <strong className={Number(ledger.summary.periodOut) > 0 ? 'is-out' : ''}>{formatUsd(ledger.summary.periodOut)}</strong>
+                <strong className={Number(ledger.summary.periodOut) > 0 ? 'is-out' : ''}><Secret>{formatUsd(ledger.summary.periodOut)}</Secret></strong>
               </div>
               <div>
                 <span>Net</span>
-                <strong className={netTone}>{formatUsdDelta(ledger.summary.periodNet)}</strong>
+                <strong className={netTone}><Secret>{formatUsdDelta(ledger.summary.periodNet)}</Secret></strong>
               </div>
-              {priorNet ? <p className="wal-delta">{priorNet}</p> : null}
+              {priorNet ? <p className="wal-delta"><Secret>{priorNet}</Secret></p> : null}
             </div>
           </div>
 
           <div className="wal-kpis">
             <article>
               <p>Received</p>
-              <strong className={Number(ledger.summary.received) > 0 ? 'is-in' : ''}>{formatUsd(ledger.summary.received)}</strong>
+              <strong className={Number(ledger.summary.received) > 0 ? 'is-in' : ''}><Secret>{formatUsd(ledger.summary.received)}</Secret></strong>
             </article>
             <article>
               <p>Payments</p>
-              <strong>{formatUsd(ledger.summary.payment)}</strong>
+              <strong><Secret>{formatUsd(ledger.summary.payment)}</Secret></strong>
             </article>
             <article>
               <p>Billing</p>
-              <strong>{formatUsd(ledger.summary.billing)}</strong>
+              <strong><Secret>{formatUsd(ledger.summary.billing)}</Secret></strong>
             </article>
             <article>
               <p>Payroll</p>
-              <strong>{formatUsd(ledger.summary.payroll)}</strong>
+              <strong><Secret>{formatUsd(ledger.summary.payroll)}</Secret></strong>
             </article>
             <article>
               <p>Adjustment</p>
               <strong className={Number(ledger.summary.adjustment) < 0 ? 'is-out' : Number(ledger.summary.adjustment) > 0 ? 'is-in' : ''}>
-                {formatUsdDelta(ledger.summary.adjustment)}
+                <Secret>{formatUsdDelta(ledger.summary.adjustment)}</Secret>
               </strong>
             </article>
           </div>
@@ -534,7 +586,7 @@ export function WalletPage() {
                   <span
                     key={point.date}
                     className="wal-spark-col"
-                    title={`${point.date}: ${formatUsdDelta(point.net)}`}
+                    title={revealAll ? `${point.date}: ${formatUsdDelta(point.net)}` : point.date}
                   >
                     <i className={`wal-spark-bar is-${tone}`} style={{ height }} />
                     <em>{parseLocalDate(point.date).getDate()}</em>
@@ -555,7 +607,7 @@ export function WalletPage() {
                 >
                   <span>{formatMonthLabel(point.ym)}</span>
                   <strong className={point.netCents < 0 ? 'is-out' : point.netCents > 0 ? 'is-in' : ''}>
-                    {point.netCents === 0 ? '—' : formatUsdDelta(point.net)}
+                    {point.netCents === 0 ? '—' : <Secret>{formatUsdDelta(point.net)}</Secret>}
                   </strong>
                 </button>
               ))}
@@ -640,7 +692,7 @@ export function WalletPage() {
                         {group.rows.length} {group.rows.length === 1 ? 'entry' : 'entries'}
                         {' · '}
                         <em className={group.net < 0 ? 'is-out' : group.net > 0 ? 'is-in' : ''}>
-                          {formatUsdDelta(group.net)}
+                          <Secret>{formatUsdDelta(group.net)}</Secret>
                         </em>
                       </span>
                     </header>
@@ -670,14 +722,18 @@ export function WalletPage() {
                               </span>
                               <span className="wal-row-amt">
                                 <strong className={inflow ? 'is-in' : 'is-out'}>
-                                  {formatUsdDelta(row.signedAmount)}
+                                  <Secret>{formatUsdDelta(row.signedAmount)}</Secret>
                                 </strong>
                                 <em>
-                                  {row.status === 'VOID'
-                                    ? 'Voided'
-                                    : row.balanceAfter
-                                      ? `Bal ${formatUsd(row.balanceAfter)}`
-                                      : 'Posted'}
+                                  {row.status === 'VOID' ? (
+                                    'Voided'
+                                  ) : row.balanceAfter ? (
+                                    <>
+                                      Bal <Secret>{formatUsd(row.balanceAfter)}</Secret>
+                                    </>
+                                  ) : (
+                                    'Posted'
+                                  )}
                                 </em>
                               </span>
                             </button>
@@ -692,6 +748,7 @@ export function WalletPage() {
 
             {selected ? (
               <Inspector
+                key={selected.id}
                 row={selected}
                 onClose={() => setSelectedId(null)}
                 onVoid={() => voidRow(selected)}
@@ -735,6 +792,7 @@ export function WalletPage() {
         />
       ) : null}
     </section>
+    </RevealAllContext.Provider>
   )
 }
 
@@ -807,7 +865,7 @@ function Inspector({
         <h3>{row.counterparty}</h3>
         <p className="wal-detail-amt">
           <span className={Number(row.signedAmount) > 0 ? 'is-in' : 'is-out'}>
-            {formatUsdDelta(row.signedAmount)}
+            <Secret>{formatUsdDelta(row.signedAmount)}</Secret>
           </span>
           {row.status === 'VOID' ? (
             <StatusBadge tone="muted">Voided</StatusBadge>
@@ -873,7 +931,7 @@ function Inspector({
           <dl>
             <div>
               <dt>Running balance</dt>
-              <dd>{row.balanceAfter ? formatUsd(row.balanceAfter) : '—'}</dd>
+              <dd>{row.balanceAfter ? <Secret>{formatUsd(row.balanceAfter)}</Secret> : '—'}</dd>
             </div>
             <div>
               <dt>Recorded</dt>
