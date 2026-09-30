@@ -36,6 +36,13 @@ export class WeeklyInvoicesController {
     return this.weeklyInvoices.list(actor, weekStart);
   }
 
+  @Get('published')
+  @Roles(UserRole.BIDDER)
+  @ApiOperation({ summary: 'Approved weekly invoices for every bidder' })
+  published(@CurrentUser() actor: User) {
+    return this.weeklyInvoices.published(actor);
+  }
+
   @Get('workspace')
   @Roles(...WEEKLY_INVOICE_STAFF_ROLES)
   @ApiOperation({ summary: 'Get or create the manager weekly invoice workspace' })

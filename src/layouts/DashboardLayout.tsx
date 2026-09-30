@@ -121,6 +121,7 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/bidders', label: 'Bidders', icon: UserRoundCog },
         { to: '/applications', label: 'Applications', icon: Send },
         { to: '/interviews', label: 'Interviews', icon: CalendarClock },
+        { to: '/weekly-invoices', label: 'Weekly Invoice', icon: Receipt },
       ],
     },
   ],

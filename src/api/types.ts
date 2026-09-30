@@ -589,6 +589,25 @@ export type WeeklyInvoiceDetail = {
   rows: WeeklyInvoiceRow[]
 }
 
+export type PublishedWeeklyInvoice = {
+  id: number
+  periodStart: string
+  periodEnd: string
+  approvedAt: string | null
+  manager: { id: number; name: string; avatarUrl?: string | null } | null
+  applications: number
+  interviews: number
+  totalAmount: string
+  rows: Array<{
+    bidderId: number
+    bidderName: string
+    bidderAvatarUrl?: string | null
+    applications: number
+    interviews: number
+    amount: string
+  }>
+}
+
 export type WeeklyInvoiceListItem = {
   id: number
   periodStart: string

@@ -1,14 +1,6 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from '@/lib/navigation'
-import {
-  CalendarDays,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardCheck,
-  Clock,
-  Mail,
-} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from '@/lib/navigation'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type {
@@ -20,16 +12,13 @@ import type {
 import { useAuth } from '../auth/AuthContext'
 import { notifyDailySubmissionInbox } from '../layouts/daily-submission-inbox'
 import { EntityAvatar } from '../ui/avatar'
-import { Alert, Button, SectionCard, StatCard } from '../ui/chrome'
+import { Alert, Button } from '../ui/chrome'
 import { PageSkeleton } from '../ui/loading/page-skeletons'
 import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/page-header'
-import { ROLE_LABEL } from '../ui/roles'
 import { isWeekend, parseLocalDate, toIsoDate } from '../ui/reporting-period'
 import { StatusBadge } from '../ui/StatusBadge'
-
-type AdminListFilter = 'all' | 'day' | 'pending' | 'approved' | 'unread'
 
 function statusLabel(status: DailySubmissionStatus) {
   if (status === 'SUBMITTED') {
@@ -49,19 +38,6 @@ function statusTone(status: DailySubmissionStatus) {
     return 'success' as const
   }
   return 'info' as const
-}
-
-function DiffBadge({ value }: { value: number | null }) {
-  if (value == null) {
-    return <span className="text-sm text-[var(--text-muted)]">—</span>
-  }
-  if (value === 0) {
-    return <StatusBadge tone="success">Matched</StatusBadge>
-  }
-  if (value > 0) {
-    return <StatusBadge tone="warning">{`+${value}`}</StatusBadge>
-  }
-  return <StatusBadge tone="danger">{String(value)}</StatusBadge>
 }
 
 function formatTime(value: string | null) {
@@ -103,8 +79,9 @@ function formatReportingDateLabel(iso: string) {
   })
 }
 
-function formatShortDay(iso: string) {
+function formatListDay(iso: string) {
   return parseLocalDate(iso.slice(0, 10)).toLocaleDateString('en-US', {
+    weekday: 'short',
     month: 'short',
     day: 'numeric',
   })
@@ -125,54 +102,32 @@ function shiftIso(iso: string, days: number) {
   return toIsoDate(next)
 }
 
-function monthShort(iso: string) {
-  return parseLocalDate(iso).toLocaleDateString('en-US', { month: 'short' })
+function mondayOf(iso: string) {
+  const date = parseLocalDate(iso.slice(0, 10))
+  const day = date.getDay()
+  const offset = day === 0 ? -6 : 1 - day
+  date.setDate(date.getDate() + offset)
+  return toIsoDate(date)
 }
 
-function groupByReportingDate(items: DailySubmissionListItem[]) {
-  const groups: { date: string; items: DailySubmissionListItem[] }[] = []
-  const index = new Map<string, DailySubmissionListItem[]>()
-  for (const item of items) {
-    const date = reportingDay(item)
-    let bucket = index.get(date)
-    if (!bucket) {
-      bucket = []
-      index.set(date, bucket)
-      groups.push({ date, items: bucket })
-    }
-    bucket.push(item)
+function formatWeekHeading(monday: string) {
+  const from = parseLocalDate(monday)
+  const to = parseLocalDate(shiftIso(monday, 6))
+  if (from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()) {
+    const month = from.toLocaleDateString('en-US', { month: 'short' })
+    return `${month} ${from.getDate()} – ${to.getDate()}, ${to.getFullYear()}`
   }
-  return groups
-}
-
-function DeltaMark({ value }: { value: number }) {
-  if (value === 0) {
-    return <span className="ds-delta ds-delta--ok">matched</span>
-  }
-  if (value > 0) {
-    return <span className="ds-delta ds-delta--up">+{formatCount(value)}</span>
-  }
-  return <span className="ds-delta ds-delta--down">{formatCount(value)}</span>
-}
-
-function CompareCell({
-  system,
-  confirmed,
-  difference,
-}: {
-  system: number
-  confirmed: number
-  difference: number
-}) {
-  return (
-    <div className="ds-compare">
-      <p className="ds-compare-main">{formatCount(confirmed)}</p>
-      <p className="ds-compare-meta">
-        <span>sys {formatCount(system)}</span>
-        <DeltaMark value={difference} />
-      </p>
-    </div>
-  )
+  const endLabel = to.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  const startLabel = from.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: from.getFullYear() === to.getFullYear() ? undefined : 'numeric',
+  })
+  return `${startLabel} – ${endLabel}`
 }
 
 function countInput(value: number | null) {
@@ -202,7 +157,7 @@ function parseRouteId(value: string | undefined): number | null {
 }
 
 export function DailySubmissionsPage() {
-  const { user } = useAuth()
+  const { user, status } = useAuth()
   const { ask, dialog } = useConfirmDialog()
   const navigate = useNavigate()
   const { submissionId: submissionIdParam } = useParams<{ submissionId?: string }>()
@@ -216,7 +171,6 @@ export function DailySubmissionsPage() {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [pending, setPending] = useState(false)
-  const [openNotes, setOpenNotes] = useState<Record<number, boolean>>({})
 
   const rows = detail?.rows ?? []
   const canEdit = Boolean(
@@ -239,12 +193,25 @@ export function DailySubmissionsPage() {
     )
   }, [rows])
 
-  async function loadManager(nextDate = date) {
-    const { data } = await api.get<DailySubmissionDetail>(
-      '/daily-submissions/workspace',
-      { params: { date: nextDate } },
-    )
-    setDetail(data)
+  async function openReportForDate(nextDate: string) {
+    const existing = list.find((item) => reportingDay(item) === nextDate)
+    if (existing) {
+      navigate(`/daily-submissions/${existing.id}`)
+      return
+    }
+    setPending(true)
+    setError('')
+    try {
+      const { data } = await api.get<DailySubmissionDetail>(
+        '/daily-submissions/workspace',
+        { params: { date: nextDate } },
+      )
+      navigate(`/daily-submissions/${data.id}`)
+    } catch (err) {
+      setError(getApiErrorMessage(err))
+    } finally {
+      setPending(false)
+    }
   }
 
   async function loadAdmin(nextDate = date, id = selectedId) {
@@ -268,13 +235,37 @@ export function DailySubmissionsPage() {
   }
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (status !== 'authenticated' || (!isAdmin && !isManager)) {
       return
     }
     let cancelled = false
     setLoading(true)
     setError('')
-    loadAdmin(date, selectedId)
+    const task = selectedId
+      ? api
+          .get<DailySubmissionDetail>(`/daily-submissions/${selectedId}`)
+          .then(async ({ data }) => {
+            if (cancelled) {
+              return
+            }
+            setDetail(data)
+            if (isAdmin) {
+              await api.post('/daily-submissions/seen').catch(() => null)
+              notifyDailySubmissionInbox()
+            }
+          })
+      : api.get<DailySubmissionListItem[]>('/daily-submissions').then(async ({ data }) => {
+          if (cancelled) {
+            return
+          }
+          setDetail(null)
+          setList(isAdmin ? data.filter((item) => item.status !== 'DRAFT') : data)
+          if (isAdmin) {
+            await api.post('/daily-submissions/seen').catch(() => null)
+            notifyDailySubmissionInbox()
+          }
+        })
+    task
       .catch((err) => {
         if (!cancelled) {
           setError(getApiErrorMessage(err))
@@ -288,30 +279,7 @@ export function DailySubmissionsPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin, selectedId])
-
-  useEffect(() => {
-    if (isAdmin) {
-      return
-    }
-    let cancelled = false
-    setLoading(true)
-    setError('')
-    loadManager(date)
-      .catch((err) => {
-        if (!cancelled) {
-          setError(getApiErrorMessage(err))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [isAdmin, date])
+  }, [status, isAdmin, isManager, selectedId])
 
   function patchRow(
     bidderId: number,
@@ -504,26 +472,28 @@ export function DailySubmissionsPage() {
         title="Daily Submission"
         description={
           isAdmin
-            ? 'One log of every daily report — pending, approved, applications, and interviews at a glance.'
-            : 'Verify each bidder, plus your own assigned profiles, before submitting the team report.'
+            ? 'Daily reports for the week. Open one to review or approve it.'
+            : 'Open a day, enter the confirmed counts, and submit.'
         }
         actions={
-          <label className="text-sm text-[var(--text-secondary)]">
-            Reporting date
-            <input
-              className="input-field mt-1"
-              type="date"
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value)
-                if (selectedId != null) {
-                  navigate('/daily-submissions')
-                } else {
-                  setDetail(null)
-                }
-              }}
-            />
-          </label>
+          <>
+            <label className="text-sm text-[var(--text-secondary)]">
+              Reporting date
+              <input
+                className="input-field mt-1"
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  if (selectedId != null) {
+                    navigate('/daily-submissions')
+                  } else {
+                    setDetail(null)
+                  }
+                }}
+              />
+            </label>
+          </>
         }
       />
 
@@ -550,22 +520,27 @@ export function DailySubmissionsPage() {
         </div>
       ) : null}
 
-      {isAdmin && !loading && selectedId == null ? (
+      {(isAdmin || isManager) && !loading && selectedId == null ? (
         <AdminList
           date={date}
           items={list}
+          showUnread={isAdmin}
           onDateChange={setDate}
           onView={(id) => void openAdminReport(id)}
-          onDelete={(item) =>
-            requestDelete(
-              item.id,
-              `${item.manager?.name ?? 'Bid Manager'} · ${formatReportDay(reportingDay(item))}`,
-            )
+          onStart={isManager ? (day) => void openReportForDate(day) : undefined}
+          onDelete={
+            isAdmin
+              ? (item) =>
+                  requestDelete(
+                    item.id,
+                    `${item.manager?.name ?? 'Bid Manager'} · ${formatReportDay(reportingDay(item))}`,
+                  )
+              : undefined
           }
         />
       ) : null}
 
-      {!loading && detail && (!isAdmin || selectedId != null) ? (
+      {!loading && detail && selectedId != null ? (
         <ReportWorkspace
           detail={detail}
           totals={totals}
@@ -573,10 +548,6 @@ export function DailySubmissionsPage() {
           isAdmin={isAdmin}
           pending={pending}
           lockedForManager={lockedForManager}
-          openNotes={openNotes}
-          onToggleNotes={(id) =>
-            setOpenNotes((current) => ({ ...current, [id]: !current[id] }))
-          }
           onPatchRow={patchRow}
           onSave={() => void saveDraft()}
           onSubmit={requestSubmit}
@@ -588,19 +559,8 @@ export function DailySubmissionsPage() {
             )
           }
           onReview={() => void markReviewed()}
-          onBack={
-            isAdmin ? () => navigate('/daily-submissions') : undefined
-          }
+          onBack={() => navigate('/daily-submissions')}
         />
-      ) : null}
-
-      {isManager && !loading && !detail ? (
-        <div className="mt-5">
-          <EmptyState
-            title="No daily report is available for this date."
-            description="Choose another reporting date, or wait until a report is started."
-          />
-        </div>
       ) : null}
     </section>
   )
@@ -609,35 +569,27 @@ export function DailySubmissionsPage() {
 function AdminList({
   date,
   items,
+  showUnread = true,
   onDateChange,
   onView,
   onDelete,
+  onStart,
 }: {
   date: string
   items: DailySubmissionListItem[]
+  showUnread?: boolean
   onDateChange: (next: string) => void
   onView: (id: number) => void
-  onDelete: (item: DailySubmissionListItem) => void
+  onDelete?: (item: DailySubmissionListItem) => void
+  onStart?: (day: string) => void
 }) {
-  const [filter, setFilter] = useState<AdminListFilter>('all')
   const todayIso = toIsoDate(new Date())
-  const [rangeEnd, setRangeEnd] = useState(todayIso)
-  const lastDate = useRef(date)
-  const pendingCount = items.filter((item) => item.status === 'SUBMITTED').length
-  const approvedCount = items.filter((item) => item.status === 'REVIEWED').length
-  const unreadCount = items.filter((item) => item.unread).length
-  const selectedDayItems = items.filter((item) => reportingDay(item) === date)
-  const days = useMemo(() => dayWindow(rangeEnd, 14), [rangeEnd])
-
-  useEffect(() => {
-    if (lastDate.current === date) {
-      return
-    }
-    lastDate.current = date
-    if (!dayWindow(rangeEnd, 14).includes(date)) {
-      setRangeEnd(date > todayIso ? todayIso : date)
-    }
-  }, [date, rangeEnd, todayIso])
+  const weekStart = mondayOf(date)
+  const thisMonday = mondayOf(todayIso)
+  const selectedWeekItems = items.filter(
+    (item) => mondayOf(reportingDay(item)) === weekStart,
+  )
+  const days = useMemo(() => dayWindow(shiftIso(weekStart, 6), 7), [weekStart])
   const byDay = useMemo(() => {
     const map = new Map<string, DailySubmissionListItem[]>()
     for (const item of items) {
@@ -649,324 +601,184 @@ function AdminList({
     return map
   }, [items])
 
-  const visible = items.filter((item) => {
-    if (filter === 'day') {
-      return reportingDay(item) === date
-    }
-    if (filter === 'pending') {
-      return item.status === 'SUBMITTED'
-    }
-    if (filter === 'approved') {
-      return item.status === 'REVIEWED'
-    }
-    if (filter === 'unread') {
-      return item.unread
-    }
-    return true
-  })
-  const groups = groupByReportingDate(visible)
-
   function openRow(id: number) {
     onView(id)
   }
 
-  function moveRange(daysDelta: number) {
-    const next = shiftIso(rangeEnd, daysDelta)
-    const end = next > todayIso ? todayIso : next
-    setRangeEnd(end)
-    if (filter === 'day' && !dayWindow(end, 14).includes(date)) {
-      setFilter('all')
-    }
+  function moveWeek(delta: number) {
+    const next = shiftIso(date, delta * 7)
+    onDateChange(next > todayIso ? todayIso : next)
   }
 
-  function jumpToToday() {
-    setRangeEnd(todayIso)
+  function jumpToThisWeek() {
     onDateChange(todayIso)
-    setFilter('day')
-  }
-
-  function selectDay(day: string) {
-    onDateChange(day)
-    setFilter('day')
   }
 
   if (items.length === 0) {
     return (
       <div className="mt-5">
         <EmptyState
-          title="No submitted daily reports"
-          description={`Bid Managers have not sent a daily report for ${formatReportDay(date)} yet. Submitted reports will appear in this log.`}
+          title={showUnread ? 'No submitted daily reports' : 'No daily reports yet'}
+          description={
+            showUnread
+              ? `Bid Managers have not sent a daily report for ${formatReportDay(date)} yet. Submitted reports will appear in this log.`
+              : 'Start a report for the selected date when you are ready to verify counts. Saved drafts and submitted reports stay in this list with their status.'
+          }
+          action={
+            onStart ? (
+              <Button onClick={() => onStart(date)}>Start report</Button>
+            ) : undefined
+          }
         />
       </div>
     )
   }
 
   return (
-    <div className="ds-board mt-5">
-      <div className="ds-kpis">
-        <article className="ds-kpi">
-          <span className="ds-kpi-icon ds-kpi-icon--warn">
-            <Clock className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="ds-kpi-label">Pending approval</p>
-            <p className="ds-kpi-value">{formatCount(pendingCount)}</p>
-          </div>
-        </article>
-        <article className="ds-kpi">
-          <span className="ds-kpi-icon ds-kpi-icon--ok">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="ds-kpi-label">Approved</p>
-            <p className="ds-kpi-value">{formatCount(approvedCount)}</p>
-          </div>
-        </article>
-        <article className="ds-kpi">
-          <span className="ds-kpi-icon ds-kpi-icon--accent">
-            <Mail className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="ds-kpi-label">Unread</p>
-            <p className="ds-kpi-value">{formatCount(unreadCount)}</p>
-          </div>
-        </article>
-        <article className="ds-kpi">
-          <span className="ds-kpi-icon">
-            <CalendarDays className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="ds-kpi-label">Selected day</p>
-            <p className="ds-kpi-value">{formatCount(selectedDayItems.length)}</p>
-            <p className="ds-kpi-hint">{formatReportDay(date)}</p>
-          </div>
-        </article>
-      </div>
-
-      <section className="ds-strip-panel" aria-label="Recent reporting days">
-        <div className="ds-strip-head">
-          <h2>Daily log</h2>
-          <div className="ds-strip-nav">
-            <button
-              type="button"
-              className="ds-nav-btn"
-              aria-label="Previous 7 days"
-              onClick={() => moveRange(-7)}
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button type="button" className="ds-nav-btn ds-nav-today" onClick={jumpToToday}>
-              Today
-            </button>
-            <button
-              type="button"
-              className="ds-nav-btn"
-              aria-label="Next 7 days"
-              disabled={rangeEnd >= todayIso}
-              onClick={() => moveRange(7)}
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-          <p>
-            {`${formatShortDay(days[0])} – ${formatShortDay(days[days.length - 1])}`}
+    <section className="mt-5 rounded-xl border border-[var(--border-glass)] bg-[var(--bg-glass-solid)] px-4 py-4 md:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            {formatWeekHeading(weekStart)}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            {selectedWeekItems.length === 1
+              ? '1 report'
+              : `${selectedWeekItems.length} reports`}
           </p>
         </div>
-        <div className="ds-strip">
-          {days.map((day, index) => {
-            const dayItems = byDay.get(day) ?? []
-            const pending = dayItems.some((item) => item.status === 'SUBMITTED')
-            const empty = dayItems.length === 0
-            const weekend = isWeekend(day)
-            const parsed = parseLocalDate(day)
-            const showMonth = index === 0 || parsed.getDate() === 1
-            const state = empty ? 'empty' : pending ? 'pending' : 'ok'
-            return (
-              <button
-                key={day}
-                type="button"
-                className={`ds-day ${weekend ? 'is-weekend' : ''} ${
-                  day === date ? 'is-on' : ''
-                } ${day === todayIso ? 'is-today' : ''} is-${state}`}
-                onClick={() => selectDay(day)}
-              >
-                {showMonth ? <span className="ds-day-m">{monthShort(day)}</span> : null}
-                <span className="ds-day-w">
-                  {parsed.toLocaleDateString('en-US', { weekday: 'short' })}
-                </span>
-                <span className="ds-day-n">{parsed.getDate()}</span>
-                <span className="ds-day-c">
-                  {day === todayIso && empty
-                    ? 'today'
-                    : empty
-                      ? '—'
-                      : `${dayItems.length} sent`}
-                </span>
-              </button>
-            )
-          })}
+        <div className="ds-strip-nav">
+          <button
+            type="button"
+            className="ds-nav-btn"
+            aria-label="Previous week"
+            onClick={() => moveWeek(-1)}
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button type="button" className="ds-nav-btn ds-nav-today" onClick={jumpToThisWeek}>
+            This week
+          </button>
+          <button
+            type="button"
+            className="ds-nav-btn"
+            aria-label="Next week"
+            disabled={weekStart >= thisMonday}
+            onClick={() => moveWeek(1)}
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
-      </section>
-
-      <div className="ds-toolbar">
-        <div className="ds-filters" role="tablist" aria-label="Filter reports">
-          {(
-            [
-              ['all', 'All reports', items.length],
-              ['day', 'This date', selectedDayItems.length],
-              ['pending', 'Pending', pendingCount],
-              ['approved', 'Approved', approvedCount],
-              ['unread', 'Unread', unreadCount],
-            ] as const
-          ).map(([id, label, count]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={filter === id}
-              className={`ds-filter ${filter === id ? 'is-on' : ''}`}
-              onClick={() => setFilter(id)}
-            >
-              {label}
-              <span>{count}</span>
-            </button>
-          ))}
-        </div>
-        {selectedDayItems.length === 0 ? (
-          <p className="ds-missing">No report for {formatReportDay(date)} yet.</p>
-        ) : null}
       </div>
-
-      {groups.length === 0 ? (
-        <EmptyState title="No reports match this filter." />
+      {days.every((day) => (byDay.get(day) ?? []).length === 0) && !onStart ? (
+        <div className="mt-4">
+          <EmptyState title="No reports for this week." />
+        </div>
       ) : (
-        <div className="table-wrap">
-          <table className="table-ui ds-log">
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
-              <tr>
-                <th>Manager</th>
-                <th>Status</th>
-                <th className="num">Gmail apps</th>
-                <th className="num">Verified interviews</th>
-                <th>Submitted</th>
-                <th />
+              <tr className="border-b border-[var(--border-subtle)] text-[11px] font-semibold tracking-wide text-[var(--text-muted)] uppercase">
+                <th className="py-2 pr-3 font-semibold">Day</th>
+                {showUnread ? <th className="py-2 pr-3 font-semibold">Manager</th> : null}
+                <th className="py-2 pr-3 font-semibold">Status</th>
+                <th className="py-2 pr-3 text-right font-semibold">Apps</th>
+                <th className="py-2 pr-3 text-right font-semibold">Interviews</th>
+                <th className="py-2" />
               </tr>
             </thead>
             <tbody>
-              {groups.map((group) => {
-                const apps = group.items.reduce((sum, item) => sum + item.gmailConfirmed, 0)
-                const interviews = group.items.reduce(
-                  (sum, item) => sum + item.verifiedInterviews,
-                  0,
-                )
-                const pendingInGroup = group.items.filter(
-                  (item) => item.status === 'SUBMITTED',
-                ).length
-                return (
-                  <Fragment key={group.date}>
-                    <tr className={`ds-group ${group.date === date ? 'is-focus' : ''}`}>
-                      <td colSpan={6}>
-                        <div className="ds-group-line">
-                          <span>{formatReportDay(group.date)}</span>
-                          <span>
-                            {group.items.length === 1
-                              ? '1 report'
-                              : `${group.items.length} reports`}
-                            {pendingInGroup > 0 ? ` · ${pendingInGroup} pending` : ''}
-                            {' · '}
-                            {formatCount(apps)} apps · {formatCount(interviews)} interviews
+              {days.map((day) => {
+                const dayItems = byDay.get(day) ?? []
+                if (dayItems.length === 0) {
+                  if (!onStart) return null
+                  return (
+                    <tr
+                      key={day}
+                      className="border-b border-[var(--border-subtle)] last:border-b-0"
+                    >
+                      <td className="py-3 pr-3 font-medium text-[var(--text-primary)]">
+                        {formatListDay(day)}
+                      </td>
+                      <td className="py-3 pr-3 text-[var(--text-muted)]" colSpan={3}>
+                        No report
+                      </td>
+                      <td className="py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          className="!h-8 !px-2.5 !text-xs"
+                          onClick={() => onStart(day)}
+                        >
+                          Start
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                }
+                return dayItems.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="cursor-pointer border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-white/[0.03]"
+                    onClick={() => openRow(item.id)}
+                  >
+                    <td className="py-3 pr-3 font-medium text-[var(--text-primary)]">
+                      {formatListDay(reportingDay(item))}
+                    </td>
+                    {showUnread ? (
+                      <td className="py-3 pr-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <EntityAvatar
+                            name={item.manager?.name ?? 'Bid Manager'}
+                            src={item.manager?.avatarUrl}
+                            size="sm"
+                          />
+                          <span className="truncate text-[var(--text-primary)]">
+                            {item.manager?.name ?? 'Bid Manager'}
+                            {item.unread ? <span className="ds-new">New</span> : null}
                           </span>
                         </div>
                       </td>
-                    </tr>
-                    {group.items.map((item) => (
-                      <tr
-                        key={item.id}
-                        className={`interactive-row ${item.unread ? 'is-unread' : ''} ${
-                          reportingDay(item) === date ? 'is-today' : ''
-                        }`}
-                        tabIndex={0}
+                    ) : null}
+                    <td className="py-3 pr-3">
+                      <StatusBadge tone={statusTone(item.status)}>
+                        {statusLabel(item.status)}
+                      </StatusBadge>
+                    </td>
+                    <td className="py-3 pr-3 text-right tabular-nums text-[var(--text-primary)]">
+                      {formatCount(item.gmailConfirmed)}
+                    </td>
+                    <td className="py-3 pr-3 text-right tabular-nums text-[var(--text-primary)]">
+                      {formatCount(item.verifiedInterviews)}
+                    </td>
+                    <td
+                      className="py-3 text-right"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <Button
+                        variant="ghost"
+                        className="!h-8 !px-2.5 !text-xs"
                         onClick={() => openRow(item.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            openRow(item.id)
-                          }
-                        }}
                       >
-                        <td>
-                          <div className="ds-manager">
-                            <EntityAvatar
-                              name={item.manager?.name ?? 'Bid Manager'}
-                              src={item.manager?.avatarUrl}
-                              size="sm"
-                            />
-                            <div className="min-w-0">
-                              <p className="ds-manager-name">
-                                {item.manager?.name ?? 'Bid Manager'}
-                                {item.unread ? <span className="ds-new">New</span> : null}
-                              </p>
-                              <p className="ds-manager-meta">
-                                {item.bidderCount === 1
-                                  ? '1 bidder'
-                                  : `${item.bidderCount} bidders`}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <StatusBadge tone={statusTone(item.status)}>
-                            {statusLabel(item.status)}
-                          </StatusBadge>
-                        </td>
-                        <td className="num">
-                          <CompareCell
-                            system={item.systemApplications}
-                            confirmed={item.gmailConfirmed}
-                            difference={item.applicationDifference}
-                          />
-                        </td>
-                        <td className="num">
-                          <CompareCell
-                            system={item.systemInterviews}
-                            confirmed={item.verifiedInterviews}
-                            difference={item.interviewDifference}
-                          />
-                        </td>
-                        <td className="ds-time">
-                          {item.submittedAt ? formatTime(item.submittedAt) : '—'}
-                        </td>
-                        <td
-                          className="ds-open"
-                          onClick={(event) => event.stopPropagation()}
+                        Open
+                      </Button>
+                      {onDelete ? (
+                        <Button
+                          variant="danger"
+                          className="!ml-1 !h-8 !px-2.5 !text-xs"
+                          onClick={() => onDelete(item)}
                         >
-                          <div className="flex flex-wrap items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              className="!h-8 !px-2.5 !text-xs"
-                              onClick={() => openRow(item.id)}
-                            >
-                              Open
-                            </Button>
-                            <Button
-                              variant="danger"
-                              className="!h-8 !px-2.5 !text-xs"
-                              onClick={() => onDelete(item)}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                )
+                          Delete
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))
               })}
             </tbody>
           </table>
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -977,8 +789,6 @@ function ReportWorkspace({
   isAdmin,
   pending,
   lockedForManager,
-  openNotes,
-  onToggleNotes,
   onPatchRow,
   onSave,
   onSubmit,
@@ -999,8 +809,6 @@ function ReportWorkspace({
   isAdmin: boolean
   pending: boolean
   lockedForManager: boolean
-  openNotes: Record<number, boolean>
-  onToggleNotes: (id: number) => void
   onPatchRow: (
     bidderId: number,
     patch: Partial<
@@ -1017,7 +825,6 @@ function ReportWorkspace({
   onReview: () => void
   onBack?: () => void
 }) {
-  const { user } = useAuth()
   const incomplete = detail.rows.filter(
     (row) =>
       row.gmailConfirmedApplicationCount == null ||
@@ -1031,191 +838,101 @@ function ReportWorkspace({
         </Button>
       ) : null}
 
-      <div className="rounded-xl border border-[var(--border-glass)] bg-[var(--bg-glass-solid)] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <section className="rounded-xl border border-[var(--border-glass)] bg-[var(--bg-glass-solid)] px-4 py-4 md:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-medium tracking-wide text-[var(--text-muted)] uppercase">
-              Daily Report
-            </p>
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">
               {formatReportDay(detail.reportingDate)}
             </h2>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {detail.manager?.name}
               {detail.submittedAt
                 ? ` · Submitted ${formatTime(detail.submittedAt)}`
-                : ` · Last saved ${formatTime(detail.updated_at) ?? ''}`}
+                : ''}
             </p>
           </div>
           <StatusBadge tone={statusTone(detail.status)}>
             {statusLabel(detail.status)}
           </StatusBadge>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard value={detail.rows.length} label="Bidders" icon={ClipboardCheck} />
-        <StatCard
-          value={totals.systemApps}
-          label="System application activity"
-          tone="neutral"
-        />
-        <StatCard
-          value={totals.systemInts}
-          label="System interview schedules"
-          tone="neutral"
-        />
-        <StatCard value={totals.assigned} label="Assigned candidates" tone="neutral" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard value={totals.gmail} label="Gmail confirmed" tone="neutral" />
-        <StatCard value={totals.verified} label="Verified interviews" tone="neutral" />
-        <div className="rounded-xl border border-[var(--border-glass)] bg-[var(--bg-glass-solid)] px-4 py-3.5">
-          <p className="text-xs text-[var(--text-muted)]">Application difference</p>
-          <div className="mt-2">
-            <DiffBadge value={totals.gmail - totals.systemApps} />
-          </div>
-        </div>
-        <div className="rounded-xl border border-[var(--border-glass)] bg-[var(--bg-glass-solid)] px-4 py-3.5">
-          <p className="text-xs text-[var(--text-muted)]">Interview difference</p>
-          <div className="mt-2">
-            <DiffBadge value={totals.verified - totals.systemInts} />
-          </div>
-        </div>
-      </div>
-
-      <SectionCard
-        title="Team verification"
-        description="System counts are read-only. Enter Gmail confirmation and verified interview counts for every bidder and for your own assigned profiles. Admin-assigned profiles are not listed here."
-      >
         {detail.rows.length === 0 ? (
-          <EmptyState title="No active bidders to verify." />
+          <div className="mt-4">
+            <EmptyState title="No active bidders to verify." />
+          </div>
         ) : (
-          <div className="space-y-3">
-            {detail.rows.map((row) => {
-              const blank =
-                row.gmailConfirmedApplicationCount == null ||
-                row.verifiedInterviewCount == null
-              return (
-                <article
-                  key={row.bidderId}
-                  className={`rounded-xl border px-4 py-3.5 ${
-                    blank && canEdit
-                      ? 'border-[rgba(215,169,93,0.28)] bg-[rgba(215,169,93,0.1)]'
-                      : 'border-[var(--border-glass)] bg-white/5'
-                  }`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <EntityAvatar name={row.bidderName} src={row.bidderAvatarUrl} />
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-[var(--text-primary)]">
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border-subtle)] text-[11px] font-semibold tracking-wide text-[var(--text-muted)] uppercase">
+                  <th className="py-2 pr-3 font-semibold">Bidder</th>
+                  <th className="py-2 pr-3 font-semibold">Gmail confirmed</th>
+                  <th className="py-2 font-semibold">Verified interviews</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.rows.map((row) => (
+                  <tr
+                    key={row.bidderId}
+                    className="border-b border-[var(--border-subtle)] last:border-b-0"
+                  >
+                    <td className="py-3 pr-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <EntityAvatar
+                          name={row.bidderName}
+                          src={row.bidderAvatarUrl}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-[var(--text-primary)]">
                             {row.bidderName}
                           </p>
-                          {user?.id === row.bidderId ? (
-                            <StatusBadge>You</StatusBadge>
-                          ) : row.bidderRole && row.bidderRole !== 'BIDDER' ? (
-                            <StatusBadge muted>
-                              {ROLE_LABEL[row.bidderRole]}
-                            </StatusBadge>
-                          ) : null}
+                          <p className="text-xs text-[var(--text-muted)]">
+                            System {row.systemApplicationCount.toLocaleString()} apps ·{' '}
+                            {row.systemInterviewCount.toLocaleString()} interviews
+                          </p>
                         </div>
-                        <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">{row.bidderEmail}</p>
                       </div>
-                    </div>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {row.assignedProfileCount} assigned
-                    </p>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                      <p className="text-[11px] font-medium tracking-[0.16em] text-[var(--text-muted)] uppercase">
-                        System
-                      </p>
-                      <div className="read-surface mt-2 space-y-1 px-3 py-2">
-                        <p className="flex justify-between text-sm text-[var(--text-secondary)]">
-                          Applications
-                          <span className="num-metric text-base">{row.systemApplicationCount}</span>
-                        </p>
-                        <p className="flex justify-between text-sm text-[var(--text-secondary)]">
-                          Interviews
-                          <span className="num-metric text-base">{row.systemInterviewCount}</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-medium tracking-[0.16em] text-[var(--text-muted)] uppercase">
-                        Verified
-                      </p>
-                      <label className="mt-2 block text-sm">
-                        <span className="text-[var(--text-secondary)]">Gmail confirmed</span>
-                        <input
-                          className="input-field"
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          disabled={!canEdit}
-                          value={countInput(row.gmailConfirmedApplicationCount)}
-                          onChange={(e) =>
-                            onPatchRow(row.bidderId, {
-                              gmailConfirmedApplicationCount: parseCount(
-                                e.target.value,
-                              ),
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="mt-2 block text-sm">
-                        <span className="text-[var(--text-secondary)]">Verified interview schedules</span>
-                        <input
-                          className="input-field"
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          disabled={!canEdit}
-                          value={countInput(row.verifiedInterviewCount)}
-                          onChange={(e) =>
-                            onPatchRow(row.bidderId, {
-                              verifiedInterviewCount: parseCount(e.target.value),
-                            })
-                          }
-                        />
-                      </label>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <span className="text-xs text-[var(--text-muted)]">Application difference</span>
-                    <DiffBadge value={row.applicationDifference} />
-                    <span className="text-xs text-[var(--text-muted)]">Interview difference</span>
-                    <DiffBadge value={row.interviewDifference} />
-                  </div>
-                  <button
-                    type="button"
-                    className="mt-2 text-xs font-medium text-[var(--accent)]"
-                    onClick={() => onToggleNotes(row.bidderId)}
-                  >
-                    {openNotes[row.bidderId] || row.notes ? 'Notes' : '+ Add note'}
-                  </button>
-                  {openNotes[row.bidderId] || row.notes ? (
-                    <textarea
-                      className="input-field mt-2 min-h-16"
-                      maxLength={500}
-                      disabled={!canEdit}
-                      value={row.notes ?? ''}
-                      onChange={(e) =>
-                        onPatchRow(row.bidderId, { notes: e.target.value })
-                      }
-                      placeholder="Optional: delayed confirmations, duplicates, reschedules…"
-                    />
-                  ) : null}
-                </article>
-              )
-            })}
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        className="input-field max-w-[8rem]"
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-label={`Gmail confirmed for ${row.bidderName}`}
+                        disabled={!canEdit}
+                        value={countInput(row.gmailConfirmedApplicationCount)}
+                        onChange={(event) =>
+                          onPatchRow(row.bidderId, {
+                            gmailConfirmedApplicationCount: parseCount(event.target.value),
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="py-3">
+                      <input
+                        className="input-field max-w-[8rem]"
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-label={`Verified interviews for ${row.bidderName}`}
+                        disabled={!canEdit}
+                        value={countInput(row.verifiedInterviewCount)}
+                        onChange={(event) =>
+                          onPatchRow(row.bidderId, {
+                            verifiedInterviewCount: parseCount(event.target.value),
+                          })
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </SectionCard>
+      </section>
 
       {canEdit ? (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--border-glass)] bg-[var(--bg-glass-solid)]/95 px-4 py-3 backdrop-blur lg:left-64">
@@ -1283,14 +1000,6 @@ function ReportWorkspace({
           is approved.
         </Alert>
       ) : null}
-
-      <p className="pt-2 text-sm text-[var(--text-muted)]">
-        Weekly totals contribute to{' '}
-        <Link className="font-medium text-[var(--text-primary)] underline" to="/weekly-invoices">
-          Weekly Invoice
-        </Link>
-        .
-      </p>
     </div>
   )
 }

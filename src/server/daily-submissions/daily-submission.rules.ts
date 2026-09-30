@@ -71,11 +71,7 @@ export function dailySubmissionRowUserIds(params: {
   managerId: number;
   managerRole: string;
 }): number[] {
-  const ids = params.activeBidderIds.filter((id) => id !== params.managerId);
-  if (params.managerRole === UserRole.BID_MANAGER) {
-    ids.push(params.managerId);
-  }
-  return ids;
+  return params.activeBidderIds.filter((id) => id !== params.managerId);
 }
 
 export function countSystemApplications(

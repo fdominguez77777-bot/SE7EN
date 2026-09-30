@@ -159,13 +159,9 @@ export function DashboardPage() {
   const sparkDates = weekPoints.map((point) => point.date)
 
   const performance = useMemo(() => {
-    const pool = (summary?.bidders ?? []).filter((bidder) => {
-      const role = bidder.role ?? 'BIDDER'
-      if (role === 'BIDDER' || role === 'BID_MANAGER') {
-        return true
-      }
-      return user?.id != null && bidder.id === user.id
-    })
+    const pool = (summary?.bidders ?? []).filter(
+      (bidder) => (bidder.role ?? 'BIDDER') === 'BIDDER',
+    )
     const rows = pool.map((bidder) => {
       const value = metricForPeriod(bidder, rankPeriod, rankMetric)
       return { bidder, value }
@@ -179,7 +175,7 @@ export function DashboardPage() {
           b.value - a.value ||
           a.bidder.name.localeCompare(b.bidder.name),
       )
-  }, [summary, rankMetric, rankPeriod, user?.id])
+  }, [summary, rankMetric, rankPeriod])
 
   const rankingHasActivity = performance.some((row) => row.value > 0)
   const weekRate = interviewRate(weekInts, weekApps)

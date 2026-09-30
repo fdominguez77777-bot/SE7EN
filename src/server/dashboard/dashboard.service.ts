@@ -295,7 +295,7 @@ export class DashboardService {
         ...row,
         interviews: weekInterviewByDay.get(row.date) ?? 0,
       })),
-      bidders: team,
+      bidders: team.filter((row) => row.role === UserRole.BIDDER),
       recent,
     };
   }

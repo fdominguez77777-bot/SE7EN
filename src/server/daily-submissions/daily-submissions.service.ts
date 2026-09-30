@@ -656,7 +656,7 @@ export class DailySubmissionsService {
 
   private async toDetailDto(submission: DailySubmission, unread = false) {
     const assigned = await this.assignedCounts();
-    const rows = [...submission.rows].sort((a, b) =>
+    const rows = bidderOnlyRows(submission.rows).sort((a, b) =>
       (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
     );
     return {
@@ -708,7 +708,7 @@ export class DailySubmissionsService {
   }
 
   private toListDto(submission: DailySubmission, unread = false) {
-    const rows = submission.rows ?? [];
+    const rows = bidderOnlyRows(submission.rows);
     const systemApplications = rows.reduce(
       (sum, row) => sum + row.systemApplicationCount,
       0,
@@ -797,6 +797,12 @@ function resolveWorkStatusPeriod(periodRaw?: string) {
     periodStart: toDateOnly(from),
     periodEnd: toDateOnly(new Date(to.getTime() - 1)),
   };
+}
+
+function bidderOnlyRows<T extends { bidder?: { role?: string } | null }>(
+  rows: T[] | null | undefined,
+) {
+  return (rows ?? []).filter((row) => row.bidder?.role === UserRole.BIDDER);
 }
 
 function startOfLocalDay(reference = new Date()) {

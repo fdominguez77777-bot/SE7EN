@@ -96,6 +96,18 @@ export class WeeklyInvoicesService {
     return invoices.map((invoice) => this.toListDto(invoice));
   }
 
+  async published(actor: User) {
+    if (actor.role !== UserRole.BIDDER) {
+      throw new ForbiddenException(WEEKLY_INVOICE_MESSAGES.bidderForbidden);
+    }
+    const invoices = await this.invoices.find({
+      where: { status: WeeklyInvoiceStatus.APPROVED },
+      relations: { manager: true, rows: { bidder: true } },
+      order: { periodStart: 'DESC', id: 'DESC' },
+    });
+    return invoices.map((invoice) => this.toPublishedDto(invoice));
+  }
+
   async getOne(id: number, actor: User) {
     this.assertStaff(actor);
     const invoice = await this.loadOrFail(id);
@@ -526,7 +538,7 @@ export class WeeklyInvoicesService {
     }
     return ids
       .map((id) => byId.get(id))
-      .filter((row): row is User => Boolean(row))
+      .filter((row): row is User => Boolean(row && row.role === UserRole.BIDDER))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -634,6 +646,52 @@ export class WeeklyInvoicesService {
     return new Date(year, month - 1, day);
   }
 
+  private toPublishedDto(invoice: WeeklyInvoice) {
+    const rows = [...(invoice.rows ?? [])]
+      .filter((row) => row.bidder?.role === UserRole.BIDDER)
+      .sort((a, b) =>
+        (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
+      );
+    const applications = rows.reduce(
+      (sum, row) => sum + row.invoiceApplicationCount,
+      0,
+    );
+    const interviews = rows.reduce(
+      (sum, row) => sum + row.invoiceInterviewCount,
+      0,
+    );
+    const totals = teamInvoiceTotal(
+      rows.map((row) => ({
+        applicationAmount: String(row.applicationAmount),
+        interviewAmount: String(row.interviewAmount),
+      })),
+    );
+    return {
+      id: invoice.id,
+      periodStart: this.dateString(invoice.periodStart),
+      periodEnd: this.dateString(invoice.periodEnd),
+      approvedAt: invoice.approvedAt,
+      manager: invoice.manager
+        ? {
+            id: invoice.manager.id,
+            name: invoice.manager.name,
+            avatarUrl: avatarPublicUrl(invoice.manager.avatarPath),
+          }
+        : null,
+      applications,
+      interviews,
+      totalAmount: totals.totalAmount,
+      rows: rows.map((row) => ({
+        bidderId: row.bidderId,
+        bidderName: row.bidder?.name ?? 'Bidder',
+        bidderAvatarUrl: avatarPublicUrl(row.bidder?.avatarPath),
+        applications: row.invoiceApplicationCount,
+        interviews: row.invoiceInterviewCount,
+        amount: String(row.totalAmount),
+      })),
+    };
+  }
+
   private toListDto(invoice: WeeklyInvoice) {
     const totals = teamInvoiceTotal(
       (invoice.rows ?? []).map((row) => ({
@@ -674,9 +732,11 @@ export class WeeklyInvoicesService {
 
   private async toDetailDto(invoice: WeeklyInvoice) {
     const assigned = await this.assignedCounts();
-    const rows = [...(invoice.rows ?? [])].sort((a, b) =>
-      (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
-    );
+    const rows = [...(invoice.rows ?? [])]
+      .filter((row) => row.bidder?.role === UserRole.BIDDER)
+      .sort((a, b) =>
+        (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
+      );
     const coverage = [...(invoice.dailySources ?? [])].sort((a, b) =>
       this.dateString(a.reportingDate).localeCompare(this.dateString(b.reportingDate)),
     );

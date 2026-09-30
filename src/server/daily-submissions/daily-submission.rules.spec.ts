@@ -50,14 +50,14 @@ describe('daily-submission.rules', () => {
     );
   });
 
-  it('adds the Bid Manager to the daily report and never an Admin', () => {
+  it('keeps daily report rows to bidders and never adds the manager or an admin', () => {
     expect(
       dailySubmissionRowUserIds({
         activeBidderIds: [10, 11],
         managerId: 4,
         managerRole: UserRole.BID_MANAGER,
       }),
-    ).toEqual([10, 11, 4]);
+    ).toEqual([10, 11]);
     expect(
       dailySubmissionRowUserIds({
         activeBidderIds: [10],

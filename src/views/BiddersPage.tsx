@@ -45,36 +45,53 @@ function dayNumber(iso: string) {
   return parseLocalDate(iso.slice(0, 10)).getDate()
 }
 
+type WorkPace = 'lead' | 'range' | 'build' | 'open'
+
+const PACE_LABEL: Record<WorkPace, string> = {
+  lead: 'Lead',
+  range: 'In range',
+  build: 'Building',
+  open: 'Open',
+}
+
+function workPace(score: number, leader: number): WorkPace {
+  if (score <= 0 || leader <= 0) {
+    return 'open'
+  }
+  if (score === leader) {
+    return 'lead'
+  }
+  if (score / leader >= 0.5) {
+    return 'range'
+  }
+  return 'build'
+}
+
 function DayCell({
   applications,
   interviews,
   emphasis = false,
+  pace,
 }: {
   applications: number
   interviews: number
   emphasis?: boolean
+  pace?: WorkPace
 }) {
   const empty = applications === 0 && interviews === 0
   return (
     <div
-      className={`inline-flex min-w-[3.25rem] flex-col items-center leading-tight ${
-        emphasis ? 'rounded-md bg-white/[0.05] px-1.5 py-1' : ''
-      }`}
+      className={`work-day inline-flex min-w-[3.25rem] flex-col items-center leading-tight ${
+        emphasis ? 'is-total' : ''
+      } ${empty ? 'is-empty' : ''}`}
     >
-      <span
-        className={`tabular-nums text-[13px] font-semibold ${
-          empty ? 'text-[var(--text-muted)]' : 'text-[#9cc6f8]'
-        }`}
-      >
+      <span className="work-apps tabular-nums text-[13px] font-semibold">
         {applications.toLocaleString()}
       </span>
-      <span
-        className={`tabular-nums text-[11px] font-medium ${
-          empty ? 'text-[var(--text-muted)]' : 'text-[#ddb46e]'
-        }`}
-      >
+      <span className="work-iv tabular-nums text-[11px] font-medium">
         {interviews.toLocaleString()}
       </span>
+      {pace && !empty ? <span className="work-tick" /> : null}
     </div>
   )
 }
@@ -122,7 +139,7 @@ export function BiddersPage() {
       ),
     ]
     const [bidderRes, profileRes, workRes] = await Promise.all(requests)
-    setBidders(bidderRes.data)
+    setBidders(bidderRes.data.filter((bidder) => bidder.role === 'BIDDER'))
     setProfiles(profileRes?.data ?? [])
     setWeekWork(workRes.data)
   }
@@ -245,6 +262,12 @@ export function BiddersPage() {
         return { reportingDate: date, applications, interviews }
       }),
     [workDays, trackingRows],
+  )
+  const paceMetric: 'applications' | 'interviews' =
+    workSort === 'interviews' ? 'interviews' : 'applications'
+  const paceLeader = trackingRows.reduce(
+    (max, row) => Math.max(max, row[paceMetric]),
+    0,
   )
   const selected = rows.find((row) => row.bidder.id === selectedId) ?? null
   const unassignedProfiles = profiles.filter((profile) => !profile.assignedUser)
@@ -552,60 +575,83 @@ export function BiddersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {trackingRows.map((row) => (
-                    <tr
-                      key={row.bidder.id}
-                      className="border-b border-[var(--border-subtle)] last:border-b-0"
-                    >
-                      <td className="sticky left-0 z-10 bg-[var(--bg-glass-solid)] py-3 pr-3">
-                        {isStaff ? (
-                          <button
-                            type="button"
-                            className="flex min-w-0 items-center gap-2.5 text-left"
-                            onClick={() => setSelectedId(row.bidder.id)}
+                  {trackingRows.map((row) => {
+                    const pace = workPace(row[paceMetric], paceLeader)
+                    const share =
+                      paceLeader > 0
+                        ? Math.round((row[paceMetric] / paceLeader) * 100)
+                        : 0
+                    const identity = (
+                      <>
+                        <EntityAvatar
+                          name={row.bidder.name}
+                          src={row.bidder.avatarUrl}
+                          size="sm"
+                        />
+                        <span className="work-id">
+                          <span className="work-id-line">
+                            <span className="truncate font-medium text-[var(--text-primary)]">
+                              {row.bidder.name}
+                            </span>
+                            <span className="work-chip">{PACE_LABEL[pace]}</span>
+                          </span>
+                          <span
+                            className="work-meter"
+                            role="meter"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={share}
+                            aria-label={`${row.bidder.name} is at ${share}% of the lead`}
                           >
-                            <EntityAvatar
-                              name={row.bidder.name}
-                              src={row.bidder.avatarUrl}
-                              size="sm"
+                            <span style={{ width: `${share}%` }} />
+                          </span>
+                        </span>
+                      </>
+                    )
+                    return (
+                      <tr
+                        key={row.bidder.id}
+                        className="work-row border-b border-[var(--border-subtle)] last:border-b-0"
+                        data-pace={pace}
+                      >
+                        <td className="work-name sticky left-0 z-10 py-3 pr-3">
+                          {isStaff ? (
+                            <button
+                              type="button"
+                              className="flex min-w-0 items-center gap-2.5 text-left"
+                              onClick={() => setSelectedId(row.bidder.id)}
+                            >
+                              {identity}
+                            </button>
+                          ) : (
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              {identity}
+                            </div>
+                          )}
+                        </td>
+                        {row.days.map((day) => (
+                          <td
+                            key={day.reportingDate}
+                            className="px-1.5 py-3 text-center align-middle"
+                          >
+                            <DayCell
+                              applications={day.applications}
+                              interviews={day.interviews}
+                              pace={pace}
                             />
-                            <span className="truncate font-medium text-[var(--text-primary)]">
-                              {row.bidder.name}
-                            </span>
-                          </button>
-                        ) : (
-                          <div className="flex min-w-0 items-center gap-2.5">
-                            <EntityAvatar
-                              name={row.bidder.name}
-                              src={row.bidder.avatarUrl}
-                              size="sm"
-                            />
-                            <span className="truncate font-medium text-[var(--text-primary)]">
-                              {row.bidder.name}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      {row.days.map((day) => (
-                        <td
-                          key={day.reportingDate}
-                          className="px-1.5 py-3 text-center align-middle"
-                        >
+                          </td>
+                        ))}
+                        <td className="px-1.5 py-3 text-center align-middle">
                           <DayCell
-                            applications={day.applications}
-                            interviews={day.interviews}
+                            applications={row.applications}
+                            interviews={row.interviews}
+                            emphasis
+                            pace={pace}
                           />
                         </td>
-                      ))}
-                      <td className="px-1.5 py-3 text-center align-middle">
-                        <DayCell
-                          applications={row.applications}
-                          interviews={row.interviews}
-                          emphasis
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                      </tr>
+                    )
+                  })}
                 </tbody>
                 {workDays.length > 0 ? (
                   <tfoot>
@@ -636,12 +682,23 @@ export function BiddersPage() {
                 ) : null}
               </table>
             </div>
-            <p className="mt-3 text-[11px] text-[var(--text-muted)]">
-              Each day shows{' '}
-              <span className="font-medium text-[#9cc6f8]">applications</span>
-              {' / '}
-              <span className="font-medium text-[#ddb46e]">interviews</span>
-              {' '}from manager-confirmed daily reports.
+            <p className="work-legend">
+              <span className="work-legend-item" data-pace="lead">
+                Lead
+              </span>
+              <span className="work-legend-item" data-pace="range">
+                At least half
+              </span>
+              <span className="work-legend-item" data-pace="build">
+                Building
+              </span>
+              <span className="work-legend-item" data-pace="open">
+                No confirmed work
+              </span>
+              <span className="work-legend-metrics">
+                <span className="work-apps">Applications</span>
+                <span className="work-iv">Interviews</span>
+              </span>
             </p>
           </section>
 
