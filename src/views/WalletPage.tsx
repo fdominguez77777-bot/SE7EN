@@ -12,6 +12,8 @@ import {
 } from 'react'
 import {
   ArrowDownLeft,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   EyeOff,
   Landmark,
@@ -149,6 +151,12 @@ function monthBounds(ym: string) {
   }
 }
 
+function shiftMonth(ym: string, delta: number) {
+  const [year, month] = ym.split('-').map(Number)
+  const date = new Date(year, month - 1 + delta, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
 function shiftDays(iso: string, days: number) {
   const next = parseLocalDate(iso)
   next.setDate(next.getDate() + days)
@@ -276,7 +284,7 @@ function normalizeAmount(value: string) {
 
 const RevealAllContext = createContext(false)
 
-/** Overview money stays masked until clicked. The ledger below always shows amounts. */
+/** Money stays masked until clicked; the header eye reveals every amount at once. */
 function Secret({ children, className = '' }: { children: ReactNode; className?: string }) {
   const revealAll = useContext(RevealAllContext)
   const [shown, setShown] = useState(false)
@@ -321,6 +329,7 @@ export function WalletPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
   const [revealAll, setRevealAll] = useState(false)
+  const [pageMonth, setPageMonth] = useState<string | null>(null)
   const { ask, dialog } = useConfirmDialog()
 
   const query = useMemo(() => {
@@ -381,7 +390,29 @@ export function WalletPage() {
   }, [composerOpen])
 
   const selected = ledger.items.find((row) => row.id === selectedId) ?? null
-  const groups = groupByDay(ledger.items)
+  const listMonths = Array.from(new Set(ledger.items.map((row) => row.occurredOn.slice(0, 7)))).sort().reverse()
+  const activeMonth =
+    period === 'month'
+      ? month
+      : pageMonth && listMonths.includes(pageMonth)
+        ? pageMonth
+        : listMonths[0] ?? currentMonth()
+  const pageItems = ledger.items.filter((row) => row.occurredOn.startsWith(activeMonth))
+  const groups = groupByDay(pageItems)
+  const pageNet = groups.reduce((sum, group) => sum + group.net, 0)
+  const pageIndex = listMonths.indexOf(activeMonth)
+  const canNewer = period === 'month' ? month < currentMonth() : pageIndex > 0
+  const canOlder = period === 'month' ? true : pageIndex >= 0 && pageIndex < listMonths.length - 1
+
+  function turnPage(direction: 1 | -1) {
+    setSelectedId(null)
+    if (period === 'month') {
+      setMonth((value) => shiftMonth(value, direction))
+      return
+    }
+    const next = listMonths[pageIndex - direction]
+    if (next) setPageMonth(next)
+  }
   const months = ledger.months.length ? ledger.months : monthWindow(currentMonth())
   const sparkMax = Math.max(1, ...ledger.spark.map((point) => Math.abs(point.netCents)))
   const latestPosted = ledger.items.find((row) => row.status === 'POSTED') ?? null
@@ -667,6 +698,26 @@ export function WalletPage() {
             </form>
           </div>
 
+          {period === 'month' || listMonths.length > 0 ? (
+            <div className="wal-pager">
+              <button type="button" aria-label="Previous month" disabled={!canOlder} onClick={() => turnPage(-1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="wal-pager-label">
+                <strong>{formatMonthFull(activeMonth)}</strong>
+                <span>
+                  {pageItems.length} {pageItems.length === 1 ? 'entry' : 'entries'}
+                  {' · Net '}
+                  <em className={pageNet < 0 ? 'is-out' : pageNet > 0 ? 'is-in' : ''}>{formatUsdDelta(pageNet)}</em>
+                  {period !== 'month' && listMonths.length > 1 ? ` · Page ${pageIndex + 1} of ${listMonths.length}` : ''}
+                </span>
+              </div>
+              <button type="button" aria-label="Next month" disabled={!canNewer} onClick={() => turnPage(1)}>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
+
           <div className={`wal-body${groups.length === 0 && !selected ? ' is-empty' : ''}`}>
             {groups.length === 0 ? (
               <div className="wal-empty">
@@ -756,8 +807,8 @@ export function WalletPage() {
               />
             ) : groups.length > 0 ? (
               <aside className="wal-detail wal-idle">
-                <p className="wal-kicker">{viewLabel}</p>
-                <h3>{ledger.summary.periodCount} posted in view</h3>
+                <p className="wal-kicker">{formatMonthFull(activeMonth)}</p>
+                <h3>{pageItems.filter((row) => row.status === 'POSTED').length} posted this month</h3>
                 <p>
                   Select a transaction to inspect the counterparty, method, and running balance. This history stays on your account only.
                 </p>
@@ -862,9 +913,9 @@ function Inspector({
         <p className="wal-kicker">{meta.label}</p>
         <h3>{row.counterparty}</h3>
         <p className="wal-detail-amt">
-            <span className={Number(row.signedAmount) > 0 ? 'is-in' : 'is-out'}>
-              {formatUsdDelta(row.signedAmount)}
-            </span>
+          <span className={Number(row.signedAmount) > 0 ? 'is-in' : 'is-out'}>
+            {formatUsdDelta(row.signedAmount)}
+          </span>
           {row.status === 'VOID' ? (
             <StatusBadge tone="muted">Voided</StatusBadge>
           ) : (

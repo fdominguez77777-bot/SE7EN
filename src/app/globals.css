@@ -4191,6 +4191,63 @@ label .req,
 }
 
 .wal-empty,
+.wal-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.wal-pager > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-muted);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.wal-pager > button:hover:not(:disabled) {
+  color: var(--text-primary, inherit);
+  border-color: var(--border-strong, var(--border-subtle));
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.wal-pager > button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.wal-pager-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.wal-pager-label strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wal-pager-label span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.wal-pager-label em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
 .wal-ledger {
   border: 1px solid var(--border-subtle);
   border-radius: 14px;

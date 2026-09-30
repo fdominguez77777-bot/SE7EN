@@ -1,4 +1,4 @@
-﻿import { Link } from '@/lib/navigation'
+import { Link } from '@/lib/navigation'
 import { Trophy } from 'lucide-react'
 
 import type { DashboardTeamBidder } from '../../api/types'
