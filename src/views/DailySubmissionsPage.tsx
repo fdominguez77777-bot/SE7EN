@@ -20,6 +20,8 @@ import { PageHeader } from '../ui/page-header'
 import { isWeekend, parseLocalDate, toIsoDate } from '../ui/reporting-period'
 import { StatusBadge } from '../ui/StatusBadge'
 
+const DAILY_FLASH_KEY = 'daily-submission-flash'
+
 function statusLabel(status: DailySubmissionStatus) {
   if (status === 'SUBMITTED') {
     return 'Pending approval'
@@ -171,6 +173,17 @@ export function DailySubmissionsPage() {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    if (selectedId != null) {
+      return
+    }
+    const flash = sessionStorage.getItem(DAILY_FLASH_KEY)
+    if (flash) {
+      sessionStorage.removeItem(DAILY_FLASH_KEY)
+      setNotice(flash)
+    }
+  }, [selectedId])
 
   const rows = detail?.rows ?? []
   const canEdit = Boolean(
@@ -346,6 +359,24 @@ export function DailySubmissionsPage() {
     }
   }
 
+  function backToList(message: string) {
+    sessionStorage.setItem(DAILY_FLASH_KEY, message)
+    navigate('/daily-submissions')
+  }
+
+  async function onSaveChanges() {
+    try {
+      await saveDraft()
+    } catch {
+      return
+    }
+    if (isAdmin && detail) {
+      backToList(
+        `Changes saved for ${formatReportingDateLabel(detail.reportingDate)}.`,
+      )
+    }
+  }
+
   function requestSubmit() {
     if (!detail) {
       return
@@ -379,10 +410,10 @@ export function DailySubmissionsPage() {
             `/daily-submissions/${detail.id}/submit`,
           )
           setDetail(data)
-          setNotice(
+          backToList(
             isUpdate
-              ? 'Daily report updated. Still waiting for manager approval.'
-              : 'Daily report submitted. Waiting for manager approval. You can still change it until it is approved.',
+              ? `Daily report for ${formatReportingDateLabel(data.reportingDate)} updated. Still waiting for manager approval.`
+              : `Daily report for ${formatReportingDateLabel(data.reportingDate)} submitted. Waiting for manager approval.`,
           )
         } catch (err) {
           setError(getApiErrorMessage(err))
@@ -405,8 +436,10 @@ export function DailySubmissionsPage() {
       action: async () => {
         try {
           await api.post(`/daily-submissions/${detail.id}/reopen`)
-          setNotice('Report returned to draft.')
-          navigate('/daily-submissions')
+          notifyDailySubmissionInbox()
+          backToList(
+            `Daily report for ${formatReportingDateLabel(detail.reportingDate)} returned to draft.`,
+          )
         } catch (err) {
           setError(getApiErrorMessage(err))
           throw err
@@ -428,9 +461,12 @@ export function DailySubmissionsPage() {
         try {
           await api.delete(`/daily-submissions/${id}`)
           notifyDailySubmissionInbox()
-          setNotice('Daily report deleted.')
           setDetail(null)
-          navigate('/daily-submissions')
+          if (selectedId != null) {
+            backToList('Daily report deleted.')
+            return
+          }
+          setNotice('Daily report deleted.')
           await loadAdmin(date, null)
         } catch (err) {
           setError(getApiErrorMessage(err))
@@ -451,8 +487,10 @@ export function DailySubmissionsPage() {
         `/daily-submissions/${detail.id}/review`,
       )
       setDetail(data)
-      setNotice('Daily report approved.')
-      await loadAdmin(date, data.id)
+      notifyDailySubmissionInbox()
+      backToList(
+        `Daily report for ${formatReportingDateLabel(data.reportingDate)} approved.`,
+      )
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {
@@ -549,7 +587,7 @@ export function DailySubmissionsPage() {
           pending={pending}
           lockedForManager={lockedForManager}
           onPatchRow={patchRow}
-          onSave={() => void saveDraft()}
+          onSave={() => void onSaveChanges()}
           onSubmit={requestSubmit}
           onReopen={requestReopen}
           onDelete={() =>

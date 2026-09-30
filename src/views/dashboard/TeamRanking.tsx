@@ -1,4 +1,4 @@
-import { Link } from '@/lib/navigation'
+﻿import { Link } from '@/lib/navigation'
 import { Trophy } from 'lucide-react'
 
 import type { DashboardTeamBidder } from '../../api/types'
@@ -73,17 +73,14 @@ export function TeamRanking({
           {columns.map((row, index) => {
             const isYou = row.bidder.id === currentUserId
             const isLeader = row.rank === 1
-            // Keep short bars readable without distorting the leader peak.
-            const height = Math.max(18, Math.round((row.value / max) * 100))
-            const compact = height < 36
+            const height = Math.max(14, Math.round((row.value / max) * 100))
             const tone =
-              row.rank === 1
-                ? '1'
-                : row.rank === 2
-                  ? '2'
-                  : row.rank === 3
-                    ? '3'
-                    : 'n'
+              row.rank === 1 ? '1' : row.rank === 2 ? '2' : row.rank === 3 ? '3' : 'n'
+            const share = leader
+              ? Math.round((row.value / Math.max(leader.value, 1)) * 100)
+              : 0
+            const behind =
+              leader && !isLeader ? Math.max(0, leader.value - row.value) : 0
             const nameNode = isStaff ? (
               <Link
                 to={`/bidders?bidderId=${row.bidder.id}`}
@@ -109,7 +106,7 @@ export function TeamRanking({
                   </div>
                   <EntityAvatar
                     name={row.bidder.name}
-                    size={isLeader ? 'md' : 'sm'}
+                    size="sm"
                     tone={
                       isLeader
                         ? 'accent'
@@ -120,32 +117,28 @@ export function TeamRanking({
                             : 'neutral'
                     }
                   />
-                  <div className="podium-identity">
-                    {nameNode}
-                    {isYou ? <span className="podium-pill is-you">You</span> : null}
-                    {row.bidder.role === 'BID_MANAGER' && !isYou ? (
-                      <span className="podium-pill">Manager</span>
+                  <div className="podium-identity">{nameNode}</div>
+                  <span className="podium-place">
+                    {formatPlace(row.rank)}
+                    <span className="podium-share"> · {share}%</span>
+                  </span>
+                  <div className="podium-score">
+                    <span className="podium-value">{row.value.toLocaleString()}</span>
+                    {isLeader && leadBy > 0 ? (
+                      <span className="podium-lead">+{leadBy.toLocaleString()}</span>
                     ) : null}
-                    {row.bidder.role === 'ADMIN' && !isYou ? (
-                      <span className="podium-pill">Admin</span>
+                    {!isLeader && behind > 0 ? (
+                      <span className="podium-gap">−{behind.toLocaleString()}</span>
                     ) : null}
                   </div>
-                  <span className="podium-place">{formatPlace(row.rank)}</span>
                 </div>
 
                 <div className="podium-track">
                   <div
-                    className={`podium-bar${compact ? ' is-compact' : ''}`}
+                    className="podium-bar"
                     style={{ height: `${height}%` }}
                     title={`${row.bidder.name}: ${row.value.toLocaleString()} ${metric}`}
-                  >
-                    <span className="podium-value">
-                      {row.value.toLocaleString()}
-                    </span>
-                    {isLeader && leadBy > 0 ? (
-                      <span className="podium-lead">+{leadBy.toLocaleString()}</span>
-                    ) : null}
-                  </div>
+                  />
                 </div>
               </li>
             )

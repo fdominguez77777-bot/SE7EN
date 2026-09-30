@@ -125,6 +125,8 @@ function sumUsd(items: WeeklyInvoiceListItem[]) {
   return items.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0)
 }
 
+const WEEKLY_FLASH_KEY = 'weekly-invoice-flash'
+
 function withFormattedRates(data: WeeklyInvoiceDetail): WeeklyInvoiceDetail {
   return {
     ...data,
@@ -162,6 +164,17 @@ export function WeeklyInvoicesPage() {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    if (selectedId != null) {
+      return
+    }
+    const flash = sessionStorage.getItem(WEEKLY_FLASH_KEY)
+    if (flash) {
+      sessionStorage.removeItem(WEEKLY_FLASH_KEY)
+      setNotice(flash)
+    }
+  }, [selectedId])
 
   const canEdit = Boolean(
     detail &&
@@ -325,15 +338,20 @@ export function WeeklyInvoicesPage() {
       confirmTone: 'primary',
       action: async () => {
         await saveDraft()
-        const { data } = await api.post<WeeklyInvoiceDetail>(
-          `/weekly-invoices/${detail.id}/submit`,
-        )
-        setDetail(withFormattedRates(data))
-        setNotice(
-          detail.status === 'DRAFT'
-            ? 'Weekly invoice submitted. Waiting for manager approval. You can still change it until it is approved.'
-            : 'Weekly invoice updated. Still waiting for manager approval.',
-        )
+        try {
+          const { data } = await api.post<WeeklyInvoiceDetail>(
+            `/weekly-invoices/${detail.id}/submit`,
+          )
+          setDetail(withFormattedRates(data))
+          setNotice(
+            detail.status === 'DRAFT'
+              ? 'Weekly invoice sent. Waiting for admin approval. You can still change it until it is approved.'
+              : 'Weekly invoice updated. Still waiting for admin approval.',
+          )
+        } catch (err) {
+          setError(getApiErrorMessage(err))
+          throw err
+        }
       },
     })
   }
@@ -354,9 +372,13 @@ export function WeeklyInvoicesPage() {
       action: async () => {
         try {
           await api.delete(`/weekly-invoices/${id}`)
-          setNotice('Weekly invoice deleted.')
           setDetail(null)
-          navigate('/weekly-invoices')
+          if (selectedId != null) {
+            sessionStorage.setItem(WEEKLY_FLASH_KEY, 'Weekly invoice deleted.')
+            navigate('/weekly-invoices')
+            return
+          }
+          setNotice('Weekly invoice deleted.')
           await loadAdmin(weekStart, null)
         } catch (err) {
           setError(getApiErrorMessage(err))
@@ -371,17 +393,11 @@ export function WeeklyInvoicesPage() {
     setPending(true)
     setError('')
     try {
-      const { data } = await api.post<WeeklyInvoiceDetail>(
+      await api.post<WeeklyInvoiceDetail>(
         `/weekly-invoices/${detail.id}/${path}`,
       )
-      const visibleToAdmin = data.status !== 'DRAFT'
-      setNotice(noticeText)
-      if (visibleToAdmin) {
-        setDetail(withFormattedRates(data))
-        await loadAdmin(weekStart, data.id)
-      } else {
-        navigate('/weekly-invoices')
-      }
+      sessionStorage.setItem(WEEKLY_FLASH_KEY, noticeText)
+      navigate('/weekly-invoices')
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {

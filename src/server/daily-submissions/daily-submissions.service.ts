@@ -313,7 +313,7 @@ export class DailySubmissionsService {
     }
     await this.syncDraft(submission);
     const current = await this.loadOrFail(id);
-    const incomplete = submissionBlockReason(current.rows);
+    const incomplete = submissionBlockReason(bidderOnlyRows(current.rows));
     if (incomplete) {
       throw new BadRequestException(incomplete);
     }

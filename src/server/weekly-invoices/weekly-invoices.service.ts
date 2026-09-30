@@ -255,7 +255,18 @@ export class WeeklyInvoicesService {
     if (missingBlock) {
       throw new BadRequestException(missingBlock);
     }
+    current.rows = current.rows.filter(
+      (row) => row.bidder?.role === UserRole.BIDDER,
+    );
     for (const row of current.rows) {
+      if (!row.countAdjustmentReason?.trim()) {
+        row.invoiceApplicationCount = row.defaultApplicationCount;
+        row.invoiceInterviewCount = row.defaultInterviewCount;
+      }
+      if (!row.rateAdjustmentReason?.trim()) {
+        row.invoiceApplicationRate = row.configuredApplicationRate;
+        row.invoiceInterviewRate = row.configuredInterviewRate;
+      }
       const countBlock = rowCountReasonBlock({
         invoiceApplicationCount: row.invoiceApplicationCount,
         invoiceInterviewCount: row.invoiceInterviewCount,
@@ -438,6 +449,15 @@ export class WeeklyInvoicesService {
         const next = applyLiveDefaultsIfDraft(invoice.status, current, defaults);
         current.defaultApplicationCount = next.defaultApplicationCount;
         current.defaultInterviewCount = next.defaultInterviewCount;
+        if (invoice.status === WeeklyInvoiceStatus.DRAFT) {
+          if (!current.rateAdjustmentReason?.trim()) {
+            current.invoiceApplicationRate = configuredApplicationRate;
+            current.invoiceInterviewRate = configuredInterviewRate;
+          }
+          current.configuredApplicationRate = configuredApplicationRate;
+          current.configuredInterviewRate = configuredInterviewRate;
+          current.rateSource = resolved?.source ?? 'none';
+        }
         this.applyAmounts(current);
         nextRows.push(current);
       } else {
@@ -459,6 +479,11 @@ export class WeeklyInvoicesService {
       }
     }
     await this.rows.save(nextRows);
+    const keep = new Set(bidders.map((bidder) => bidder.id));
+    const stale = (invoice.rows ?? []).filter((row) => !keep.has(row.bidderId));
+    if (stale.length > 0) {
+      await this.rows.remove(stale);
+    }
 
     await this.sources.delete({ weeklyInvoiceId: invoice.id });
     await this.dailyBidders.delete({ weeklyInvoiceId: invoice.id });

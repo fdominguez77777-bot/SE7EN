@@ -276,7 +276,7 @@ function normalizeAmount(value: string) {
 
 const RevealAllContext = createContext(false)
 
-/** Money stays masked until clicked; the header eye reveals every amount at once. */
+/** Overview money stays masked until clicked. The ledger below always shows amounts. */
 function Secret({ children, className = '' }: { children: ReactNode; className?: string }) {
   const revealAll = useContext(RevealAllContext)
   const [shown, setShown] = useState(false)
@@ -692,7 +692,7 @@ export function WalletPage() {
                         {group.rows.length} {group.rows.length === 1 ? 'entry' : 'entries'}
                         {' · '}
                         <em className={group.net < 0 ? 'is-out' : group.net > 0 ? 'is-in' : ''}>
-                          <Secret>{formatUsdDelta(group.net)}</Secret>
+                          {formatUsdDelta(group.net)}
                         </em>
                       </span>
                     </header>
@@ -722,15 +722,13 @@ export function WalletPage() {
                               </span>
                               <span className="wal-row-amt">
                                 <strong className={inflow ? 'is-in' : 'is-out'}>
-                                  <Secret>{formatUsdDelta(row.signedAmount)}</Secret>
+                                  {formatUsdDelta(row.signedAmount)}
                                 </strong>
                                 <em>
                                   {row.status === 'VOID' ? (
                                     'Voided'
                                   ) : row.balanceAfter ? (
-                                    <>
-                                      Bal <Secret>{formatUsd(row.balanceAfter)}</Secret>
-                                    </>
+                                    <>Bal {formatUsd(row.balanceAfter)}</>
                                   ) : (
                                     'Posted'
                                   )}
@@ -864,9 +862,9 @@ function Inspector({
         <p className="wal-kicker">{meta.label}</p>
         <h3>{row.counterparty}</h3>
         <p className="wal-detail-amt">
-          <span className={Number(row.signedAmount) > 0 ? 'is-in' : 'is-out'}>
-            <Secret>{formatUsdDelta(row.signedAmount)}</Secret>
-          </span>
+            <span className={Number(row.signedAmount) > 0 ? 'is-in' : 'is-out'}>
+              {formatUsdDelta(row.signedAmount)}
+            </span>
           {row.status === 'VOID' ? (
             <StatusBadge tone="muted">Voided</StatusBadge>
           ) : (
@@ -931,7 +929,7 @@ function Inspector({
           <dl>
             <div>
               <dt>Running balance</dt>
-              <dd>{row.balanceAfter ? <Secret>{formatUsd(row.balanceAfter)}</Secret> : '—'}</dd>
+              <dd>{row.balanceAfter ? formatUsd(row.balanceAfter) : '—'}</dd>
             </div>
             <div>
               <dt>Recorded</dt>
