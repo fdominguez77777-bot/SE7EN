@@ -80,18 +80,12 @@ function DayCell({
 }) {
   const empty = applications === 0 && interviews === 0
   return (
-    <div
-      className={`work-day inline-flex min-w-[3.25rem] flex-col items-center leading-tight ${
-        emphasis ? 'is-total' : ''
-      } ${empty ? 'is-empty' : ''}`}
-    >
-      <span className="work-apps tabular-nums text-[13px] font-semibold">
-        {applications.toLocaleString()}
-      </span>
-      <span className="work-iv tabular-nums text-[11px] font-medium">
-        {interviews.toLocaleString()}
-      </span>
-      {pace && !empty ? <span className="work-tick" /> : null}
+    <div className={`work-day ${empty ? 'is-empty' : ''}`}>
+      <div className={`work-score ${emphasis ? 'is-total' : ''}`}>
+        <span className="work-apps">{applications.toLocaleString()}</span>
+        <span className="work-iv">{interviews.toLocaleString()}</span>
+      </div>
+      <span className={`work-tick ${pace && !empty && !emphasis ? '' : 'is-hidden'}`} />
     </div>
   )
 }
@@ -614,7 +608,7 @@ export function BiddersPage() {
                         className="work-row border-b border-[var(--border-subtle)] last:border-b-0"
                         data-pace={pace}
                       >
-                        <td className="work-name sticky left-0 z-10 py-3 pr-3">
+                        <td className="work-name sticky left-0 z-10 py-3 pr-4 pl-3">
                           {isStaff ? (
                             <button
                               type="button"

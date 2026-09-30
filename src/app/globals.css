@@ -4898,36 +4898,41 @@ label .req,
 }
 
 .work-row[data-pace='lead'] .work-name {
-  background: linear-gradient(90deg, rgba(245, 197, 66, 0.16), #15171b 72%);
   box-shadow: inset 3px 0 0 #f5c542;
 }
 
 .work-row[data-pace='range'] .work-name {
-  background: linear-gradient(90deg, rgba(255, 122, 60, 0.16), #15171b 72%);
   box-shadow: inset 3px 0 0 #ff7a3c;
 }
 
 .work-row[data-pace='build'] .work-name {
-  background: linear-gradient(90deg, rgba(62, 198, 255, 0.16), #15171b 72%);
   box-shadow: inset 3px 0 0 #3ec6ff;
 }
 
 .work-row[data-pace='open'] .work-name {
-  box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.12);
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.16);
 }
 
 .work-id {
   display: flex;
-  min-width: 148px;
+  width: 168px;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .work-id-line {
   display: flex;
+  width: 168px;
   min-width: 0;
   align-items: center;
   gap: 8px;
+}
+
+.work-id-line > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .work-chip {
@@ -4966,7 +4971,7 @@ label .req,
 
 .work-meter {
   display: block;
-  width: 100%;
+  width: 168px;
   height: 4px;
   overflow: hidden;
   border-radius: 99px;
@@ -4975,7 +4980,8 @@ label .req,
 
 .work-meter > span {
   display: block;
-  height: 100%;
+  height: 4px;
+  max-width: 100%;
   border-radius: inherit;
 }
 
@@ -5009,10 +5015,18 @@ label .req,
 
 .work-apps {
   color: #9cc6f8;
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 
 .work-iv {
   color: #ddb46e;
+  font-size: 11px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 
 .work-day.is-empty .work-apps,
@@ -5021,14 +5035,36 @@ label .req,
 }
 
 .work-day {
-  gap: 1px;
+  display: inline-flex;
+  width: 3.25rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.work-score {
+  display: flex;
+  width: 100%;
+  min-height: 2.15rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.work-score.is-total {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .work-tick {
-  width: 16px;
+  width: 18px;
   height: 2px;
-  margin-top: 4px;
   border-radius: 99px;
+}
+
+.work-tick.is-hidden {
+  visibility: hidden;
 }
 
 .work-row[data-pace='lead'] .work-tick {
@@ -5046,28 +5082,24 @@ label .req,
   box-shadow: 0 0 8px rgba(62, 198, 255, 0.7);
 }
 
-.work-row[data-pace='lead'] .work-day.is-total {
-  border-radius: 8px;
-  background: rgba(245, 197, 66, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(245, 197, 66, 0.55);
+.work-row[data-pace='lead'] .work-score.is-total {
+  background: rgba(245, 197, 66, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(245, 197, 66, 0.7);
 }
 
-.work-row[data-pace='range'] .work-day.is-total {
-  border-radius: 8px;
-  background: rgba(255, 122, 60, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(255, 122, 60, 0.45);
+.work-row[data-pace='range'] .work-score.is-total {
+  background: rgba(255, 122, 60, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 122, 60, 0.65);
 }
 
-.work-row[data-pace='build'] .work-day.is-total {
-  border-radius: 8px;
-  background: rgba(62, 198, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(62, 198, 255, 0.4);
+.work-row[data-pace='build'] .work-score.is-total {
+  background: rgba(62, 198, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(62, 198, 255, 0.6);
 }
 
-.work-row[data-pace='open'] .work-day.is-total {
-  border-radius: 8px;
+.work-row[data-pace='open'] .work-score.is-total {
   background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .work-legend {
@@ -5111,9 +5143,18 @@ label .req,
 
 .work-legend-metrics {
   display: inline-flex;
+  align-items: center;
   gap: 10px;
   margin-left: auto;
+  font-size: 11px;
   font-weight: 600;
+}
+
+.work-legend-metrics .work-apps,
+.work-legend-metrics .work-iv {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 @keyframes work-sheen {
