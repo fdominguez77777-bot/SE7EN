@@ -2861,6 +2861,7 @@ label .req,
 }
 
 .dash-watch {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -2870,15 +2871,223 @@ label .req,
   background:
     linear-gradient(160deg, rgba(255, 255, 255, 0.035), transparent 42%),
     var(--surface-1);
-  padding: 10px 14px 10px 10px;
+  padding: 10px;
 }
 
 .dash-watch-case {
+  display: block;
   width: 118px;
   height: 118px;
   flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+  transition: width 200ms ease, height 200ms ease, filter 160ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
+.dash-watch-case:hover {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 8px rgba(217, 139, 70, 0.25));
+}
+
+.dash-watch-case:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-watch-case {
+    transition: none;
+  }
+}
+
+/* Hands of Time (inside the dashboard clock) */
+.dash-watch.is-game .dash-watch-case {
+  width: 220px;
+  height: 220px;
+}
+
+.dash-watch-case.is-playing {
+  cursor: default;
+  outline: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hot-stone,
+.hot-ctl,
+.hot-next {
+  outline: none;
+}
+
+.hot-stone circle {
+  fill: #1c2027;
+  stroke: rgba(226, 179, 106, 0.55);
+  stroke-width: 1.2;
+  transition: fill 160ms ease, stroke 160ms ease, opacity 160ms ease;
+}
+
+.hot-stone text {
+  fill: #f2f3f5;
+  pointer-events: none;
+  transition: fill 160ms ease;
+}
+
+.hot-stone.is-pickable {
+  cursor: pointer;
+}
+
+.hot-stone.is-pickable:hover circle,
+.hot-stone.is-pickable:focus-visible circle {
+  fill: #2a2f38;
+  stroke: #f0c98a;
+}
+
+.hot-stone.is-used circle {
+  fill: rgba(217, 139, 70, 0.14);
+  stroke: rgba(217, 139, 70, 0.25);
+}
+
+.hot-stone.is-used text {
+  fill: rgba(240, 201, 138, 0.35);
+}
+
+.hot-stone.is-current circle {
+  fill: #d98b46;
+  stroke: #f3d7b0;
+  stroke-width: 1.6;
+}
+
+.hot-stone.is-current text {
+  fill: #1a1206;
+}
+
+.hot-stone.is-target circle {
+  stroke: #f0c98a;
+  stroke-width: 1.8;
+  animation: hot-breathe 1600ms ease-in-out infinite;
+}
+
+.hot-stone.is-hint circle {
+  stroke: #7cc4ff;
+  stroke-width: 2.2;
+  fill: rgba(124, 196, 255, 0.16);
+}
+
+@keyframes hot-breathe {
+  0%,
+  100% {
+    stroke-opacity: 0.55;
+  }
+  50% {
+    stroke-opacity: 1;
+  }
+}
+
+.dash-watch-case.is-solved .hot-stone circle {
+  animation: hot-glow 900ms ease-out both;
+  animation-delay: var(--hot-delay, 0ms);
+}
+
+@keyframes hot-glow {
+  0% {
+    fill: rgba(217, 139, 70, 0.14);
+  }
+  40% {
+    fill: #f5c542;
+  }
+  100% {
+    fill: rgba(245, 197, 66, 0.28);
+    stroke: rgba(245, 197, 66, 0.7);
+  }
+}
+
+.dash-watch-case.is-solved .hot-stone text {
+  fill: #fff4d6;
+}
+
+.hot-ctl {
+  cursor: pointer;
+}
+
+.hot-ctl circle {
+  fill: rgba(255, 255, 255, 0.04);
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 0.8;
+  transition: fill 120ms ease, stroke 120ms ease;
+}
+
+.hot-ctl path {
+  fill: none;
+  stroke: #b2b6bf;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hot-ctl:hover circle,
+.hot-ctl:focus-visible circle {
+  fill: rgba(217, 139, 70, 0.16);
+  stroke: rgba(217, 139, 70, 0.6);
+}
+
+.hot-ctl:hover path,
+.hot-ctl:focus-visible path {
+  stroke: #f0c98a;
+}
+
+.hot-ctl.is-off {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.hot-ctl.is-off:hover circle {
+  fill: rgba(255, 255, 255, 0.04);
+  stroke: rgba(255, 255, 255, 0.14);
+}
+
+.hot-ctl.is-attention circle {
+  stroke: #e58a8a;
+  animation: hot-breathe 1000ms ease-in-out infinite;
+}
+
+.hot-next {
+  cursor: pointer;
+}
+
+.hot-next rect {
+  fill: #d98b46;
+  transition: fill 120ms ease;
+}
+
+.hot-next text {
+  fill: #1a1206;
+  pointer-events: none;
+}
+
+.hot-next:hover rect,
+.hot-next:focus-visible rect {
+  fill: #e39a55;
+}
+
+@media (max-width: 640px) {
+  .dash-watch.is-game .dash-watch-case {
+    width: min(240px, 72vw);
+    height: min(240px, 72vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hot-stone.is-target circle,
+  .hot-ctl.is-attention circle,
+  .dash-watch-case.is-solved .hot-stone circle {
+    animation: none;
+  }
+}
 .dash-watch-svg {
   display: block;
   width: 100%;
@@ -2906,27 +3115,6 @@ label .req,
   font-variant-numeric: tabular-nums;
 }
 
-.dash-watch-meta {
-  min-width: 0;
-}
-
-.dash-watch-meta-title {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.dash-watch-meta-date {
-  margin: 5px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
 @media (max-width: 1100px) {
   .dash-main-grid {
     grid-template-columns: 1fr;
@@ -2949,8 +3137,7 @@ label .req,
   }
 
   .dash-watch {
-    width: 100%;
-    justify-content: flex-start;
+    justify-content: center;
   }
 }
 
