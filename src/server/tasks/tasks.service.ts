@@ -28,6 +28,9 @@ import { TaskActivity } from './task-activity.entity';
 import { TaskCompletion } from './task-completion.entity';
 import { Task } from './task.entity';
 import {
+  canCompleteDaily,
+  canCompleteTask,
+  canCreateTask,
   canDeleteTask,
   canEditTask,
   canViewTask,
@@ -94,6 +97,7 @@ function scheduleOf(task: Task): TaskSchedule {
 
 /** Whether the task has anything to show between from and to (inclusive). */
 function touchesRange(task: Task, from: string, to: string) {
+  if (task.status === 'DONE') return false;
   if (task.repeat === 'NONE') {
     if (!task.dueDate || task.dueDate > to) return false;
     return task.dueDate >= from || task.status !== 'DONE';
@@ -106,7 +110,8 @@ function touchesRange(task: Task, from: string, to: string) {
   return true;
 }
 
-type ListExtras = { assignedAt: Date | null; completedOn: string[] };
+type Completion = { date: string; userId: number };
+type ListExtras = { assignedAt: Date | null; completions: Completion[] };
 
 function cleanText(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -121,7 +126,7 @@ export class TasksService {
     @InjectRepository(TaskActivity)
     private readonly activity: Repository<TaskActivity>,
     @InjectRepository(TaskCompletion)
-    private readonly completions: Repository<TaskCompletion>,
+    private readonly completionRows: Repository<TaskCompletion>,
     @InjectRepository(User)
     private readonly users: Repository<User>,
   ) {}
@@ -217,10 +222,10 @@ export class TasksService {
       query.from || query.to ? filtered.filter((task) => touchesRange(task, from, to)) : filtered;
     ranged.sort(compareTasks);
     const ids = ranged.map((task) => task.id);
-    const [commentCounts, assignedAt, completedOn] = await Promise.all([
+    const [commentCounts, assignedAt, completions] = await Promise.all([
       this.commentCounts(ids),
       this.assignedAt(ids, actor.id),
-      this.completedOn(ids, from, to),
+      this.completions(ranged, from, to),
     ]);
     return {
       summary,
@@ -228,7 +233,7 @@ export class TasksService {
       tasks: ranged.map((task) =>
         this.toListItem(task, commentCounts.get(task.id) ?? 0, {
           assignedAt: assignedAt.get(task.id) ?? null,
-          completedOn: completedOn.get(task.id) ?? [],
+          completions: completions.get(task.id) ?? [],
         }),
       ),
     };
@@ -243,14 +248,14 @@ export class TasksService {
     });
     const comments = events.filter((event) => event.kind === TaskActivityKind.COMMENT).length;
     const monday = mondayOf(todayIso());
-    const [assignedAt, completedOn] = await Promise.all([
+    const [assignedAt, completions] = await Promise.all([
       this.assignedAt([id], actor.id),
-      this.completedOn([id], monday, addDays(monday, 6)),
+      this.completions([task], monday, addDays(monday, 6)),
     ]);
     return {
       ...this.toListItem(task, comments, {
         assignedAt: assignedAt.get(id) ?? null,
-        completedOn: completedOn.get(id) ?? [],
+        completions: completions.get(id) ?? [],
       }),
       activity: events.map((event) => ({
         id: event.id,
@@ -264,17 +269,22 @@ export class TasksService {
       permissions: {
         canEdit: canEditTask(actor, involvement(task)),
         canDelete: canDeleteTask(actor, involvement(task)),
+        canComplete: canCompleteTask(actor),
+        canCompleteDaily: canCompleteDaily(actor, involvement(task)),
       },
     };
   }
 
   async create(dto: CreateTaskDto, actor: User) {
+    if (!canCreateTask(actor)) {
+      throw new ForbiddenException(TASK_MESSAGES.createForbidden);
+    }
     const title = cleanText(dto.title);
     if (!title) {
       throw new BadRequestException(TASK_MESSAGES.titleRequired);
     }
     const assignees = await this.activeUsers(dto.assigneeUserIds ?? []);
-    const status = dto.status ?? 'TODO';
+    const status = canCompleteTask(actor) ? (dto.status ?? 'TODO') : 'TODO';
     const today = todayIso();
     const schedule = this.resolveSchedule(dto, {
       repeat: 'NONE',
@@ -310,7 +320,7 @@ export class TasksService {
   async update(id: number, dto: UpdateTaskDto, actor: User) {
     const task = await this.findVisible(id, actor);
     if (!canEditTask(actor, involvement(task))) {
-      throw new ForbiddenException(TASK_MESSAGES.forbidden);
+      throw new ForbiddenException(TASK_MESSAGES.editForbidden);
     }
     const before = this.snapshot(task);
     if (dto.title !== undefined) {
@@ -345,6 +355,9 @@ export class TasksService {
       task.assignees = [...kept, ...(await this.activeUsers(added))];
     }
     if (dto.status !== undefined && dto.status !== task.status) {
+      if (!canCompleteTask(actor)) {
+        throw new ForbiddenException(TASK_MESSAGES.completeForbidden);
+      }
       task.completedAt = dto.status === 'DONE' ? new Date() : null;
       task.status = dto.status;
     }
@@ -402,27 +415,28 @@ export class TasksService {
 
   async setOccurrence(id: number, dto: TaskOccurrenceDto, actor: User) {
     const task = await this.findVisible(id, actor);
-    if (!canEditTask(actor, involvement(task))) {
-      throw new ForbiddenException(TASK_MESSAGES.forbidden);
+    if (!canCompleteDaily(actor, involvement(task))) {
+      throw new ForbiddenException(TASK_MESSAGES.dailyForbidden);
+    }
+    if (task.status === 'DONE') {
+      throw new BadRequestException(TASK_MESSAGES.taskClosed);
     }
     const date = parseDueDate(dto.date);
     if (!date) {
       throw new BadRequestException(TASK_MESSAGES.dueDateInvalid);
     }
-    if (task.repeat === 'NONE') {
-      return this.update(id, { status: dto.done ? 'DONE' : 'TODO' }, actor);
-    }
-    if (!occursOn(scheduleOf(task), date)) {
+    if (task.repeat !== 'NONE' && !occursOn(scheduleOf(task), date)) {
       throw new BadRequestException(TASK_MESSAGES.occurrenceInvalid);
     }
-    const existing = await this.completions.findOne({ where: { taskId: id, occursOn: date } });
+    const key = { taskId: id, occursOn: date, completedByUserId: actor.id };
+    const existing = await this.completionRows.findOne({ where: key });
     if (dto.done === Boolean(existing)) {
       return this.detail(id, actor);
     }
     if (dto.done) {
-      await this.completions.insert({ taskId: id, occursOn: date, completedByUserId: actor.id });
+      await this.completionRows.insert(key);
     } else {
-      await this.completions.delete({ taskId: id, occursOn: date });
+      await this.completionRows.delete(key);
     }
     await this.activity.save(
       this.activity.create({
@@ -507,17 +521,19 @@ export class TasksService {
     return map;
   }
 
-  private async completedOn(ids: number[], from: string, to: string) {
-    const map = new Map<number, string[]>();
-    if (ids.length === 0) {
-      return map;
-    }
-    const rows = await this.completions.find({
-      where: { taskId: In(ids), occursOn: Between(from, to) },
-      order: { occursOn: 'ASC' },
-    });
-    for (const row of rows) {
-      map.set(row.taskId, [...(map.get(row.taskId) ?? []), row.occursOn]);
+  /** Recurring tasks: completions inside the range. One-time tasks: every completion, whenever it happened. */
+  private async completions(tasks: Task[], from: string, to: string) {
+    const map = new Map<number, Completion[]>();
+    const recurring = tasks.filter((task) => task.repeat !== 'NONE').map((task) => task.id);
+    const oneTime = tasks.filter((task) => task.repeat === 'NONE').map((task) => task.id);
+    const [inRange, all] = await Promise.all([
+      recurring.length
+        ? this.completionRows.find({ where: { taskId: In(recurring), occursOn: Between(from, to) } })
+        : [],
+      oneTime.length ? this.completionRows.find({ where: { taskId: In(oneTime) } }) : [],
+    ]);
+    for (const row of [...inRange, ...all].sort((a, b) => a.occursOn.localeCompare(b.occursOn))) {
+      map.set(row.taskId, [...(map.get(row.taskId) ?? []), { date: row.occursOn, userId: row.completedByUserId }]);
     }
     return map;
   }
@@ -556,7 +572,7 @@ export class TasksService {
   private toListItem(
     task: Task,
     commentCount: number,
-    extras: ListExtras = { assignedAt: null, completedOn: [] },
+    extras: ListExtras = { assignedAt: null, completions: [] },
   ) {
     return {
       id: task.id,
@@ -572,7 +588,7 @@ export class TasksService {
       startDate: task.startDate,
       endDate: task.endDate,
       assignedAt: extras.assignedAt,
-      completedOn: extras.completedOn,
+      completions: extras.completions,
       completedAt: task.completedAt,
       created_at: task.created_at,
       updated_at: task.updated_at,

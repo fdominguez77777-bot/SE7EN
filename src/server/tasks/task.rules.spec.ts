@@ -1,5 +1,8 @@
 import { UserRole } from '../users/user-role.enum';
 import {
+  canCompleteDaily,
+  canCompleteTask,
+  canCreateTask,
   canDeleteTask,
   canEditTask,
   canViewTask,
@@ -26,15 +29,28 @@ describe('task rules', () => {
     expect(canViewTask(bidder, task)).toBe(true);
     expect(canViewTask({ id: 5, role: UserRole.BIDDER }, task)).toBe(true);
     expect(canViewTask(otherBidder, task)).toBe(false);
-    expect(canEditTask(otherBidder, task)).toBe(false);
   });
 
-  it('lets only the reporter or an admin delete', () => {
-    const task = { reporterUserId: 3, assigneeIds: [4] };
-    expect(canDeleteTask(bidder, task)).toBe(true);
+  it('lets only admins create, change and delete tasks', () => {
+    const task = { reporterUserId: 1, assigneeIds: [3] };
+    expect(canCreateTask(admin)).toBe(true);
+    expect(canCreateTask(manager)).toBe(false);
+    expect(canCreateTask(bidder)).toBe(false);
+    expect(canEditTask(admin, task)).toBe(true);
+    expect(canEditTask(bidder, task)).toBe(false);
     expect(canDeleteTask(admin, task)).toBe(true);
-    expect(canDeleteTask(manager, task)).toBe(false);
-    expect(canDeleteTask(otherBidder, task)).toBe(false);
+    expect(canDeleteTask(bidder, task)).toBe(false);
+    expect(canEditTask(admin, { reporterUserId: 2, assigneeIds: [3] })).toBe(false);
+  });
+
+  it('lets only admins complete a task and only assignees complete their daily part', () => {
+    const task = { reporterUserId: 2, assigneeIds: [3] };
+    expect(canCompleteTask(admin)).toBe(true);
+    expect(canCompleteTask(manager)).toBe(false);
+    expect(canCompleteTask(bidder)).toBe(false);
+    expect(canCompleteDaily(bidder, task)).toBe(true);
+    expect(canCompleteDaily(manager, task)).toBe(false);
+    expect(canCompleteDaily(admin, task)).toBe(false);
   });
 
   it('parses task keys and due dates', () => {

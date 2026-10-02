@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { Button } from './chrome'
 
@@ -21,9 +22,12 @@ export function ConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
-  return (
+  if (typeof document === 'undefined') {
+    return null
+  }
+  return createPortal(
     <div
-      className={`dialog-root fixed inset-0 z-[60] flex items-center justify-center p-4 print:hidden ${
+      className={`dialog-root fixed inset-0 z-[90] flex items-center justify-center p-4 print:hidden ${
         pending ? 'dialog-pending' : ''
       }`}
     >
@@ -60,7 +64,8 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckCircle2, RotateCcw, Trash2, X } from 'lucide-react'
+import { CalendarCheck, CheckCircle2, RotateCcw, Trash2, X } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../../api/client'
 import type { TaskActivityEntry, TaskDetail, TaskPerson, TaskPriority, TaskStatus } from '../../api/types'
 import { Alert, Button, Skeleton } from '../../ui/chrome'
 import { splitLinkedText } from '../../ui/text-links'
-import { describeSchedule, scheduleProblem, type TaskSchedule } from '../../lib/task-schedule'
+import { describeSchedule, occursOn, scheduleProblem, type TaskSchedule } from '../../lib/task-schedule'
 import { MemberPicker } from './MemberPicker'
 import { ScheduleFields } from './ScheduleFields'
 import { PersonAvatar } from './task-bits'
@@ -16,6 +16,7 @@ import {
   PRIORITY_ORDER,
   relativeTime,
   STATUS_META,
+  todayIso,
 } from './task-meta'
 
 type Patch = Partial<{
@@ -158,13 +159,50 @@ export function TaskModal({
   }
 
   async function save(extra: Patch = {}) {
-    if (problem) return
+    if (problem) return false
     const body = { ...changes, ...extra }
-    if (Object.keys(body).length === 0) return
+    if (Object.keys(body).length === 0) return true
     setSaving(true)
     setError('')
     try {
       const { data } = await api.patch<TaskDetail>(`/tasks/${taskId}`, body)
+      accept(data)
+      return true
+    } catch (err) {
+      setError(getApiErrorMessage(err))
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Completed tasks leave the timeline, so the modal goes with them. */
+  async function completeTask() {
+    if (await save({ status: 'DONE' })) onClose()
+  }
+
+  const today = todayIso()
+  const myCompletion = detail?.completions.find(
+    (row) => row.userId === currentUserId && (detail.repeat === 'NONE' || row.date === today),
+  )
+  const scheduledToday = detail ? detail.repeat === 'NONE' || occursOn(detail, today) : false
+  const doneTodayIds = new Set(
+    (detail?.completions ?? [])
+      .filter((row) => detail?.repeat === 'NONE' || row.date === today)
+      .map((row) => row.userId),
+  )
+  const doneToday = (detail?.assignees ?? []).filter((person) => doneTodayIds.has(person.id))
+
+  async function toggleDaily() {
+    if (!detail) return
+    if (dirty && !(await save())) return
+    setSaving(true)
+    setError('')
+    try {
+      const { data } = await api.post<TaskDetail>(`/tasks/${taskId}/occurrences`, {
+        date: myCompletion?.date ?? today,
+        done: !myCompletion,
+      })
       accept(data)
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -195,7 +233,7 @@ export function TaskModal({
     function onKey(event: KeyboardEvent) {
       if (event.key !== 'Escape') return
       const target = event.target as HTMLElement | null
-      if (target?.closest('.tsk-pop, .dialog-root')) return
+      if (target?.closest('.tsk-pop') || document.querySelector('.dialog-root')) return
       event.stopPropagation()
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
         target.blur()
@@ -244,8 +282,8 @@ export function TaskModal({
     if (!detail) return
     ask({
       title: `Delete ${detail.key}?`,
-      description: `"${detail.title}" and its comments will be permanently deleted.`,
-      confirmLabel: 'Delete ticket',
+      description: `"${detail.title}", its comments and everyone's daily completions will be permanently deleted.`,
+      confirmLabel: 'Delete task',
       action: async () => {
         try {
           await api.delete(`/tasks/${taskId}`)
@@ -280,7 +318,7 @@ export function TaskModal({
           {saving ? <span className="tsk-saving">Saving…</span> : null}
           <span className="ml-auto flex items-center gap-1">
             {detail?.permissions.canDelete ? (
-              <button type="button" className="tsk-icon-btn is-danger" onClick={removeTask} aria-label="Delete ticket" title="Delete ticket">
+              <button type="button" className="tsk-icon-btn is-danger" onClick={removeTask} aria-label="Delete task" title="Delete task">
                 <Trash2 className="h-4 w-4" />
               </button>
             ) : null}
@@ -405,7 +443,35 @@ export function TaskModal({
 
             <aside className="tsk-modal-side" aria-label="Ticket details">
               <h3>Details</h3>
-              <dl className="tsk-side-fields">
+              {!canEdit ? (
+                <dl className="tsk-side-meta tsk-side-readonly">
+                  <div>
+                    <dt>Assignees</dt>
+                    <dd className="tsk-side-people">
+                      {detail.assignees.length === 0
+                        ? 'Unassigned'
+                        : detail.assignees.map((person) => (
+                            <span key={person.id}>
+                              <PersonAvatar person={person} done={doneTodayIds.has(person.id)} />
+                              {person.name}
+                            </span>
+                          ))}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Priority</dt>
+                    <dd>
+                      <span className={`tl-prio-dot is-${PRIORITY_META[detail.priority].tone}`} aria-hidden="true" />
+                      {PRIORITY_META[detail.priority].label}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Schedule</dt>
+                    <dd>{describeSchedule(detail)}</dd>
+                  </div>
+                </dl>
+              ) : null}
+              <dl className="tsk-side-fields" hidden={!canEdit}>
                 <div>
                   <dt>Assignees</dt>
                   <dd>
@@ -470,12 +536,36 @@ export function TaskModal({
                 </div>
               </dl>
 
-              {canEdit ? (
+              {canEdit || detail.permissions.canCompleteDaily ? (
                 <div className="tsk-side-actions">
-                  <p className={problem && dirty ? 'is-error' : dirty ? 'is-dirty' : ''} aria-live="polite">
-                    {problem && dirty ? problem : dirty ? 'You have unsaved changes' : 'All changes saved'}
-                  </p>
-                  {detail.status === 'DONE' ? (
+                  {canEdit ? (
+                    <p className={problem && dirty ? 'is-error' : dirty ? 'is-dirty' : ''} aria-live="polite">
+                      {problem && dirty ? problem : dirty ? 'You have unsaved changes' : 'All changes saved'}
+                    </p>
+                  ) : null}
+                  {detail.permissions.canCompleteDaily && detail.status !== 'DONE' ? (
+                    <button
+                      type="button"
+                      className={`tsk-complete${myCompletion ? ' is-reopen' : ''}${detail.permissions.canComplete ? ' is-secondary' : ''}`}
+                      disabled={saving || Boolean(problem) || (!myCompletion && !scheduledToday)}
+                      onClick={() => void toggleDaily()}
+                      title={!scheduledToday ? 'This task is not scheduled for today' : undefined}
+                    >
+                      {myCompletion ? (
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      {myCompletion
+                        ? 'Undo daily task'
+                        : !scheduledToday
+                          ? 'Not scheduled today'
+                          : dirty
+                            ? 'Save & complete daily task'
+                            : 'Complete daily task'}
+                    </button>
+                  ) : null}
+                  {!detail.permissions.canComplete ? null : detail.status === 'DONE' ? (
                     <button
                       type="button"
                       className="tsk-complete is-reopen"
@@ -490,25 +580,41 @@ export function TaskModal({
                       type="button"
                       className="tsk-complete"
                       disabled={saving || Boolean(problem)}
-                      onClick={() => void save({ status: 'DONE' })}
-                      title={detail.repeat === 'NONE' ? undefined : 'Closes the whole recurring task'}
+                      onClick={() => void completeTask()}
+                      title={detail.repeat === 'NONE' ? 'Close this task for everyone' : 'Close the whole recurring task for everyone'}
                     >
                       <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                       {dirty ? 'Save & complete' : 'Complete'}
                     </button>
                   )}
-                  <div className="tsk-side-actions-row">
-                    <Button
-                      variant="ghost"
-                      disabled={!dirty || saving}
-                      onClick={() => setDraft(draftFrom(detail))}
-                    >
-                      Discard
-                    </Button>
-                    <Button disabled={!dirty || saving || Boolean(problem)} onClick={() => void save()}>
-                      {saving ? 'Saving…' : 'Save changes'}
-                    </Button>
-                  </div>
+                  {detail.assignees.length > 0 ? (
+                    <p className="tsk-side-progress">
+                      {detail.repeat === 'NONE' ? 'Done' : 'Done today'}:{' '}
+                      {doneToday.length === 0
+                        ? 'nobody yet'
+                        : `${doneToday.map((person) => person.name).join(', ')} (${doneToday.length}/${detail.assignees.length})`}
+                    </p>
+                  ) : null}
+                  {canEdit ? (
+                    <div className="tsk-side-actions-row">
+                      <Button
+                        variant="ghost"
+                        disabled={!dirty || saving}
+                        onClick={() => setDraft(draftFrom(detail))}
+                      >
+                        Discard
+                      </Button>
+                      <Button disabled={!dirty || saving || Boolean(problem)} onClick={() => void save()}>
+                        {saving ? 'Saving…' : 'Save changes'}
+                      </Button>
+                    </div>
+                  ) : null}
+                  {detail.permissions.canDelete ? (
+                    <button type="button" className="tsk-delete" disabled={saving} onClick={removeTask}>
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Delete task
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </aside>

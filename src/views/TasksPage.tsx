@@ -14,6 +14,7 @@ import { PageHeader } from '../ui/page-header'
 import { TaskComposer } from './tasks/TaskComposer'
 import { TaskModal } from './tasks/TaskModal'
 import { TaskTimeline } from './tasks/TaskTimeline'
+import { TodayTasks } from './tasks/TodayTasks'
 import { todayIso } from './tasks/task-meta'
 import { buildTimeline, type TimelineEntry } from './tasks/task-timeline'
 
@@ -42,16 +43,11 @@ function syncTaskUrl(id: number | null) {
   window.history.replaceState(window.history.state, '', url)
 }
 
-function markDone(task: TaskItem, entry: TimelineEntry, done: boolean): TaskItem {
-  if (task.repeat === 'NONE' || (!done && task.status === 'DONE')) {
-    return { ...task, status: done ? 'DONE' : 'TODO', completedAt: done ? new Date().toISOString() : null }
-  }
-  return {
-    ...task,
-    completedOn: done
-      ? [...task.completedOn, entry.date]
-      : task.completedOn.filter((date) => date !== entry.date),
-  }
+function markDone(task: TaskItem, date: string, userId: number, done: boolean): TaskItem {
+  const others = task.completions.filter(
+    (row) => row.userId !== userId || (task.repeat !== 'NONE' && row.date !== date),
+  )
+  return { ...task, completions: done ? [...others, { date, userId }] : others }
 }
 
 export function TasksPage() {
@@ -66,11 +62,13 @@ export function TasksPage() {
   const [error, setError] = useState('')
   const [reloadNonce, setReloadNonce] = useState(0)
   const [composer, setComposer] = useState<{ date?: string } | null>(null)
+  const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set())
   const [openId, setOpenId] = useState<number | null>(taskFromUrl)
   const { ask, dialog } = useConfirmDialog()
 
   const today = todayIso()
   const thisMonday = mondayOf(today)
+  const isAdmin = user?.role === 'ADMIN'
 
   const params = useMemo(
     () => ({ scope, search: appliedSearch || undefined, from: monday, to: addDays(monday, 6) }),
@@ -153,21 +151,31 @@ export function TasksPage() {
   }
 
   async function toggle(entry: TimelineEntry) {
-    const done = !entry.done
+    const userId = user?.id
+    if (!entry.canCheck || userId === undefined || pendingIds.has(entry.task.id)) return
+    setPendingIds((prev) => new Set(prev).add(entry.task.id))
+    const done = !entry.doneByMe
+    const myDate =
+      entry.task.repeat !== 'NONE'
+        ? entry.date
+        : done
+          ? (entry.date < today ? entry.date : today)
+          : (entry.task.completions.find((row) => row.userId === userId)?.date ?? entry.date)
     setData((prev) => ({
       ...prev,
-      tasks: prev.tasks.map((task) => (task.id === entry.task.id ? markDone(task, entry, done) : task)),
+      tasks: prev.tasks.map((task) => (task.id === entry.task.id ? markDone(task, myDate, userId, done) : task)),
     }))
     try {
-      if (!done && entry.task.repeat !== 'NONE' && entry.task.status === 'DONE') {
-        await api.patch(`/tasks/${entry.task.id}`, { status: 'TODO' })
-      } else {
-        await api.post(`/tasks/${entry.task.id}/occurrences`, { date: entry.date, done })
-      }
+      await api.post(`/tasks/${entry.task.id}/occurrences`, { date: myDate, done })
       setError('')
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {
+      setPendingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(entry.task.id)
+        return next
+      })
       refresh()
     }
   }
@@ -197,15 +205,30 @@ export function TasksPage() {
     <section className="tsk-page page-enter">
       <PageHeader
         title="Tasks"
-        description="Plan the work week, assign tasks to teammates and tick them off day by day."
+        description={
+          isAdmin
+            ? 'Plan the work week, assign tasks to teammates and tick them off day by day.'
+            : 'Your tasks for the week. Press Complete when you finish each one.'
+        }
         actions={
-          <Button onClick={() => setComposer({})}>
-            <Plus className="h-4 w-4" /> New task
-          </Button>
+          isAdmin ? (
+            <Button onClick={() => setComposer({})}>
+              <Plus className="h-4 w-4" /> New task
+            </Button>
+          ) : undefined
         }
       />
 
       {error ? <Alert>{error}</Alert> : null}
+
+      {!isAdmin && monday === thisMonday ? (
+        <TodayTasks
+          entries={days.find((day) => day.isToday)?.entries.filter((entry) => entry.mine) ?? []}
+          pendingIds={pendingIds}
+          onToggle={(entry) => void toggle(entry)}
+          onOpen={openTask}
+        />
+      ) : null}
 
       <div className="tl-toolbar">
         <div className="tl-week">
@@ -243,16 +266,18 @@ export function TasksPage() {
         </div>
 
         <div className="tkt-filters">
-          <select
-            className="input-field tkt-scope"
-            value={scope}
-            onChange={(event) => setScope(event.target.value as Scope)}
-            aria-label="Show"
-          >
-            <option value="mine">Assigned to me</option>
-            <option value="reported">Created by me</option>
-            <option value="all">All my tasks</option>
-          </select>
+          {isAdmin ? (
+            <select
+              className="input-field tkt-scope"
+              value={scope}
+              onChange={(event) => setScope(event.target.value as Scope)}
+              aria-label="Show"
+            >
+              <option value="mine">Assigned to me</option>
+              <option value="reported">Created by me</option>
+              <option value="all">All my tasks</option>
+            </select>
+          ) : null}
           <label className="tsk-search">
             <Search className="h-4 w-4" aria-hidden="true" />
             <input
@@ -266,9 +291,9 @@ export function TasksPage() {
         </div>
       </div>
 
-      <TaskTimeline days={days} onOpen={openTask} onToggle={(entry) => void toggle(entry)} onAdd={(date) => setComposer({ date })} />
+      <TaskTimeline days={days} onOpen={openTask} onToggle={(entry) => void toggle(entry)} onAdd={isAdmin ? (date) => setComposer({ date }) : undefined} />
 
-      {composer ? (
+      {composer && isAdmin ? (
         <TaskComposer
           people={people}
           currentUserId={user?.id}
@@ -291,7 +316,7 @@ export function TasksPage() {
           taskId={openId}
           people={people}
           currentUserId={user?.id}
-          isAdmin={user?.role === 'ADMIN'}
+          isAdmin={isAdmin}
           ask={ask}
           onClose={() => openTask(null)}
           onChanged={refresh}

@@ -6,7 +6,18 @@ const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 export type TimelineEntry = {
   task: TaskItem
   date: string
+  /** An admin completed the whole task. */
+  closed: boolean
+  /** The viewer is an assignee, so this is their own daily task. */
+  mine: boolean
+  /** Assignees who completed their part for this day. */
+  doneBy: number[]
+  doneByMe: boolean
+  /** Every assignee is done, waiting for an admin to complete the task. */
+  teamDone: boolean
+  /** Shown faded and sorted to the bottom. */
   done: boolean
+  canCheck: boolean
   isNew: boolean
   /** Shown instead of the schedule when the card sits on a different day than planned. */
   note: { label: string; tone: 'overdue' | 'moved' } | null
@@ -21,12 +32,6 @@ export type TimelineDay = {
   done: number
 }
 
-function localIso(value: string) {
-  const date = new Date(value)
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 10)
-}
-
 function stamp(task: TaskItem) {
   return new Date(task.assignedAt ?? task.created_at).getTime()
 }
@@ -37,13 +42,18 @@ function isFresh(task: TaskItem, actorId: number | undefined, now: number) {
 }
 
 /** Which Mon–Fri column a one-time task belongs in for this week, if any. */
-function oneTimePlacement(task: TaskItem, week: string[], today: string) {
+function oneTimePlacement(task: TaskItem, week: string[], today: string, myDoneOn: string | null) {
   const due = task.dueDate
   if (!due) return null
   const monday = week[0]
   const friday = week[4]
   const sunday = addDays(monday, 6)
   const open = task.status !== 'DONE'
+  if (open && myDoneOn) {
+    const day = myDoneOn > due ? myDoneOn : due
+    if (day < monday || day > sunday) return null
+    return { date: day > friday ? friday : day, note: null }
+  }
   const weekHasToday = today >= monday && today <= sunday
   if (open && due < today && weekHasToday) {
     const day = today > friday ? friday : today
@@ -69,32 +79,44 @@ export function buildTimeline(
   const week = workWeek(monday)
   const byDay = new Map<string, TimelineEntry[]>(week.map((date) => [date, []]))
 
+  function entry(task: TaskItem, date: string, closed: boolean, doneBy: number[], note: TimelineEntry['note']) {
+    const assigneeIds = task.assignees.map((person) => person.id)
+    const mine = actorId !== undefined && assigneeIds.includes(actorId)
+    const doneByMe = mine && doneBy.includes(actorId as number)
+    const teamDone = assigneeIds.length > 0 && assigneeIds.every((id) => doneBy.includes(id))
+    const item: TimelineEntry = {
+      task,
+      date,
+      closed,
+      mine,
+      doneBy,
+      doneByMe,
+      teamDone,
+      done: closed || doneByMe,
+      canCheck: mine && !closed && (task.repeat === 'NONE' || date <= today),
+      isNew: isFresh(task, actorId, now),
+      note: closed || doneByMe || teamDone ? null : note,
+    }
+    byDay.get(date)?.push(item)
+  }
+
   for (const task of tasks) {
-    const isNew = isFresh(task, actorId, now)
+    const closed = task.status === 'DONE'
+    if (closed) continue
+    const assigneeIds = new Set(task.assignees.map((person) => person.id))
     if (task.repeat === 'NONE') {
-      const placement = oneTimePlacement(task, week, today)
-      if (placement) {
-        byDay.get(placement.date)?.push({
-          task,
-          date: placement.date,
-          done: task.status === 'DONE',
-          isNew,
-          note: placement.note,
-        })
-      }
+      const doneBy = [...new Set(task.completions.map((row) => row.userId))].filter((id) => assigneeIds.has(id))
+      const myDoneOn = task.completions.find((row) => row.userId === actorId)?.date ?? null
+      const placement = oneTimePlacement(task, week, today, myDoneOn)
+      if (placement) entry(task, placement.date, closed, doneBy, placement.note)
       continue
     }
-    const closedOn = task.status === 'DONE' && task.completedAt ? localIso(task.completedAt) : null
     for (const date of week) {
-      if (closedOn && date > closedOn) continue
       if (!occursOn(task, date)) continue
-      byDay.get(date)?.push({
-        task,
-        date,
-        done: closedOn !== null || task.completedOn.includes(date),
-        isNew,
-        note: null,
-      })
+      const doneBy = task.completions
+        .filter((row) => row.date === date && assigneeIds.has(row.userId))
+        .map((row) => row.userId)
+      entry(task, date, closed, doneBy, null)
     }
   }
 
@@ -109,7 +131,7 @@ export function buildTimeline(
       isToday: date === today,
       isPast: date < today,
       entries,
-      done: entries.filter((entry) => entry.done).length,
+      done: entries.filter((item) => item.done || item.teamDone).length,
     }
   })
 }

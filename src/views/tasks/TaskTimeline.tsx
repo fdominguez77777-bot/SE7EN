@@ -2,8 +2,32 @@ import { AlertTriangle, CalendarClock, Check, MessageSquare, Plus, Repeat } from
 
 import { describeRepeat, shortDate } from '../../lib/task-schedule'
 import { AvatarStack } from './task-bits'
-import { assigneeSummary, PRIORITY_META, STATUS_META } from './task-meta'
+import { PRIORITY_META } from './task-meta'
 import type { TimelineDay, TimelineEntry } from './task-timeline'
+
+function shortRepeat(task: TimelineEntry['task']) {
+  const text = describeRepeat(task)
+  if (text === 'Every day') return 'Daily'
+  if (text === 'Every work day') return 'Work days'
+  return text.replace(/^Every /, '')
+}
+
+/** The single most useful status line for a card. */
+function cardChip(entry: TimelineEntry) {
+  const { task, note } = entry
+  if (entry.closed) return { tone: 'complete', Icon: Check, label: 'Completed', title: 'Completed by admin' }
+  if (entry.teamDone) return { tone: 'ready', Icon: Check, label: 'Ready', title: 'Every assignee is done · ready to complete' }
+  if (entry.doneByMe) return { tone: 'ready', Icon: Check, label: 'Done', title: 'You are done · awaiting admin' }
+  if (note) {
+    return { tone: note.tone, Icon: note.tone === 'overdue' ? AlertTriangle : CalendarClock, label: note.label, title: note.label }
+  }
+  if (task.repeat !== 'NONE') {
+    const until = task.endDate ? ` until ${shortDate(task.endDate)}` : ''
+    return { tone: 'repeat', Icon: Repeat, label: shortRepeat(task), title: `${describeRepeat(task)}${until}` }
+  }
+  if (task.status === 'IN_PROGRESS') return { tone: 'progress', Icon: CalendarClock, label: 'In progress', title: 'In progress' }
+  return null
+}
 
 function TimelineCard({
   entry,
@@ -14,10 +38,17 @@ function TimelineCard({
   onOpen: (id: number) => void
   onToggle: (entry: TimelineEntry) => void
 }) {
-  const { task, done, isNew, note } = entry
+  const { task, done, isNew } = entry
   const priority = PRIORITY_META[task.priority]
-  const recurring = task.repeat !== 'NONE'
-  const inProgress = !done && task.status === 'IN_PROGRESS'
+  const assigned = task.assignees.length
+  const chip = cardChip(entry)
+  const checkTitle = entry.closed
+    ? 'Completed by admin'
+    : !entry.canCheck
+      ? 'You can complete this on the day'
+      : entry.doneByMe
+        ? 'Undo my daily task'
+        : 'Complete my daily task'
 
   return (
     <article
@@ -28,56 +59,56 @@ function TimelineCard({
       </button>
 
       <header className="tl-card-top">
+        <span className={`tl-prio-dot is-${priority.tone}`} title={`${priority.label} priority`} aria-label={`${priority.label} priority`} />
         <span className="tsk-key">{task.key}</span>
         {isNew && !done ? <span className="tl-new">New</span> : null}
-        <span className={`tl-prio is-${priority.tone}`}>{priority.label}</span>
-        <button
-          type="button"
-          className="tl-check"
-          aria-pressed={done}
-          aria-label={done ? `Mark ${task.key} not done` : `Mark ${task.key} done`}
-          title={done ? 'Mark not done' : recurring ? 'Done for this day' : 'Mark done'}
-          onClick={() => onToggle(entry)}
-        >
-          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        {entry.mine ? (
+          <button
+            type="button"
+            className={`tl-done-btn${entry.doneByMe || entry.closed ? ' is-on' : ''}`}
+            aria-pressed={entry.doneByMe || entry.closed}
+            aria-label={`${checkTitle} (${task.key})`}
+            title={checkTitle}
+            disabled={!entry.canCheck}
+            onClick={() => onToggle(entry)}
+          >
+            <Check className="h-3 w-3" aria-hidden="true" />
+            {entry.doneByMe || entry.closed ? 'Done' : 'Complete'}
+          </button>
+        ) : entry.closed ? (
+          <span className="tl-closed" title="Completed">
+            <Check className="h-3 w-3" aria-hidden="true" />
+          </span>
+        ) : assigned > 0 ? (
+          <span
+            className={`tl-progress${entry.teamDone ? ' is-full' : ''}`}
+            title={`${entry.doneBy.length} of ${assigned} assignees done`}
+          >
+            {entry.doneBy.length}/{assigned}
+          </span>
+        ) : null}
       </header>
 
-      <h4 className="tl-title">{task.title}</h4>
-      {task.description ? <p className="tl-desc">{task.description}</p> : null}
-
-      <div className="tl-tags">
-        {note ? (
-          <span className={`tl-chip is-${note.tone}`}>
-            {note.tone === 'overdue' ? (
-              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-            ) : (
-              <CalendarClock className="h-3 w-3" aria-hidden="true" />
-            )}
-            {note.label}
-          </span>
-        ) : null}
-        {recurring ? (
-          <span className="tl-chip is-repeat" title={task.endDate ? `Until ${shortDate(task.endDate)}` : 'No end date'}>
-            <Repeat className="h-3 w-3" aria-hidden="true" />
-            {describeRepeat(task)}
-            {task.endDate ? <em>until {shortDate(task.endDate)}</em> : null}
-          </span>
-        ) : null}
-        {inProgress ? <span className="tl-chip is-progress">{STATUS_META.IN_PROGRESS.label}</span> : null}
-      </div>
+      <h4 className="tl-title" title={task.description ?? undefined}>
+        {task.title}
+      </h4>
 
       <footer className="tl-foot">
-        <span className="tl-people" title={task.assignees.map((person) => person.name).join(', ') || 'Unassigned'}>
-          <AvatarStack people={task.assignees} />
-          <span className={task.assignees.length > 0 ? '' : 'is-empty'}>{assigneeSummary(task.assignees)}</span>
-        </span>
+        {chip ? (
+          <span className={`tl-chip is-${chip.tone}`} title={chip.title}>
+            <chip.Icon className="h-3 w-3" aria-hidden="true" />
+            {chip.label}
+          </span>
+        ) : null}
         {task.commentCount > 0 ? (
           <span className="tl-comments" title={`${task.commentCount} comments`}>
-            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+            <MessageSquare className="h-3 w-3" aria-hidden="true" />
             {task.commentCount}
           </span>
         ) : null}
+        <span className="tl-people">
+          <AvatarStack people={task.assignees} doneIds={entry.doneBy} />
+        </span>
       </footer>
     </article>
   )
@@ -92,7 +123,8 @@ export function TaskTimeline({
   days: TimelineDay[]
   onOpen: (id: number) => void
   onToggle: (entry: TimelineEntry) => void
-  onAdd: (date: string) => void
+  /** Omitted for members, who can't create tasks. */
+  onAdd?: (date: string) => void
 }) {
   return (
     <div className="tl-board">
@@ -114,26 +146,30 @@ export function TaskTimeline({
               <span className="tl-day-count" title={`${day.done} of ${total} done`}>
                 {total === 0 ? '0' : `${day.done}/${total}`}
               </span>
-              <button
-                type="button"
-                className="tl-day-add"
-                onClick={() => onAdd(day.date)}
-                aria-label={`Add a task on ${day.label} ${shortDate(day.date)}`}
-                title="Add a task on this day"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
+              {onAdd ? (
+                <button
+                  type="button"
+                  className="tl-day-add"
+                  onClick={() => onAdd(day.date)}
+                  aria-label={`Add a task on ${day.label} ${shortDate(day.date)}`}
+                  title="Add a task on this day"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              ) : null}
               <div className="tl-day-bar" aria-hidden="true">
                 <i style={{ width: `${progress}%` }} />
               </div>
             </header>
 
             <div className="tl-day-list">
-              {total === 0 ? (
+              {total === 0 && onAdd ? (
                 <button type="button" className="tl-empty" onClick={() => onAdd(day.date)}>
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Nothing planned
                 </button>
+              ) : total === 0 ? (
+                <div className="tl-empty is-static">Nothing planned</div>
               ) : (
                 day.entries.map((entry) => (
                   <TimelineCard key={`${entry.task.id}-${entry.date}`} entry={entry} onOpen={onOpen} onToggle={onToggle} />

@@ -775,8 +775,8 @@ export type TaskItem = {
   endDate: string | null
   /** When the signed-in member was added as an assignee. */
   assignedAt: string | null
-  /** Days in the requested range a recurring task was marked done. */
-  completedOn: string[]
+  /** Assignees who completed their daily part: in range for recurring tasks, all-time for one-time tasks. */
+  completions: { date: string; userId: number }[]
   completedAt: string | null
   created_at: string
   updated_at: string
@@ -823,5 +823,5 @@ export type TaskActivityEntry = {
 
 export type TaskDetail = TaskItem & {
   activity: TaskActivityEntry[]
-  permissions: { canEdit: boolean; canDelete: boolean }
+  permissions: { canEdit: boolean; canDelete: boolean; canComplete: boolean; canCompleteDaily: boolean }
 }

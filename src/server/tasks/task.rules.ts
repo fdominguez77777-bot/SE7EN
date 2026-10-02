@@ -32,13 +32,18 @@ export type TaskActivityKind =
 export const TASK_MESSAGES = {
   notFound: 'Task not found.',
   forbidden: 'You do not have access to this task.',
-  deleteForbidden: 'Only the reporter or an admin can delete this task.',
+  deleteForbidden: 'Only an admin can delete this task.',
+  createForbidden: 'Only an admin can create tasks.',
+  editForbidden: 'Only an admin can change this task.',
   commentForbidden: 'You can only delete your own comments.',
   assigneeInvalid: 'Choose an active teammate to assign.',
   titleRequired: 'Give the task a title.',
   dueDateInvalid: 'Due date must be a valid date.',
   commentRequired: 'Write a comment first.',
   occurrenceInvalid: 'This task is not scheduled on that day.',
+  completeForbidden: 'Only an admin can complete or reopen a task.',
+  dailyForbidden: 'Only assignees can complete their daily task.',
+  taskClosed: 'This task is already completed.',
 } as const;
 
 const PRIORITY_RANK: Record<TaskPriority, number> = {
@@ -58,12 +63,27 @@ export function canViewTask(actor: Actor, task: Involvement) {
   return isInvolved(actor, task);
 }
 
+/** Admins plan the work: only they create tasks. */
+export function canCreateTask(actor: Actor) {
+  return actor.role === UserRole.ADMIN;
+}
+
 export function canEditTask(actor: Actor, task: Involvement) {
-  return canViewTask(actor, task);
+  return actor.role === UserRole.ADMIN && canViewTask(actor, task);
+}
+
+/** Closing (or reopening) the whole task is an admin decision. */
+export function canCompleteTask(actor: Actor) {
+  return actor.role === UserRole.ADMIN;
+}
+
+/** Each assignee ticks off their own part of the task, day by day. */
+export function canCompleteDaily(actor: Actor, task: Involvement) {
+  return task.assigneeIds.includes(actor.id);
 }
 
 export function canDeleteTask(actor: Actor, task: Involvement) {
-  return actor.role === UserRole.ADMIN || task.reporterUserId === actor.id;
+  return canEditTask(actor, task);
 }
 
 export function taskKey(id: number) {
