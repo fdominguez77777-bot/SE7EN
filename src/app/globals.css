@@ -5594,3 +5594,266 @@ label .req,
     animation: none;
   }
 }
+
+/* Connect the team (ranking empty state) */
+.dash-rank-idle {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dash-rank-idle-note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ct {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-1);
+}
+
+.ct-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.ct-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ct-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ct.is-solved .ct-sub {
+  color: #e7b56a;
+  font-weight: 600;
+}
+
+.ct-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ct-levels {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.ct-levels button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.ct-levels button.is-on {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--border-accent);
+}
+
+.ct-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  color: var(--text-muted);
+}
+
+.ct-new:hover {
+  color: var(--accent-hover);
+  border-color: var(--border-accent);
+}
+
+.ct-board {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 28px;
+}
+
+.ct-grid {
+  --ct-size: min(44px, calc((100vw - 96px) / var(--ct-cols)));
+  display: grid;
+  grid-template-columns: repeat(var(--ct-cols), var(--ct-size));
+  grid-auto-rows: var(--ct-size);
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: #0d0f13;
+}
+
+.ct-tile {
+  position: relative;
+  display: block;
+  padding: 0;
+  border-radius: 6px;
+  background: #15181e;
+  cursor: pointer;
+  transition: background 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ct-tile:hover:not(:disabled) {
+  background: #1d2128;
+}
+
+.ct-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.ct-tile:disabled {
+  cursor: default;
+}
+
+.ct-spin {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transition: transform 160ms cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
+.ct-spin svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ct-pipe {
+  stroke: #3d434e;
+  stroke-width: 7;
+  stroke-linecap: butt;
+  transition: stroke 160ms ease;
+}
+
+.ct-joint {
+  fill: #3d434e;
+  transition: fill 160ms ease;
+}
+
+.ct-tile.is-lit .ct-pipe {
+  stroke: #d9a45a;
+}
+
+.ct-tile.is-lit .ct-joint {
+  fill: #d9a45a;
+}
+
+.ct-hub {
+  fill: #d98b46;
+  stroke: #f3d7b0;
+  stroke-width: 2;
+}
+
+.ct-node {
+  fill: #1a1d23;
+  stroke: #5b616c;
+  stroke-width: 2;
+  transition: fill 160ms ease, stroke 160ms ease;
+}
+
+.ct-node.is-lit {
+  fill: #f0c98a;
+  stroke: #f3d7b0;
+}
+
+.ct.is-solved .ct-tile.is-lit .ct-pipe {
+  stroke: #f5c542;
+}
+
+.ct.is-solved .ct-grid {
+  border-color: rgba(245, 197, 66, 0.35);
+  box-shadow: 0 0 0 3px rgba(245, 197, 66, 0.08);
+}
+
+.ct-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 150px;
+}
+
+.ct-stats div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ct-stats span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ct-stats strong {
+  font-size: 16px;
+  font-weight: 750;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ct-help {
+  font-size: 11px;
+  color: var(--text-disabled);
+}
+
+.ct-again {
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #111214;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ct-again:hover {
+  background: var(--accent-hover);
+}
+
+@media (max-width: 640px) {
+  .ct-board {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ct-grid {
+    align-self: center;
+  }
+
+  .ct-stats {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-spin {
+    transition: none;
+  }
+}

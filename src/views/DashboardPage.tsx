@@ -10,6 +10,7 @@ import { PeriodSelector, usePeriodFilter } from '../ui/PeriodSelector'
 import { rangeQuery, resolveRange } from '../ui/reporting-period'
 import { ActivityChart } from './dashboard/ActivityChart'
 import { CentralClock } from './dashboard/CentralClock'
+import { ConnectTeam } from './dashboard/ConnectTeam'
 import {
   assignDenseRanks,
   formatRate,
@@ -443,18 +444,14 @@ export function DashboardPage() {
             {performance.length === 0 ? (
               <EmptyState title="No teammates to rank." />
             ) : !rankingHasActivity ? (
-              <EmptyState
-                title="No activity in this period"
-                description={`Try Week or a custom range — there are no ${
-                  rankMetric === 'interviews' ? 'interviews' : 'applications'
-                } to rank for ${
-                  rankPeriod === 'day'
-                    ? 'today'
-                    : rankPeriod === 'week'
-                      ? 'this week'
-                      : 'this range'
-                } yet.`}
-              />
+              <div className="dash-rank-idle">
+                <p className="dash-rank-idle-note">
+                  No {rankMetric === 'interviews' ? 'interviews' : 'applications'} to rank for{' '}
+                  {rankPeriod === 'day' ? 'today' : rankPeriod === 'week' ? 'this week' : 'this range'} yet. Try Week
+                  or a custom range.
+                </p>
+                <ConnectTeam />
+              </div>
             ) : (
               <TeamRanking
                 rows={performance}
