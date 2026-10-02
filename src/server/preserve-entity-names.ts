@@ -25,6 +25,9 @@ import { WeeklyInvoiceDailySource } from './weekly-invoices/weekly-invoice-daily
 import { WeeklyInvoice } from './weekly-invoices/weekly-invoice.entity'
 import { WalletTransaction } from './wallet/wallet-transaction.entity'
 import { LoginHistory } from './login-history/login-history.entity'
+import { TaskActivity } from './tasks/task-activity.entity'
+import { TaskCompletion } from './tasks/task-completion.entity'
+import { Task } from './tasks/task.entity'
 
 /**
  * TypeORM uses `constructor.name` as the entity graph id. Vercel minifies
@@ -62,3 +65,6 @@ freezeName(WeeklyInvoiceDailyBidder, 'WeeklyInvoiceDailyBidder')
 freezeName(WeeklyInvoiceDailySource, 'WeeklyInvoiceDailySource')
 freezeName(WalletTransaction, 'WalletTransaction')
 freezeName(LoginHistory, 'LoginHistory')
+freezeName(Task, 'Task')
+freezeName(TaskActivity, 'TaskActivity')
+freezeName(TaskCompletion, 'TaskCompletion')

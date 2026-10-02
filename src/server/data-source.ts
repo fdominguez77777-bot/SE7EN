@@ -29,6 +29,9 @@ import { WalletOwner1771800000000 } from './migrations/1771800000000-WalletOwner
 import { UserPasswordVault1771900000000 } from './migrations/1771900000000-UserPasswordVault';
 import { LoginHistory1772000000000 } from './migrations/1772000000000-LoginHistory';
 import { LoginHistoryLastSeen1772100000000 } from './migrations/1772100000000-LoginHistoryLastSeen';
+import { Tasks1772200000000 } from './migrations/1772200000000-Tasks';
+import { TaskAssignees1772300000000 } from './migrations/1772300000000-TaskAssignees';
+import { TaskSchedule1772400000000 } from './migrations/1772400000000-TaskSchedule';
 import { applyDatabaseUrl, isManagedPostgresSsl } from './config/database-url';
 
 config({ path: resolve(process.cwd(), '.env') });
@@ -76,6 +79,9 @@ export default new DataSource({
     UserPasswordVault1771900000000,
     LoginHistory1772000000000,
     LoginHistoryLastSeen1772100000000,
+    Tasks1772200000000,
+    TaskAssignees1772300000000,
+    TaskSchedule1772400000000,
   ],
   migrationsTableName: 'migrations',
 });

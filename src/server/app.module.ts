@@ -27,6 +27,7 @@ import { CompensationModule } from './compensation/compensation.module';
 import { WalletModule } from './wallet/wallet.module';
 import { LoginHistoryModule } from './login-history/login-history.module';
 import { ProjectsModule } from './projects/projects.module';
+import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 import { DailySubmissionsModule } from './daily-submissions/daily-submissions.module';
 import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
@@ -90,6 +91,7 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
     CalendarModule,
     CompensationModule,
     WalletModule,
+    TasksModule,
     DashboardModule,
   ],
   controllers: [AppController],

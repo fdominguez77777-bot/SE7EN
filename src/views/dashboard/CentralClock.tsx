@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 
-import { ClockPuzzle } from './ClockPuzzle'
+import { ClockReflex } from './ClockReflex'
 import { WatchFace, WatchHands } from './WatchFace'
 
 const CHICAGO_TZ = 'America/Chicago'
@@ -59,12 +59,12 @@ export function CentralClock() {
   return (
     <div className={`dash-watch${playing ? ' is-game' : ''}`}>
       {playing ? (
-        <ClockPuzzle uid={uid} onExit={() => setPlaying(false)} />
+        <ClockReflex uid={uid} onExit={() => setPlaying(false)} />
       ) : (
         <button
           type="button"
           className="dash-watch-case"
-          aria-label={`Central Time, ${clock.label}, ${spoken}. Click to play Hands of Time.`}
+          aria-label={`Central Time, ${clock.label}, ${spoken}. Click to play Split Second.`}
           title={`Central Time · ${clock.label} · Click to play`}
           onClick={() => setPlaying(true)}
         >

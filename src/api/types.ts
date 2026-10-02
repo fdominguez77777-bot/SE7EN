@@ -749,3 +749,79 @@ export type WalletLedger = {
 }
 
 
+
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE'
+export type TaskRepeat = 'NONE' | 'DAILY' | 'WEEKDAYS' | 'CUSTOM'
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH'
+
+export type TaskPerson = {
+  id: number
+  name: string
+  role: Role
+  avatarUrl: string | null
+}
+
+export type TaskItem = {
+  id: number
+  key: string
+  title: string
+  description: string | null
+  status: TaskStatus
+  priority: TaskPriority
+  dueDate: string | null
+  repeat: TaskRepeat
+  repeatDays: number | null
+  startDate: string
+  endDate: string | null
+  /** When the signed-in member was added as an assignee. */
+  assignedAt: string | null
+  /** Days in the requested range a recurring task was marked done. */
+  completedOn: string[]
+  completedAt: string | null
+  created_at: string
+  updated_at: string
+  reporter: TaskPerson | null
+  assignees: TaskPerson[]
+  commentCount: number
+}
+
+export type TaskSummary = {
+  open: number
+  inProgress: number
+  overdue: number
+  doneThisWeek: number
+  assignedToMe: number
+}
+
+export type TaskList = {
+  summary: TaskSummary
+  range?: { from: string; to: string }
+  tasks: TaskItem[]
+}
+
+export type TaskActivityEntry = {
+  id: number
+  kind:
+    | 'CREATED'
+    | 'COMMENT'
+    | 'STATUS'
+    | 'ASSIGNEE'
+    | 'PRIORITY'
+    | 'TYPE'
+    | 'DUE_DATE'
+    | 'TITLE'
+    | 'DESCRIPTION'
+    | 'SCHEDULE'
+    | 'COMPLETED'
+    | 'REOPENED'
+  fromValue: string | null
+  toValue: string | null
+  body: string | null
+  created_at: string
+  actor: TaskPerson | null
+}
+
+export type TaskDetail = TaskItem & {
+  activity: TaskActivityEntry[]
+  permissions: { canEdit: boolean; canDelete: boolean }
+}

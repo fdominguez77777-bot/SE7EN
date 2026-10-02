@@ -22,6 +22,8 @@ import { WeeklyInvoice } from '../weekly-invoices/weekly-invoice.entity';
 import { WeeklyInvoiceBidder } from '../weekly-invoices/weekly-invoice-bidder.entity';
 import { WeeklyInvoiceDailyBidder } from '../weekly-invoices/weekly-invoice-daily-bidder.entity';
 import { WalletTransaction } from '../wallet/wallet-transaction.entity';
+import { TaskActivity } from '../tasks/task-activity.entity';
+import { Task } from '../tasks/task.entity';
 
 const TRANSIENT_DB_MESSAGE =
   /terminat|ECONNRESET|ECONNREFUSED|connection timed out|timeout expired|canceling statement|lock timeout|deadlock detected/i;
@@ -150,6 +152,13 @@ export async function detachUserReferences(
     WalletTransaction,
     { voidedByUserId: userId },
     { voidedByUserId: null },
+  );
+  await manager.update(Task, { reporterUserId: userId }, { reporterUserId: null });
+  await manager.query(`DELETE FROM "task_assignee" WHERE "userId" = $1`, [userId]);
+  await manager.update(TaskActivity, { actorUserId: userId }, { actorUserId: null });
+  await manager.query(
+    `UPDATE "task_completion" SET "completedByUserId" = NULL WHERE "completedByUserId" = $1`,
+    [userId],
   );
 
   await manager.delete(DailySubmissionRead, { userId });
