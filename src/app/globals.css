@@ -3949,30 +3949,73 @@ label .req,
   font-variant-numeric: tabular-nums;
 }
 
-.wal-panel {
-  padding: 16px 18px 14px;
+.wal-range {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
   background: var(--card-bg);
 }
 
-.wal-panel-head {
+.wal-custom {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: flex-end;
+  gap: 10px 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.wal-panel-head h2 {
-  font-size: 15px;
-  font-weight: 700;
+.wal-custom label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
 }
 
-.wal-panel-head p {
-  margin-top: 2px;
-  font-size: 12px;
+.wal-custom label span {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.wal-custom input[type='date'] {
+  height: 40px;
+  min-width: 160px;
+  line-height: 38px;
+}
+
+.wal-custom-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: min(100%, 220px);
+  padding-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.wal-custom-summary strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary, inherit);
+}
+
+.wal-custom-summary em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.wal-pager-static {
+  justify-content: center;
+}
+
+.wal-pager-static .wal-pager-label {
+  width: 100%;
 }
 
 .wal-period,
@@ -4004,83 +4047,6 @@ label .req,
   color: var(--text-primary);
 }
 
-.wal-custom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px 14px;
-  margin-top: 14px;
-}
-
-.wal-custom label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 160px;
-}
-
-.wal-custom label span {
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.wal-custom input[type='date'] {
-  height: 40px;
-  min-width: 160px;
-  line-height: 38px;
-}
-
-.wal-custom p {
-  padding-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.wal-spark {
-  display: grid;
-  grid-template-columns: repeat(14, minmax(0, 1fr));
-  align-items: end;
-  gap: 6px;
-  height: 72px;
-  margin-top: 16px;
-}
-
-.wal-spark-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  height: 100%;
-}
-
-.wal-spark-bar {
-  display: block;
-  width: 100%;
-  max-width: 12px;
-  min-height: 4px;
-  border-radius: 3px 3px 0 0;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.wal-spark-bar.is-in {
-  background: #6fbd8c;
-}
-
-.wal-spark-bar.is-out {
-  background: #d66f6f;
-}
-
-.wal-spark-col em {
-  font-size: 9px;
-  font-style: normal;
-  color: var(--text-disabled);
-  font-variant-numeric: tabular-nums;
-}
-
 .wal-period {
   flex-wrap: nowrap;
 }
@@ -4088,60 +4054,6 @@ label .req,
 .wal-period button {
   flex: 0 0 auto;
   white-space: nowrap;
-}
-
-.wal-months {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 14px;
-}
-
-.wal-month {
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  min-height: 48px;
-  padding: 8px 4px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-secondary);
-  text-align: left;
-  overflow: hidden;
-}
-
-.wal-month span {
-  font-size: 11px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wal-month strong {
-  font-size: 10px;
-  font-weight: 650;
-  color: var(--text-disabled);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wal-month.is-on {
-  border-color: var(--border-accent);
-  background: var(--accent-soft);
-  color: var(--text-primary);
-}
-
-.wal-month.is-now:not(.is-on) {
-  border-color: var(--border-strong);
 }
 
 .wal-toolbar {
@@ -4190,7 +4102,6 @@ label .req,
   grid-template-columns: minmax(0, 1fr);
 }
 
-.wal-empty,
 .wal-pager {
   display: flex;
   align-items: center;
@@ -4248,6 +4159,7 @@ label .req,
   font-variant-numeric: tabular-nums;
 }
 
+.wal-empty,
 .wal-ledger {
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
@@ -4565,12 +4477,6 @@ label .req,
   grid-column: 1 / -1;
 }
 
-@media (max-width: 1280px) {
-  .wal-months {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 1100px) {
   .wal-body {
     grid-template-columns: 1fr;
@@ -4597,10 +4503,6 @@ label .req,
   .wal-period {
     flex-wrap: wrap;
   }
-
-  .wal-spark {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 640px) {
@@ -4610,8 +4512,28 @@ label .req,
     grid-template-columns: 1fr;
   }
 
-  .wal-months {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .wal-period button {
+    flex: 1 1 calc(33.333% - 6px);
+  }
+
+  .wal-custom label,
+  .wal-custom input[type='date'] {
+    flex: 1 1 140px;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .wal-custom-summary {
+    flex: 1 1 100%;
+    padding-bottom: 0;
+  }
+
+  .wal-search {
+    flex: 1 1 100%;
+  }
+
+  .wal-pager-label strong {
+    font-size: 13px;
   }
 }
 
@@ -5204,5 +5126,284 @@ label .req,
 
   .lh-search {
     flex: 1 1 100%;
+  }
+}
+
+
+/* Date range picker (click start, move, click end) */
+.drp-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 15rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.drp-trigger svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.drp-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.drp-trigger.is-open {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.drp-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.drp-pop {
+  position: fixed;
+  z-index: 1000;
+  padding: 14px 14px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  user-select: none;
+  animation: drp-in 140ms ease-out;
+}
+
+@keyframes drp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.drp-months {
+  display: flex;
+  gap: 24px;
+}
+
+.drp-month {
+  width: 266px;
+}
+
+.drp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 4px 0 6px;
+  margin-bottom: 6px;
+}
+
+.drp-head strong {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.drp-nav {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.drp-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.drp-nav button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.drp-nav button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.drp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 38px);
+  grid-auto-rows: 38px;
+  row-gap: 2px;
+  touch-action: none;
+}
+
+.drp-weekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.drp-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.drp-day::before {
+  content: '';
+  position: absolute;
+  inset: 3px 0;
+  background: transparent;
+}
+
+.drp-day > span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.drp-day:hover > span {
+  background: var(--surface-hover);
+}
+
+.drp-day.is-outside {
+  color: var(--text-disabled);
+}
+
+.drp-day.is-off {
+  color: var(--text-disabled);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.drp-day.is-off:hover > span {
+  background: transparent;
+}
+
+.drp-day.is-today > span {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent-hover);
+  font-weight: 700;
+}
+
+.drp-day.is-in::before {
+  background: var(--accent-soft);
+}
+
+.drp-day.is-in.is-start::before,
+.drp-day.is-in.is-row-start::before {
+  left: 3px;
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+
+.drp-day.is-in.is-end::before,
+.drp-day.is-in.is-row-end::before {
+  right: 3px;
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+
+.drp-day.is-in > span {
+  color: var(--text-primary);
+}
+
+.drp-day.is-in:hover > span {
+  background: rgba(217, 139, 70, 0.18);
+}
+
+.drp-day.is-start > span,
+.drp-day.is-end > span {
+  background: var(--accent);
+  color: #1a1206;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.drp-day.is-start:hover > span,
+.drp-day.is-end:hover > span {
+  background: var(--accent-hover);
+}
+
+.drp-day:focus-visible {
+  outline: none;
+}
+
+.drp-day:focus-visible > span {
+  box-shadow: 0 0 0 2px var(--accent-hover);
+}
+
+.drp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 8px 4px 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.drp-foot button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.drp-foot button:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+@media (max-width: 640px) {
+  .drp-trigger {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .drp-pop {
+    padding: 12px 10px 8px;
+  }
+
+  .drp-month {
+    width: min(266px, calc(100vw - 40px));
+  }
+
+  .drp-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drp-pop {
+    animation: none;
   }
 }

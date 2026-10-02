@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 
 import { Button } from './chrome'
+import { DateRangePicker } from './DateRangePicker'
 import {
   PERIOD_PRESET_OPTIONS,
   datesForPreset,
@@ -39,6 +40,13 @@ export function usePeriodFilter(defaultPreset: PeriodPreset = 'today') {
     setApplied({ preset, fromDate, toDate })
   }
 
+  function applyCustom(nextFrom: string, nextTo: string) {
+    setPreset('custom')
+    setFromDate(nextFrom)
+    setToDate(nextTo)
+    setApplied({ preset: 'custom', fromDate: nextFrom, toDate: nextTo })
+  }
+
   return {
     preset,
     fromDate,
@@ -47,6 +55,7 @@ export function usePeriodFilter(defaultPreset: PeriodPreset = 'today') {
     setToDate,
     onPreset,
     applyFilter,
+    applyCustom,
     range,
     applied,
   }
@@ -59,6 +68,7 @@ export function PeriodSelector({
   onPreset,
   onFromDate,
   onToDate,
+  onRange,
   onFilter,
   onRefresh,
   label,
@@ -69,12 +79,23 @@ export function PeriodSelector({
   onPreset: (preset: PeriodPreset) => void
   onFromDate: (value: string) => void
   onToDate: (value: string) => void
+  /** Picking a range on the calendar switches to Custom; when set, it applies immediately. */
+  onRange?: (fromDate: string, toDate: string) => void
   onFilter?: () => void
   onRefresh?: () => void
   label?: string
 }) {
   const shown = datesForPreset(preset, fromDate, toDate)
-  const custom = preset === 'custom'
+
+  function pickRange(nextFrom: string, nextTo: string) {
+    if (onRange) {
+      onRange(nextFrom, nextTo)
+      return
+    }
+    onPreset('custom')
+    onFromDate(nextFrom)
+    onToDate(nextTo)
+  }
 
   return (
     <div className="period-toolbar glass-toolbar">
@@ -94,25 +115,12 @@ export function PeriodSelector({
         </select>
       </div>
       <div className="apps-field">
-        <label htmlFor="period-from">From</label>
-        <input
-          id="period-from"
-          className="input-field"
-          type="date"
-          value={custom ? fromDate : shown.fromDate}
-          disabled={!custom}
-          onChange={(event) => onFromDate(event.target.value)}
-        />
-      </div>
-      <div className="apps-field">
-        <label htmlFor="period-to">To</label>
-        <input
-          id="period-to"
-          className="input-field"
-          type="date"
-          value={custom ? toDate : shown.toDate}
-          disabled={!custom}
-          onChange={(event) => onToDate(event.target.value)}
+        <label htmlFor="period-dates">Dates</label>
+        <DateRangePicker
+          id="period-dates"
+          from={shown.fromDate}
+          to={shown.toDate}
+          onChange={pickRange}
         />
       </div>
       <div className="period-toolbar-actions">

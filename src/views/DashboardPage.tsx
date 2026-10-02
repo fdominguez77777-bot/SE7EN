@@ -260,6 +260,7 @@ export function DashboardPage() {
         onPreset={period.onPreset}
         onFromDate={period.setFromDate}
         onToDate={period.setToDate}
+        onRange={period.applyCustom}
         onFilter={period.applyFilter}
         onRefresh={() => {
           setLoading(true)

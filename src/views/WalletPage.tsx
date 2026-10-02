@@ -30,12 +30,12 @@ import { api, getApiErrorMessage } from '../api/client'
 import type {
   WalletLedger,
   WalletMethod,
-  WalletMonthPoint,
   WalletTransaction,
   WalletTransactionType,
 } from '../api/types'
 import { Alert, Button } from '../ui/chrome'
 import { useConfirmDialog } from '../ui/confirm-dialog'
+import { DateRangePicker } from '../ui/DateRangePicker'
 import { EmptyState } from '../ui/EmptyState'
 import { PageSkeleton } from '../ui/loading/page-skeletons'
 import { formatUsd, formatUsdDelta } from '../ui/money'
@@ -126,22 +126,6 @@ function currentMonth() {
   return todayIso().slice(0, 7)
 }
 
-function monthWindow(endYm: string, count = 12): WalletMonthPoint[] {
-  const [year, month] = endYm.split('-').map(Number)
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date(year, month - 1 - (count - 1 - index), 1)
-    const ym = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-    return {
-      ym,
-      in: '0.00',
-      out: '0.00',
-      net: '0.00',
-      netCents: 0,
-      count: 0,
-    }
-  })
-}
-
 function monthBounds(ym: string) {
   const [year, month] = ym.split('-').map(Number)
   const last = new Date(year, month, 0).getDate()
@@ -169,11 +153,6 @@ function weekBounds() {
   const from = new Date(today)
   from.setDate(today.getDate() + offset)
   return { from: toIsoDate(from), to: todayIso() }
-}
-
-function formatMonthLabel(ym: string) {
-  const date = parseLocalDate(`${ym}-01`)
-  return date.toLocaleDateString('en-US', { month: 'short' })
 }
 
 function formatMonthFull(ym: string) {
@@ -322,6 +301,7 @@ export function WalletPage() {
   const [month, setMonth] = useState(currentMonth)
   const [customFrom, setCustomFrom] = useState(() => monthBounds(currentMonth()).from)
   const [customTo, setCustomTo] = useState(todayIso)
+  const [customPickerOpen, setCustomPickerOpen] = useState(false)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL')
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
@@ -329,7 +309,6 @@ export function WalletPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
   const [revealAll, setRevealAll] = useState(false)
-  const [pageMonth, setPageMonth] = useState<string | null>(null)
   const { ask, dialog } = useConfirmDialog()
 
   const query = useMemo(() => {
@@ -390,35 +369,30 @@ export function WalletPage() {
   }, [composerOpen])
 
   const selected = ledger.items.find((row) => row.id === selectedId) ?? null
-  const listMonths = Array.from(new Set(ledger.items.map((row) => row.occurredOn.slice(0, 7)))).sort().reverse()
-  const activeMonth =
-    period === 'month'
-      ? month
-      : pageMonth && listMonths.includes(pageMonth)
-        ? pageMonth
-        : listMonths[0] ?? currentMonth()
-  const pageItems = ledger.items.filter((row) => row.occurredOn.startsWith(activeMonth))
+  const isCustom = period === 'custom'
+  const isMonthPaged = period === 'month'
+  const activeMonth = isMonthPaged ? month : currentMonth()
+  // Custom and other non-month ranges show the full selected period; month mode pages one month at a time.
+  const pageItems = isMonthPaged
+    ? ledger.items.filter((row) => row.occurredOn.startsWith(activeMonth))
+    : ledger.items
   const groups = groupByDay(pageItems)
   const pageNet = groups.reduce((sum, group) => sum + group.net, 0)
-  const pageIndex = listMonths.indexOf(activeMonth)
-  const canNewer = period === 'month' ? month < currentMonth() : pageIndex > 0
-  const canOlder = period === 'month' ? true : pageIndex >= 0 && pageIndex < listMonths.length - 1
+  const canNewer = isMonthPaged && month < currentMonth()
+  const canOlder = isMonthPaged
 
   function turnPage(direction: 1 | -1) {
+    if (!isMonthPaged) return
     setSelectedId(null)
-    if (period === 'month') {
-      setMonth((value) => shiftMonth(value, direction))
-      return
-    }
-    const next = listMonths[pageIndex - direction]
-    if (next) setPageMonth(next)
+    setMonth((value) => shiftMonth(value, direction))
   }
-  const months = ledger.months.length ? ledger.months : monthWindow(currentMonth())
-  const sparkMax = Math.max(1, ...ledger.spark.map((point) => Math.abs(point.netCents)))
+
   const latestPosted = ledger.items.find((row) => row.status === 'POSTED') ?? null
   const netTone = Number(ledger.summary.periodNet) < 0 ? 'is-out' : Number(ledger.summary.periodNet) > 0 ? 'is-in' : ''
   const priorNet = vsPrior(ledger.summary.periodNet, ledger.summary.previousPeriodNet)
   const viewLabel = periodLabel(period, month, customFrom, customTo)
+  const postedInView = pageItems.filter((row) => row.status === 'POSTED').length
+  const historyLabel = isMonthPaged ? formatMonthFull(activeMonth) : viewLabel
 
   function showNotice(message: string) {
     setError('')
@@ -559,90 +533,70 @@ export function WalletPage() {
             </article>
           </div>
 
-          <div className="wal-panel">
-            <div className="wal-panel-head">
-              <div>
-                <h2>Cash movement</h2>
-                <p>Daily net for the fourteen days ending this view, then twelve months of posted cash.</p>
-              </div>
-              <div className="wal-period">
-                {(
-                  [
-                    ['all', 'All time'],
-                    ['week', 'This week'],
-                    ['days30', '30 days'],
-                    ['month', 'Month'],
-                    ['custom', 'Custom'],
-                  ] as Array<[PeriodMode, string]>
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={period === id ? 'is-on' : ''}
-                    onClick={() => setPeriod(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {period === 'custom' ? (
-              <div className="wal-custom">
-                <label>
-                  <span>From</span>
-                  <input
-                    className="input-field"
-                    type="date"
-                    value={customFrom}
-                    onChange={(event) => setCustomFrom(event.target.value || customFrom)}
-                  />
-                </label>
-                <label>
-                  <span>To</span>
-                  <input
-                    className="input-field"
-                    type="date"
-                    value={customTo}
-                    onChange={(event) => setCustomTo(event.target.value || customTo)}
-                  />
-                </label>
-                <p>{viewLabel}</p>
-              </div>
-            ) : null}
-            <div className="wal-spark">
-              {ledger.spark.map((point) => {
-                const height = Math.max(4, Math.round((Math.abs(point.netCents) / sparkMax) * 42))
-                const tone = point.netCents > 0 ? 'in' : point.netCents < 0 ? 'out' : 'flat'
-                return (
-                  <span
-                    key={point.date}
-                    className="wal-spark-col"
-                    title={revealAll ? `${point.date}: ${formatUsdDelta(point.net)}` : point.date}
-                  >
-                    <i className={`wal-spark-bar is-${tone}`} style={{ height }} />
-                    <em>{parseLocalDate(point.date).getDate()}</em>
-                  </span>
-                )
-              })}
-            </div>
-            <div className="wal-months">
-              {months.map((point) => (
+          <div className="wal-range">
+            <div className="wal-period" role="tablist" aria-label="Period">
+              {(
+                [
+                  ['all', 'All time'],
+                  ['week', 'This week'],
+                  ['days30', '30 days'],
+                  ['month', 'Month'],
+                  ['custom', 'Custom'],
+                ] as Array<[PeriodMode, string]>
+              ).map(([id, label]) => (
                 <button
-                  key={point.ym}
+                  key={id}
                   type="button"
-                  className={`wal-month${period === 'month' && month === point.ym ? ' is-on' : ''}${point.ym === currentMonth() ? ' is-now' : ''}`}
+                  role="tab"
+                  aria-selected={period === id}
+                  className={period === id ? 'is-on' : ''}
                   onClick={() => {
-                    setPeriod('month')
-                    setMonth(point.ym)
+                    setSelectedId(null)
+                    setPeriod(id)
+                    if (id === 'custom') {
+                      setRevealAll(true)
+                      setCustomPickerOpen(true)
+                    }
                   }}
                 >
-                  <span>{formatMonthLabel(point.ym)}</span>
-                  <strong className={point.netCents < 0 ? 'is-out' : point.netCents > 0 ? 'is-in' : ''}>
-                    {point.netCents === 0 ? '—' : <Secret>{formatUsdDelta(point.net)}</Secret>}
-                  </strong>
+                  {label}
                 </button>
               ))}
             </div>
+            {isCustom ? (
+              <div className="wal-custom">
+                <label>
+                  <span>Dates</span>
+                  <DateRangePicker
+                    from={customFrom}
+                    to={customTo}
+                    defaultOpen={customPickerOpen}
+                    onClose={() => setCustomPickerOpen(false)}
+                    onChange={(nextFrom, nextTo) => {
+                      setSelectedId(null)
+                      setCustomFrom(nextFrom)
+                      setCustomTo(nextTo)
+                    }}
+                  />
+                </label>
+                <p className="wal-custom-summary">
+                  <strong>{viewLabel}</strong>
+                  <span>
+                    {pageItems.length} {pageItems.length === 1 ? 'entry' : 'entries'}
+                    {' · In '}
+                    <em className={Number(ledger.summary.periodIn) > 0 ? 'is-in' : ''}>
+                      {formatUsdDelta(ledger.summary.periodIn)}
+                    </em>
+                    {' · Out '}
+                    <em className={Number(ledger.summary.periodOut) > 0 ? 'is-out' : ''}>
+                      {formatUsd(ledger.summary.periodOut)}
+                    </em>
+                    {' · Net '}
+                    <em className={netTone}>{formatUsdDelta(ledger.summary.periodNet)}</em>
+                  </span>
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="wal-toolbar">
@@ -698,7 +652,7 @@ export function WalletPage() {
             </form>
           </div>
 
-          {period === 'month' || listMonths.length > 0 ? (
+          {isMonthPaged ? (
             <div className="wal-pager">
               <button type="button" aria-label="Previous month" disabled={!canOlder} onClick={() => turnPage(-1)}>
                 <ChevronLeft className="h-4 w-4" />
@@ -709,12 +663,22 @@ export function WalletPage() {
                   {pageItems.length} {pageItems.length === 1 ? 'entry' : 'entries'}
                   {' · Net '}
                   <em className={pageNet < 0 ? 'is-out' : pageNet > 0 ? 'is-in' : ''}>{formatUsdDelta(pageNet)}</em>
-                  {period !== 'month' && listMonths.length > 1 ? ` · Page ${pageIndex + 1} of ${listMonths.length}` : ''}
                 </span>
               </div>
               <button type="button" aria-label="Next month" disabled={!canNewer} onClick={() => turnPage(1)}>
                 <ChevronRight className="h-4 w-4" />
               </button>
+            </div>
+          ) : !isCustom ? (
+            <div className="wal-pager wal-pager-static">
+              <div className="wal-pager-label">
+                <strong>{viewLabel}</strong>
+                <span>
+                  {pageItems.length} {pageItems.length === 1 ? 'entry' : 'entries'}
+                  {' · Net '}
+                  <em className={pageNet < 0 ? 'is-out' : pageNet > 0 ? 'is-in' : ''}>{formatUsdDelta(pageNet)}</em>
+                </span>
+              </div>
             </div>
           ) : null}
 
@@ -807,8 +771,10 @@ export function WalletPage() {
               />
             ) : groups.length > 0 ? (
               <aside className="wal-detail wal-idle">
-                <p className="wal-kicker">{formatMonthFull(activeMonth)}</p>
-                <h3>{pageItems.filter((row) => row.status === 'POSTED').length} posted this month</h3>
+                <p className="wal-kicker">{historyLabel}</p>
+                <h3>
+                  {postedInView} posted {isMonthPaged ? 'this month' : 'in this period'}
+                </h3>
                 <p>
                   Select a transaction to inspect the counterparty, method, and running balance. This history stays on your account only.
                 </p>

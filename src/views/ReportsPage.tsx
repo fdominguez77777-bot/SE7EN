@@ -213,6 +213,7 @@ export function ReportsPage() {
           onPreset={period.onPreset}
           onFromDate={period.setFromDate}
           onToDate={period.setToDate}
+          onRange={period.applyCustom}
           onFilter={period.applyFilter}
           label={range.label}
         />

@@ -27,7 +27,6 @@ import { PageHeader } from '../ui/page-header'
 import {
   formatRangeLabel,
   isStandardWorkday,
-  isWeekend,
   parseLocalDate,
   toIsoDate,
   weekRange,
