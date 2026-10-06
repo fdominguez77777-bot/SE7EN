@@ -1,6 +1,5 @@
 import { useEffect, useId, useState } from 'react'
 
-import { ClockReflex } from './ClockReflex'
 import { WatchFace, WatchHands } from './WatchFace'
 
 const CHICAGO_TZ = 'America/Chicago'
@@ -40,7 +39,6 @@ function readChicagoClock(now = new Date()): ClockState {
 export function CentralClock() {
   const uid = useId().replace(/:/g, '')
   const [clock, setClock] = useState(() => readChicagoClock())
-  const [playing, setPlaying] = useState(false)
 
   useEffect(() => {
     const tick = () => setClock(readChicagoClock())
@@ -49,30 +47,13 @@ export function CentralClock() {
     return () => window.clearInterval(id)
   }, [])
 
-  const spoken = new Intl.DateTimeFormat('en-US', {
-    timeZone: CHICAGO_TZ,
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date())
-
   return (
-    <div className={`dash-watch${playing ? ' is-game' : ''}`}>
-      {playing ? (
-        <ClockReflex uid={uid} onExit={() => setPlaying(false)} />
-      ) : (
-        <button
-          type="button"
-          className="dash-watch-case"
-          aria-label={`Central Time, ${clock.label}, ${spoken}. Click to play Split Second.`}
-          title={`Central Time · ${clock.label} · Click to play`}
-          onClick={() => setPlaying(true)}
-        >
-          <WatchFace uid={uid} windowText={clock.day}>
-            <WatchHands hour={clock.hour} minute={clock.minute} second={clock.second} />
-          </WatchFace>
-        </button>
-      )}
+    <div className="dash-watch" aria-hidden="true">
+      <div className="dash-watch-case">
+        <WatchFace uid={uid} windowText={clock.day}>
+          <WatchHands hour={clock.hour} minute={clock.minute} second={clock.second} />
+        </WatchFace>
+      </div>
     </div>
   )
 }

@@ -243,6 +243,7 @@ export function DashboardPage() {
 
   return (
     <section className="dash-page">
+      <CentralClock />
       <header className="dash-hero">
         <div className="dash-hero-copy">
           <p className="dash-hero-kicker">Operations</p>
@@ -251,7 +252,6 @@ export function DashboardPage() {
             Team application & interview performance · {range.label}
           </p>
         </div>
-        <CentralClock />
       </header>
 
       <PeriodSelector

@@ -2653,9 +2653,11 @@ label .req,
 }
 
 .dash-page {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  isolation: isolate;
 }
 
 .dash-hero {
@@ -2664,7 +2666,37 @@ label .req,
   align-items: center;
   justify-content: space-between;
   gap: 16px 24px;
-  min-height: 132px;
+}
+
+/* The dashboard panels are frosted so the watch behind them stays readable. */
+.dash-page .glass-panel,
+.dash-page .dash-kpi {
+  background: rgba(21, 23, 27, 0.66);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 44px rgba(0, 0, 0, 0.32);
+}
+
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .dash-page .glass-panel,
+  .dash-page .dash-kpi {
+    -webkit-backdrop-filter: blur(20px) saturate(1.08);
+    backdrop-filter: blur(20px) saturate(1.08);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .dash-page .glass-panel,
+  .dash-page .dash-kpi {
+    background: var(--card-bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .dash-watch {
+    display: none;
+  }
 }
 
 .dash-hero-copy {
@@ -2717,16 +2749,20 @@ label .req,
 
 .dash-kpi.is-interactive {
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
 
-.dash-kpi.is-interactive:hover {
-  background: rgba(255, 255, 255, 0.03);
+.dash-page .dash-kpi.is-interactive:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(30, 33, 39, 0.76);
+  transform: translateY(-1px);
 }
 
-.dash-kpi.is-selected {
+.dash-page .dash-kpi.is-selected {
   border-color: rgba(217, 139, 70, 0.45);
-  box-shadow: inset 0 0 0 1px rgba(217, 139, 70, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 139, 70, 0.18),
+    0 18px 44px rgba(0, 0, 0, 0.32);
 }
 
 .dash-kpi-top {
@@ -2915,248 +2951,32 @@ label .req,
   color: var(--accent);
 }
 
+/* Decorative Central Time watch laid over the top right of the dashboard. */
 .dash-watch {
-  position: relative;
+  position: absolute;
+  top: -6px;
+  right: -26px;
+  z-index: 5;
   display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 14px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.035), transparent 42%),
-    var(--surface-1);
-  padding: 10px;
+  opacity: 0.15;
+  pointer-events: none;
 }
 
 .dash-watch-case {
   display: block;
-  width: 118px;
-  height: 118px;
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  cursor: pointer;
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
-  transition: width 200ms ease, height 200ms ease, filter 160ms ease;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+  width: 420px;
+  height: 420px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 42%, transparent 90%);
+  mask-image: linear-gradient(to bottom, #000 42%, transparent 90%);
 }
 
-.dash-watch-case:hover {
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 8px rgba(217, 139, 70, 0.25));
-}
-
-.dash-watch-case:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-}
-
-@media (prefers-reduced-motion: reduce) {
+@media (max-width: 900px) {
   .dash-watch-case {
-    transition: none;
+    width: 320px;
+    height: 320px;
   }
 }
 
-/* Split Second (inside the dashboard clock) */
-.dash-watch.is-game .dash-watch-case {
-  width: 220px;
-  height: 220px;
-}
-
-.dash-watch-case.is-playing {
-  cursor: pointer;
-  outline: none;
-  user-select: none;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.ss-game.is-over {
-  animation: ss-shake 320ms ease-out;
-}
-
-@keyframes ss-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-5px);
-  }
-  40% {
-    transform: translateX(4px);
-  }
-  60% {
-    transform: translateX(-3px);
-  }
-  80% {
-    transform: translateX(2px);
-  }
-}
-
-.ss-label {
-  fill: #d9a45a;
-}
-
-.ss-target-arc {
-  stroke: #d98b46;
-  filter: drop-shadow(0 0 3px rgba(217, 139, 70, 0.6));
-}
-
-.ss-target-core {
-  stroke: #ffd98f;
-}
-
-.ss-target {
-  animation: ss-target-in 160ms ease-out both;
-}
-
-@keyframes ss-target-in {
-  from {
-    opacity: 0;
-  }
-}
-
-.ss-game.is-over .ss-target-arc {
-  stroke: rgba(217, 139, 70, 0.45);
-  filter: none;
-}
-
-.ss-game.is-over .ss-target-core {
-  stroke: rgba(255, 217, 143, 0.45);
-}
-
-.ss-hand line {
-  stroke: #f2f3f5;
-}
-
-.ss-hand circle {
-  fill: #ffffff;
-  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.9));
-}
-
-.ss-game.is-over .ss-hand line,
-.ss-game.is-over .ss-hand circle {
-  stroke: #e58a8a;
-  fill: #e58a8a;
-  filter: none;
-}
-
-.ss-ring {
-  stroke-width: 9;
-  transform-origin: 100px 100px;
-  animation: ss-ring 420ms ease-out forwards;
-}
-
-.ss-ring.is-hit {
-  stroke: rgba(240, 201, 138, 0.55);
-}
-
-.ss-ring.is-perfect {
-  stroke: rgba(255, 236, 170, 0.85);
-}
-
-@keyframes ss-ring {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.14);
-  }
-}
-
-.ss-miss-dot {
-  fill: #e58a8a;
-  filter: drop-shadow(0 0 4px rgba(229, 138, 138, 0.9));
-}
-
-.ss-big {
-  fill: #f2f3f5;
-  letter-spacing: 0.06em;
-}
-
-.ss-score {
-  fill: #f7f8fa;
-  font-variant-numeric: tabular-nums;
-}
-
-.ss-score.is-over {
-  fill: #f0c98a;
-}
-
-.ss-sub {
-  fill: #b2b6bf;
-}
-
-.ss-sub.is-dim {
-  fill: #7d828c;
-}
-
-.ss-perfect {
-  fill: #ffd98f;
-  animation: ss-pop 380ms ease-out;
-}
-
-.ss-miss {
-  fill: #e58a8a;
-}
-
-@keyframes ss-pop {
-  from {
-    opacity: 0;
-  }
-}
-
-.ss-exit {
-  cursor: pointer;
-  outline: none;
-}
-
-.ss-exit circle {
-  fill: rgba(255, 255, 255, 0.04);
-  stroke: rgba(255, 255, 255, 0.14);
-  stroke-width: 0.8;
-  transition: fill 120ms ease, stroke 120ms ease;
-}
-
-.ss-exit path {
-  fill: none;
-  stroke: #b2b6bf;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-}
-
-.ss-exit:hover circle,
-.ss-exit:focus-visible circle {
-  fill: rgba(217, 139, 70, 0.16);
-  stroke: rgba(217, 139, 70, 0.6);
-}
-
-.ss-exit:hover path,
-.ss-exit:focus-visible path {
-  stroke: #f0c98a;
-}
-
-@media (max-width: 640px) {
-  .dash-watch.is-game .dash-watch-case {
-    width: min(240px, 72vw);
-    height: min(240px, 72vw);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ss-game.is-over,
-  .ss-ring,
-  .ss-perfect,
-  .ss-target {
-    animation: none;
-  }
-}
 .dash-watch-svg {
   display: block;
   width: 100%;
@@ -3203,10 +3023,6 @@ label .req,
 @media (max-width: 640px) {
   .dash-hero {
     align-items: stretch;
-  }
-
-  .dash-watch {
-    justify-content: center;
   }
 }
 

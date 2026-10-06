@@ -32,23 +32,18 @@ export function WatchFace({
   uid,
   brand = 'SE7EN',
   windowText,
-  allNumerals = false,
-  bare = false,
   children,
 }: {
   uid: string
   brand?: string
   windowText?: string
-  allNumerals?: boolean
-  /** Case and dial only, for drawing a custom face on top. */
-  bare?: boolean
   children: ReactNode
 }) {
   const caseGrad = `${uid}-case`
   const dialGrad = `${uid}-dial`
-  const numerals = allNumerals ? [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [12, 3, 6, 9]
+  const numerals = [12, 3, 6, 9]
   return (
-    <svg className="dash-watch-svg" viewBox="0 0 200 200" aria-hidden={bare ? undefined : true}>
+    <svg className="dash-watch-svg" viewBox="0 0 200 200" aria-hidden="true">
       <defs>
         <radialGradient id={caseGrad} cx="35%" cy="30%" r="70%">
           <stop offset="0%" stopColor="#e8ecf2" />
@@ -68,8 +63,6 @@ export function WatchFace({
       <circle cx="100" cy="100" r="88" fill="#101318" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" />
       <circle cx="100" cy="100" r="82" fill={`url(#${dialGrad})`} />
 
-      {bare ? null : (
-      <>
       {Array.from({ length: 60 }, (_, index) => {
         const major = index % 5 === 0
         const inner = polar(index * 6, major ? 68 : 74)
@@ -89,7 +82,7 @@ export function WatchFace({
       })}
 
       {numerals.map((num) => {
-        const point = polar(num * 30, allNumerals ? 57 : 54)
+        const point = polar(num * 30, 54)
         return (
           <text
             key={num}
@@ -98,7 +91,7 @@ export function WatchFace({
             textAnchor="middle"
             dominantBaseline="central"
             fill="#f2f3f5"
-            fontSize={allNumerals ? 11 : 14}
+            fontSize={14}
             fontWeight="700"
             fontFamily={FONT}
           >
@@ -109,7 +102,7 @@ export function WatchFace({
 
       <text
         x="100"
-        y={allNumerals ? 72 : 64}
+        y={64}
         textAnchor="middle"
         fill="#d9a45a"
         fontSize="7.5"
@@ -137,8 +130,6 @@ export function WatchFace({
           </text>
         </>
       ) : null}
-      </>
-      )}
 
       {children}
 
