@@ -17,7 +17,8 @@ export const CALENDAR_COLORS = [
   '#9cc25a',
 ];
 
-export const CONNECT_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Reusable connect links. Google Testing-mode refresh tokens still expire in 7 days. */
+export const CONNECT_LINK_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 export function calendarColor(id: number) {
   return CALENDAR_COLORS[Math.abs(id) % CALENDAR_COLORS.length];
@@ -105,6 +106,71 @@ export function isConnectLinkOpen(params: {
 }) {
   const now = params.now ?? new Date();
   return params.expiresAt.getTime() > now.getTime();
+}
+
+/**
+ * The connected inbox's own calendar.
+ * Google can mark other Gmail addresses as owner when they are shared into this account.
+ */
+export function isThisMailboxCalendar(id: string, email: string, primary: unknown) {
+  const calendarId = id.trim().toLowerCase();
+  const account = email.trim().toLowerCase();
+  if (!calendarId || !shouldSyncGoogleCalendar(calendarId)) {
+    return false;
+  }
+  if (primary === true) {
+    return true;
+  }
+  return calendarId === account || calendarId === 'primary';
+}
+
+/** Skip Google system calendars that are not interview schedules. */
+export function shouldSyncGoogleCalendar(id: string) {
+  const value = id.trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+  if (value.includes('#holiday@group.v.calendar.google.com')) {
+    return false;
+  }
+  if (value.includes('#contacts@group.v.calendar.google.com')) {
+    return false;
+  }
+  if (
+    value.includes('@group.v.calendar.google.com') &&
+    (value.includes('birthday') || value.includes('holiday'))
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function firstHeader(value?: string | string[]) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw?.split(',')[0]?.trim() ?? '';
+}
+
+/** Origin of the browser that asked for a connect link, so OAuth returns to that site. */
+export function originFromRequest(input: {
+  host?: string | string[];
+  forwardedHost?: string | string[];
+  forwardedProto?: string | string[];
+  protocol?: string;
+}) {
+  const host = firstHeader(input.forwardedHost) || firstHeader(input.host);
+  if (!host || /[\s/\\]/.test(host)) {
+    return '';
+  }
+  const forwarded = firstHeader(input.forwardedProto);
+  const protocol =
+    forwarded ||
+    input.protocol ||
+    (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https');
+  const proto = protocol.split(',')[0].trim().toLowerCase();
+  if (proto !== 'http' && proto !== 'https') {
+    return '';
+  }
+  return `${proto}://${host}`.replace(/\/$/, '');
 }
 
 export function publicOrigin(

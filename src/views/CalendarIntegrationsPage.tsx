@@ -49,7 +49,7 @@ export function CalendarIntegrationsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  async function createLink(provider: 'google' | 'microsoft') {
+  async function createLink(provider: 'google' | 'microsoft', loginHint?: string) {
     setError('')
     setNotice('')
     try {
@@ -57,7 +57,15 @@ export function CalendarIntegrationsPage() {
         `/calendar/accounts/${provider}/link`,
         {},
       )
-      setLink(data)
+      if (loginHint === undefined) {
+        setLink(data)
+        return
+      }
+      const start = new URL(data.startUrl, window.location.origin)
+      if (loginHint) {
+        start.searchParams.set('loginHint', loginHint)
+      }
+      window.location.assign(start.toString())
     } catch (err) {
       setError(getApiErrorMessage(err))
     }
@@ -129,9 +137,9 @@ export function CalendarIntegrationsPage() {
             Connected calendars
           </h1>
           <p className="mt-2 text-[13px] leading-5 text-[var(--text-secondary)]">
-            Link Gmails to you, a bid manager, or a bidder. The same person can have several
-            calendars — assign each Gmail to them and Save. If Google says insufficient scopes,
-            disconnect the account and Add Google Calendar again.
+            Connect each Gmail once. Only that inbox's own calendar is shown. Other Gmails
+            shared into it stay hidden. Assign the Gmail to a person and Save. Use Reconnect
+            if a login drops. A copied link stays valid for a year.
           </p>
         </div>
         <Link to="/interviews" className="text-[13px] font-semibold text-[var(--accent)]">
@@ -180,6 +188,9 @@ export function CalendarIntegrationsPage() {
                     {account.displayName}
                   </p>
                   <p className="truncate text-[12px] text-[var(--text-muted)]">{account.email}</p>
+                  {account.syncError ? (
+                    <p className="mt-1 text-[12px] text-[#ddb46e]">{account.syncError}</p>
+                  ) : null}
                   {canManage ? (
                     <div className="cal-assign">
                       <select
@@ -256,14 +267,28 @@ export function CalendarIntegrationsPage() {
                   ) : null}
                 </div>
                 {canManage ? (
-                  <button
-                    type="button"
-                    className="cal-trash"
-                    aria-label={`Disconnect ${account.email}`}
-                    onClick={() => void remove(account.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      className="rounded-md px-2 py-1 text-[12px] font-semibold text-[var(--accent)] hover:bg-white/[0.04]"
+                      onClick={() =>
+                        void createLink(
+                          account.provider === 'MICROSOFT' ? 'microsoft' : 'google',
+                          account.email,
+                        )
+                      }
+                    >
+                      Reconnect
+                    </button>
+                    <button
+                      type="button"
+                      className="cal-trash"
+                      aria-label={`Disconnect ${account.email}`}
+                      onClick={() => void remove(account.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 ) : null}
               </div>
             ))}
@@ -271,11 +296,14 @@ export function CalendarIntegrationsPage() {
         )}
         {canManage ? (
           <div className="cal-int-actions">
-            <Button className="flex-1" variant="secondary" onClick={() => void createLink('google')}>
-              Add Google Calendar
+            <Button className="flex-1" onClick={() => void createLink('google', '')}>
+              Connect Gmail
             </Button>
-            <Button className="flex-1" variant="secondary" onClick={() => void createLink('microsoft')}>
-              Add Microsoft Calendar
+            <Button className="flex-1" variant="secondary" onClick={() => void createLink('google')}>
+              Copy Google link
+            </Button>
+            <Button className="flex-1" variant="secondary" onClick={() => void createLink('microsoft', '')}>
+              Connect Microsoft
             </Button>
           </div>
         ) : null}
@@ -294,9 +322,9 @@ export function CalendarIntegrationsPage() {
                 Add {link.provider === 'MICROSOFT' ? 'Microsoft' : 'Google'} Calendar
               </h2>
               <p className="mt-2 text-[13px] text-[var(--text-secondary)]">
-                Copy this link once and reuse it for every Gmail. After each connect, open it again
-                and choose a different Google account. You can also use a separate browser profile
-                if that inbox is already signed in somewhere else.
+                Open this link once for each Gmail and pick that account when Google asks. The same
+                link works for a year, including from another browser where that inbox is already
+                signed in.
               </p>
               <label className="mt-4 block text-[12px] font-semibold text-[var(--text-muted)]">
                 Connection link

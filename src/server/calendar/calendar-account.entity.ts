@@ -35,6 +35,9 @@ export class CalendarAccount {
   @Column({ type: 'int', nullable: true })
   assignedBidderId: number | null;
 
+  @Column({ type: 'text', nullable: true })
+  syncError: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

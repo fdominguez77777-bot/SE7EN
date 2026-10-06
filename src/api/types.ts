@@ -356,47 +356,6 @@ export type ApplicationBidderOption = {
   applicationsCount: number
 }
 
-export type BidderCompensationRate = {
-  id: number
-  applicationRate: string
-  interviewRate: string
-  effectiveFrom: string
-  effectiveTo: string | null
-  notes: string | null
-}
-
-export type IndividualBidderRate = {
-  id: number
-  bidderId: number
-  applicationRate: string
-  interviewRate: string
-  effectiveFrom: string
-  effectiveTo: string | null
-  notes: string | null
-}
-
-export type IndividualBidderRateConfig = {
-  bidder: User
-  source: 'individual' | 'default'
-  resolved: {
-    applicationRate: string
-    interviewRate: string
-    source: 'individual' | 'default'
-  } | null
-  current: IndividualBidderRate | null
-  history: IndividualBidderRate[]
-}
-
-export type ManagerSalaryRow = {
-  manager: User
-  current: {
-    id: number
-    weeklySalary: string
-    effectiveFrom: string
-    effectiveTo: string | null
-  } | null
-}
-
 export type BidderWeeklyPayment = {
   id: number
   bidderId: number
@@ -507,122 +466,6 @@ export type BidderWeeklyWorkStatusResponse = {
   bidders: BidderWeeklyWorkStatus[]
 }
 
-export type WeeklyInvoiceStatus =
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'REVIEWED'
-  | 'APPROVED'
-
-export type WeeklyInvoiceCoverageStatus =
-  | 'SUBMITTED'
-  | 'REVIEWED'
-  | 'DRAFT'
-  | 'MISSING'
-  | 'NO_ACTIVITY'
-  | 'WEEKEND_OFF'
-
-export type WeeklyInvoiceDailyBreakdown = {
-  reportingDate: string
-  applicationCount: number | null
-  interviewCount: number | null
-  included: boolean
-}
-
-export type WeeklyInvoiceRow = {
-  id: number
-  bidderId: number
-  bidderName: string
-  bidderEmail: string
-  bidderAvatarUrl?: string | null
-  assignedProfileCount: number
-  isActive: boolean
-  defaultApplicationCount: number
-  invoiceApplicationCount: number
-  applicationDifference: number
-  configuredApplicationRate: string
-  invoiceApplicationRate: string
-  defaultInterviewCount: number
-  invoiceInterviewCount: number
-  interviewDifference: number
-  configuredInterviewRate: string
-  invoiceInterviewRate: string
-  applicationAmount: string
-  interviewAmount: string
-  totalAmount: string
-  rateSource: string
-  countAdjustmentReason: string | null
-  rateAdjustmentReason: string | null
-  dailyBreakdown: WeeklyInvoiceDailyBreakdown[]
-}
-
-export type WeeklyInvoiceDetail = {
-  id: number
-  periodStart: string
-  periodEnd: string
-  status: WeeklyInvoiceStatus
-  managerNotes: string | null
-  noActivityDates: string[]
-  missingDayAcknowledgement: string | null
-  manager: { id: number; name: string; email: string; avatarUrl?: string | null } | null
-  submittedAt: string | null
-  reviewedAt: string | null
-  reviewedByUser: { id: number; name: string } | null
-  approvedAt: string | null
-  approvedByUser: { id: number; name: string } | null
-  updated_at: string
-  created_at: string
-  summary: {
-    defaultApplications: number
-    defaultInterviews: number
-    invoiceApplications: number
-    invoiceInterviews: number
-    activeBidders: number
-    applicationAmount: string
-    interviewAmount: string
-    totalAmount: string
-  }
-  coverage: Array<{
-    reportingDate: string
-    dailySubmissionId: number | null
-    status: WeeklyInvoiceCoverageStatus
-  }>
-  rows: WeeklyInvoiceRow[]
-}
-
-export type PublishedWeeklyInvoice = {
-  id: number
-  periodStart: string
-  periodEnd: string
-  approvedAt: string | null
-  manager: { id: number; name: string; avatarUrl?: string | null } | null
-  applications: number
-  interviews: number
-  totalAmount: string
-  rows: Array<{
-    bidderId: number
-    bidderName: string
-    bidderAvatarUrl?: string | null
-    applications: number
-    interviews: number
-    amount: string
-  }>
-}
-
-export type WeeklyInvoiceListItem = {
-  id: number
-  periodStart: string
-  periodEnd: string
-  status: WeeklyInvoiceStatus
-  manager: { id: number; name: string; email: string; avatarUrl?: string | null } | null
-  submittedAt: string | null
-  reviewedAt: string | null
-  approvedAt: string | null
-  applications: number
-  interviews: number
-  totalAmount: string
-  bidderCount: number
-}
-
 export type CalendarAccount = {
   id: number
   provider: string
@@ -632,6 +475,7 @@ export type CalendarAccount = {
   color: string
   assignedBidderId: number | null
   assignedBidderName: string | null
+  syncError?: string | null
 }
 
 export type CalendarBidder = {
@@ -676,6 +520,7 @@ export type CalendarEvent = {
 
 export type CalendarConnectLink = {
   url: string
+  startUrl: string
   expiresAt: string
   provider: string
 }

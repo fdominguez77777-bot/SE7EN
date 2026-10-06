@@ -33,6 +33,7 @@ import { Tasks1772200000000 } from './migrations/1772200000000-Tasks';
 import { TaskAssignees1772300000000 } from './migrations/1772300000000-TaskAssignees';
 import { TaskSchedule1772400000000 } from './migrations/1772400000000-TaskSchedule';
 import { TaskCompletionPerMember1772500000000 } from './migrations/1772500000000-TaskCompletionPerMember';
+import { CalendarSync1772600000000 } from './migrations/1772600000000-CalendarSync';
 import { applyDatabaseUrl, isManagedPostgresSsl } from './config/database-url';
 
 config({ path: resolve(process.cwd(), '.env') });
@@ -84,6 +85,7 @@ export default new DataSource({
     TaskAssignees1772300000000,
     TaskSchedule1772400000000,
     TaskCompletionPerMember1772500000000,
+    CalendarSync1772600000000,
   ],
   migrationsTableName: 'migrations',
 });

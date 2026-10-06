@@ -9,8 +9,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -19,7 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
-import { CalendarProvider } from './calendar.rules';
+import { CalendarProvider, originFromRequest } from './calendar.rules';
 import { CalendarService } from './calendar.service';
 import { AssignCalendarBidderDto, CreateCalendarLinkDto } from './dto/calendar.dto';
 
@@ -60,12 +62,19 @@ export class CalendarController {
   @ApiOperation({ summary: 'Create a Google Calendar connect link' })
   createGoogleLink(
     @CurrentUser() user: User,
+    @Req() request: Request,
     @Body() body: CreateCalendarLinkDto = {},
   ) {
     return this.calendar.createConnectLink(
       CalendarProvider.GOOGLE,
       user.id,
       body.assignedBidderId,
+      originFromRequest({
+        host: request.headers.host,
+        forwardedHost: request.headers['x-forwarded-host'],
+        forwardedProto: request.headers['x-forwarded-proto'],
+        protocol: request.protocol,
+      }),
     );
   }
 
@@ -74,12 +83,19 @@ export class CalendarController {
   @ApiOperation({ summary: 'Create a Microsoft Calendar connect link' })
   createMicrosoftLink(
     @CurrentUser() user: User,
+    @Req() request: Request,
     @Body() body: CreateCalendarLinkDto = {},
   ) {
     return this.calendar.createConnectLink(
       CalendarProvider.MICROSOFT,
       user.id,
       body.assignedBidderId,
+      originFromRequest({
+        host: request.headers.host,
+        forwardedHost: request.headers['x-forwarded-host'],
+        forwardedProto: request.headers['x-forwarded-proto'],
+        protocol: request.protocol,
+      }),
     );
   }
 

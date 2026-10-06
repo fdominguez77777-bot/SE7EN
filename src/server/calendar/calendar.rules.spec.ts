@@ -6,7 +6,10 @@ import {
   canConnectCalendar,
   canSeeCalendarPerson,
   isConnectLinkOpen,
+  isThisMailboxCalendar,
+  originFromRequest,
   publicOrigin,
+  shouldSyncGoogleCalendar,
 } from './calendar.rules';
 
 describe('calendar.rules', () => {
@@ -94,6 +97,46 @@ describe('calendar.rules', () => {
         now,
       }),
     ).toBe(false);
+  });
+
+  it('keeps this inbox calendar and drops other Gmails shared into it', () => {
+    const email = 'fdominguez77777@gmail.com';
+    expect(isThisMailboxCalendar(email, email, true)).toBe(true);
+    expect(isThisMailboxCalendar('primary', email, false)).toBe(true);
+    expect(isThisMailboxCalendar('cameronhicks10001@gmail.com', email, false)).toBe(false);
+    expect(isThisMailboxCalendar('fdominguez0420@gmail.com', email, false)).toBe(false);
+    expect(
+      isThisMailboxCalendar('en.usa#holiday@group.v.calendar.google.com', email, false),
+    ).toBe(false);
+  });
+
+  it('skips Google holiday and contacts calendars', () => {
+    expect(shouldSyncGoogleCalendar('person@gmail.com')).toBe(true);
+    expect(shouldSyncGoogleCalendar('primary')).toBe(true);
+    expect(
+      shouldSyncGoogleCalendar('en.usa#holiday@group.v.calendar.google.com'),
+    ).toBe(false);
+    expect(
+      shouldSyncGoogleCalendar(
+        'addressbook#contacts@group.v.calendar.google.com',
+      ),
+    ).toBe(false);
+  });
+
+  it('builds the connect origin from the request host', () => {
+    expect(
+      originFromRequest({
+        host: 'localhost:3000',
+        protocol: 'http',
+      }),
+    ).toBe('http://localhost:3000');
+    expect(
+      originFromRequest({
+        forwardedHost: 'se7en.example.com',
+        forwardedProto: 'https',
+      }),
+    ).toBe('https://se7en.example.com');
+    expect(originFromRequest({ host: 'bad host' })).toBe('');
   });
 
   it('uses APP_PUBLIC_URL, then the Vercel host', () => {

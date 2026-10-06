@@ -49,12 +49,31 @@ export function InterviewCalendar({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [now, setNow] = useState(() => new Date())
   const [openId, setOpenId] = useState<string | null>(null)
+  const [settled, setSettled] = useState<ReadonlySet<string>>(() => new Set())
   const [hourHeight, setHourHeight] = useState(HOUR_HEIGHT)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    setSettled(new Set())
+  }, [board])
+
+  function settle(id: string, animationName: string) {
+    if (animationName !== 'iv-snow') {
+      return
+    }
+    setSettled((current) => {
+      if (current.has(id)) {
+        return current
+      }
+      const next = new Set(current)
+      next.add(id)
+      return next
+    })
+  }
 
   useEffect(() => {
     const node = scrollRef.current
@@ -119,6 +138,7 @@ export function InterviewCalendar({
       }),
     ),
   )
+  const namePeers = profilePeers(events, bidderByAccount)
   const cols = `52px repeat(${columns}, minmax(0, 1fr))`
   const scheduleKey = `${days.map((day) => chicagoDateKey(day)).join()}|${events.map((event) => event.id).join()}|${Math.round(hourHeight)}`
 
@@ -224,20 +244,22 @@ export function InterviewCalendar({
                   <button
                     key={`${board}:${event.id}`}
                     type="button"
-                    className={`iv-block iv-block-allday ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
+                    className={`iv-block iv-block-allday ${settled.has(event.id) ? 'is-settled' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
                     style={{
                       ...blockTone(owner?.color ?? event.color),
-                      ...dealMotion(event.id, board),
+                      ...snowMotion(event.id, board, 72),
                     }}
                     title={`${event.title} · ${persona || event.email}`}
+                    onAnimationEnd={(animation) => settle(event.id, animation.animationName)}
                     onClick={() => setOpenId(event.id)}
                   >
-                    <em>{event.title}</em>
-                    {persona ? (
-                      <span>
-                        <b className="iv-block-owner">{persona}</b>
+                    <span className="iv-block-copy">
+                      <span className="iv-block-line">
+                        {persona ? <b className="iv-block-owner">{profileFirst(persona, namePeers)}</b> : null}
+                        {persona ? <i className="iv-block-dot" aria-hidden="true" /> : null}
+                        <em>{event.title}</em>
                       </span>
-                    ) : null}
+                    </span>
                   </button>
                 )
               })}
@@ -298,36 +320,40 @@ export function InterviewCalendar({
                   }
                   const owner = bidderByAccount.get(event.accountId)
                   const persona = eventPersona(event, owner)
+                  const profile = profileFirst(persona, namePeers)
                   const unit = 100 / placed.colCount
-                  const compact = layout.height < 36
+                  const narrow = placed.colCount > 1 && placed.span < placed.colCount
+                  const compact = layout.height < 42
                   const time = formatEventTime(event.start, event.end)
+                  const showTitle = !(narrow && compact)
                   return (
                     <button
                       key={`${board}:${event.id}:${placed.startMin}`}
                       type="button"
-                      className={`iv-block ${compact ? 'is-compact' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
+                      className={`iv-block ${compact ? 'is-compact' : ''} ${narrow ? 'is-narrow' : ''} ${settled.has(event.id) ? 'is-settled' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
                       style={{
                         ...blockTone(owner?.color ?? event.color),
                         top: layout.top,
                         height: layout.height,
-                        left: `calc(${placed.col * unit}% + 2px)`,
-                        width: `calc(${placed.span * unit}% - 4px)`,
+                        left: `calc(${placed.col * unit}% + 3px)`,
+                        width: `calc(${placed.span * unit}% - 6px)`,
                         zIndex: 2 + placed.col,
-                        ...dealMotion(event.id, board),
+                        ...snowMotion(event.id, board, layout.top + 36),
                       }}
-                      title={`${event.title} · ${time}${persona ? ` · ${persona}` : ''}`}
+                      title={`${persona ? `${persona} · ` : ''}${event.title} · ${time}`}
+                      onAnimationEnd={(animation) => settle(event.id, animation.animationName)}
                       onClick={(click) => {
                         click.stopPropagation()
                         setOpenId(event.id)
                       }}
                     >
-                      <strong>{event.title}</strong>
-                      <span>
-                        {persona ? <b className="iv-block-owner">{persona}</b> : null}
-                        <i className="iv-block-time">
-                          {persona ? ' · ' : ''}
-                          {time}
-                        </i>
+                      <span className="iv-block-copy">
+                        <span className="iv-block-line">
+                          {profile ? <b className="iv-block-owner">{profile}</b> : null}
+                          {profile && showTitle && !narrow ? <i className="iv-block-dot" aria-hidden="true" /> : null}
+                          {showTitle ? <strong>{event.title}</strong> : null}
+                        </span>
+                        {compact ? null : <i className="iv-block-time">{time}</i>}
                       </span>
                     </button>
                   )
@@ -365,23 +391,55 @@ function blockState(
   return ownerId === accentPersonId ? 'is-hot' : 'is-dim'
 }
 
-function dealMotion(id: string, board: number) {
+function snowMotion(id: string, board: number, fallPx: number) {
   let hash = board + 1
   for (let index = 0; index < id.length; index += 1) {
     hash = (hash * 33 + id.charCodeAt(index)) >>> 0
   }
-  const tilt = (hash % 25) - 12
+  const fall = Math.max(48, Math.round(fallPx))
+  const bounce = Math.min(12, Math.max(4, Math.round(fall * 0.028)))
   return {
-    animationDelay: `${hash % 1100}ms`,
-    animationDuration: `${480 + (hash % 420)}ms`,
-    '--deal-tilt': `${tilt}deg`,
-    '--deal-drop': `${28 + (hash % 56)}px`,
-    '--deal-spin': `${Math.sign(tilt || 1) * (2 + (hash % 5))}deg`,
+    animationDelay: `${hash % 700}ms`,
+    animationDuration: `${640 + Math.round(Math.sqrt(fall) * 32)}ms`,
+    '--snow-fall': `${fall}px`,
+    '--snow-bounce': `${bounce}px`,
   } as CSSProperties
 }
 
 function eventPersona(event: CalendarEvent, owner: CalendarBidder | undefined) {
   return event.profileName?.trim() || owner?.name || ''
+}
+
+function profilePeers(events: CalendarEvent[], bidderByAccount: Map<number, CalendarBidder>) {
+  const names = new Map<string, Set<string>>()
+  for (const event of events) {
+    const full = eventPersona(event, bidderByAccount.get(event.accountId))
+    const first = full.split(/\s+/).find(Boolean)
+    if (!first) {
+      continue
+    }
+    const key = first.toLowerCase()
+    const group = names.get(key) ?? new Set<string>()
+    group.add(full)
+    names.set(key, group)
+  }
+  const counts = new Map<string, number>()
+  for (const [key, group] of names) {
+    counts.set(key, group.size)
+  }
+  return counts
+}
+
+function profileFirst(name: string, peers: Map<string, number>) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) {
+    return ''
+  }
+  const first = parts[0]
+  if ((peers.get(first.toLowerCase()) ?? 0) > 1 && parts[1]) {
+    return `${first} ${parts[1][0].toUpperCase()}.`
+  }
+  return first
 }
 
 function blockTone(color: string) {

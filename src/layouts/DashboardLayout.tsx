@@ -18,9 +18,7 @@ import {
   UserRoundCog,
   Users,
   UsersRound,
-  WalletCards,
   Wallet,
-  Receipt,
   X,
 } from 'lucide-react'
 
@@ -63,7 +61,6 @@ const NAV: Record<Role, NavSection[]> = {
       label: 'Manager workflow',
       items: [
         { to: '/daily-submissions', label: 'Daily Submission', icon: ClipboardCheck, inbox: 'daily-submissions' },
-        { to: '/weekly-invoices', label: 'Weekly Invoice', icon: Receipt },
       ],
     },
     {
@@ -75,7 +72,6 @@ const NAV: Record<Role, NavSection[]> = {
       items: [
         { to: '/admin/members', label: 'Members', icon: UsersRound },
         { to: '/admin/login-history', label: 'Login history', icon: History },
-        { to: '/settings/compensation', label: 'Compensation', icon: WalletCards },
         {
           to: '/settings/interview-prompt',
           label: 'Interview prompt',
@@ -102,7 +98,6 @@ const NAV: Record<Role, NavSection[]> = {
       label: 'Manager workflow',
       items: [
         { to: '/daily-submissions', label: 'Daily Submission', icon: ClipboardCheck },
-        { to: '/weekly-invoices', label: 'Weekly Invoice', icon: Receipt },
       ],
     },
     {
@@ -122,7 +117,6 @@ const NAV: Record<Role, NavSection[]> = {
         { to: '/bidders', label: 'Bidders', icon: UserRoundCog },
         { to: '/applications', label: 'Applications', icon: Send },
         { to: '/interviews', label: 'Interviews', icon: CalendarClock },
-        { to: '/weekly-invoices', label: 'Weekly Invoice', icon: Receipt },
       ],
     },
   ],

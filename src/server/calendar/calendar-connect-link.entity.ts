@@ -22,6 +22,10 @@ export class CalendarConnectLink {
   @Column({ type: 'int', nullable: true })
   assignedBidderId: number | null;
 
+  /** Site that created the link. OAuth must redirect back here. */
+  @Column({ type: 'varchar', nullable: true })
+  redirectOrigin: string | null;
+
   @Column({ type: 'timestamptz' })
   expiresAt: Date;
 

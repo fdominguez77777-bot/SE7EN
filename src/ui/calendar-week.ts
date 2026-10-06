@@ -253,7 +253,7 @@ export function layoutFromMinutes(startMin: number, endMin: number, hourHeight =
   const height = ((bottomMin - topMin) / 60) * hourHeight
   return {
     top: ((topMin - rangeStart) / 60) * hourHeight,
-    height: Math.max(20, height - 2),
+    height: Math.max(24, height - 4),
   }
 }
 

@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
+import { isThisMailboxCalendar } from './calendar.rules';
+
 export function hashConnectToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -38,6 +40,7 @@ export type UpstreamEvent = {
   organizerName: string | null;
   organizerEmail: string | null;
   guests: CalendarGuest[];
+  iCalUid?: string | null;
 };
 
 async function readJson(response: Response) {
@@ -142,6 +145,49 @@ export async function googleIdentity(accessToken: string): Promise<CalendarIdent
   };
 }
 
+export async function googleCalendarIds(accessToken: string, email: string): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken = '';
+  for (let page = 0; page < 4 && ids.length < 5; page += 1) {
+    const query = new URLSearchParams({
+      maxResults: '250',
+      showDeleted: 'false',
+      showHidden: 'false',
+    });
+    if (pageToken) {
+      query.set('pageToken', pageToken);
+    }
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/users/me/calendarList?${query}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    const json = await readJson(response);
+    if (!response.ok) {
+      throw new Error(googleErrorMessage(json, response.status));
+    }
+    const items = Array.isArray(json.items) ? json.items : [];
+    for (const item of items) {
+      const row = item as Record<string, unknown>;
+      const id = typeof row.id === 'string' ? row.id.trim() : '';
+      if (!isThisMailboxCalendar(id, email, row.primary)) {
+        continue;
+      }
+      ids.push(id);
+      if (ids.length >= 5) {
+        break;
+      }
+    }
+    pageToken = typeof json.nextPageToken === 'string' ? json.nextPageToken : '';
+    if (!pageToken) {
+      break;
+    }
+  }
+  return ids;
+}
+
 export async function googleEvents(params: {
   accessToken: string;
   from: Date;
@@ -150,36 +196,53 @@ export async function googleEvents(params: {
   email?: string | null;
   detail?: 'full' | 'lite';
 }): Promise<UpstreamEvent[]> {
-  const calendars = [
-    params.calendarId?.trim() || '',
-    'primary',
-    params.email?.trim().toLowerCase() || '',
-  ].filter((value, index, all) => value && all.indexOf(value) === index);
+  let calendars: string[] = [];
+  try {
+    calendars = await googleCalendarIds(params.accessToken, params.email?.trim() || '');
+  } catch {
+    calendars = [];
+  }
+  if (calendars.length === 0) {
+    calendars = ['primary'];
+  }
 
   let lastError = 'Google Calendar request failed.';
   let sawSuccess = false;
   const merged: UpstreamEvent[] = [];
   const seen = new Set<string>();
-
-  for (const calendarId of calendars) {
+  const batches = await mapPool(calendars, 6, async (calendarId) => {
     try {
-      const events = await listGoogleCalendar(
-        params.accessToken,
-        calendarId,
-        params.from,
-        params.to,
-        params.detail ?? 'full',
-      );
-      sawSuccess = true;
-      for (const event of events) {
-        if (seen.has(event.id)) {
-          continue;
-        }
-        seen.add(event.id);
-        merged.push(event);
-      }
+      return {
+        ok: true as const,
+        events: await listGoogleCalendar(
+          params.accessToken,
+          calendarId,
+          params.from,
+          params.to,
+          params.detail ?? 'full',
+        ),
+      };
     } catch (error) {
-      lastError = error instanceof Error ? error.message : lastError;
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : lastError,
+      };
+    }
+  });
+
+  for (const batch of batches) {
+    if (!batch.ok) {
+      lastError = batch.error;
+      continue;
+    }
+    sawSuccess = true;
+    for (const event of batch.events) {
+      const key = event.iCalUid ? `${event.iCalUid}|${event.start}` : event.id;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      merged.push(event);
     }
   }
 
@@ -187,6 +250,25 @@ export async function googleEvents(params: {
     return merged;
   }
   throw new Error(lastError);
+}
+
+async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index]);
+    }
+  }
+  const workers = Math.min(Math.max(limit, 1), items.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return results;
 }
 
 async function listGoogleCalendar(
@@ -264,6 +346,7 @@ export function googleAuthUrl(params: {
   clientId: string;
   redirectUri: string;
   state: string;
+  loginHint?: string;
 }) {
   const query = new URLSearchParams({
     client_id: params.clientId,
@@ -271,15 +354,19 @@ export function googleAuthUrl(params: {
     response_type: 'code',
     access_type: 'offline',
     prompt: 'select_account consent',
+    include_granted_scopes: 'true',
     scope: [
       'openid',
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/calendar.readonly',
-      'https://www.googleapis.com/auth/calendar.events.readonly',
     ].join(' '),
     state: params.state,
   });
+  const hint = params.loginHint?.trim().toLowerCase() ?? '';
+  if (/^[^\s@]+@[^\s@]+$/.test(hint)) {
+    query.set('login_hint', hint);
+  }
   return `https://accounts.google.com/o/oauth2/v2/auth?${query}`;
 }
 
@@ -462,6 +549,7 @@ function mapGoogleEvent(item: Record<string, unknown>): UpstreamEvent[] {
         stringOrNull(item.hangoutLink) ||
         googleConferenceUrl(conference),
       htmlLink: stringOrNull(item.htmlLink),
+      iCalUid: stringOrNull(item.iCalUID),
       organizerName: stringOrNull(organizer?.displayName),
       organizerEmail: stringOrNull(organizer?.email)?.toLowerCase() ?? null,
       guests: googleGuests(item),

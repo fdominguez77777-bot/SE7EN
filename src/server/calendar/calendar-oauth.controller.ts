@@ -27,9 +27,13 @@ export class CalendarOauthController {
 
   @Get('start')
   @ApiOperation({ summary: 'Start calendar OAuth from a connect link' })
-  async start(@Query('token') token: string, @Res() response: Response) {
+  async start(
+    @Query('token') token: string,
+    @Query('loginHint') loginHint: string,
+    @Res() response: Response,
+  ) {
     try {
-      const url = await this.calendar.startOAuth(queryText(token));
+      const url = await this.calendar.startOAuth(queryText(token), queryText(loginHint));
       return response.redirect(url);
     } catch (error) {
       const detail =
@@ -41,14 +45,22 @@ export class CalendarOauthController {
 
   @Get('google/start')
   @ApiOperation({ summary: 'Start Google Calendar OAuth from a connect link' })
-  async googleStart(@Query('token') token: string, @Res() response: Response) {
-    return this.start(token, response);
+  async googleStart(
+    @Query('token') token: string,
+    @Query('loginHint') loginHint: string,
+    @Res() response: Response,
+  ) {
+    return this.start(token, loginHint, response);
   }
 
   @Get('microsoft/start')
   @ApiOperation({ summary: 'Start Microsoft Calendar OAuth from a connect link' })
-  async microsoftStart(@Query('token') token: string, @Res() response: Response) {
-    return this.start(token, response);
+  async microsoftStart(
+    @Query('token') token: string,
+    @Query('loginHint') loginHint: string,
+    @Res() response: Response,
+  ) {
+    return this.start(token, loginHint, response);
   }
 
   @Get('google/callback')

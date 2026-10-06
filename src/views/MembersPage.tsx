@@ -959,17 +959,6 @@ export function MembersPage() {
               </Link>
             </SectionCard>
           ) : null}
-
-          {selected.role === 'BID_MANAGER' ? (
-            <SectionCard title="Compensation" description="Salary is configured in Compensation settings.">
-              <Link
-                to="/settings/compensation"
-                className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]"
-              >
-                View compensation settings
-              </Link>
-            </SectionCard>
-          ) : null}
         </div>
       ) : null}
     </section>

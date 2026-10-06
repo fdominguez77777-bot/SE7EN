@@ -62,6 +62,7 @@ export type CalendarAccountDto = {
   color: string;
   assignedBidderId: number | null;
   assignedBidderName: string | null;
+  syncError: string | null;
 };
 
 export type CalendarBidderDto = {
@@ -160,6 +161,7 @@ export class CalendarService {
     provider: CalendarProviderName,
     actorId: number,
     assignedBidderId?: number,
+    redirectOrigin?: string,
   ) {
     this.requireProviderConfig(provider);
     if (assignedBidderId) {
@@ -167,39 +169,43 @@ export class CalendarService {
     }
     const token = newConnectToken();
     const expiresAt = new Date(Date.now() + CONNECT_LINK_TTL_MS);
+    const origin = this.resolveOrigin(redirectOrigin);
     await this.links.save(
       this.links.create({
         tokenHash: hashConnectToken(token),
         provider,
         createdById: actorId,
         assignedBidderId: assignedBidderId ?? null,
+        redirectOrigin: origin || null,
         expiresAt,
         usedAt: null,
       }),
     );
-    const origin = this.origin();
     return {
       url: `${origin}/calendar/connect/${token}`,
+      startUrl: `${origin}/api/calendar/oauth/start?token=${encodeURIComponent(token)}`,
       expiresAt: expiresAt.toISOString(),
       provider,
     };
   }
 
-  async startOAuth(token: string) {
+  async startOAuth(token: string, loginHint?: string) {
     const link = await this.requireOpenLink(token);
     const provider = link.provider as CalendarProviderName;
     this.requireProviderConfig(provider);
     const state = `${provider}:${token}`;
+    const origin = this.resolveOrigin(link.redirectOrigin);
     if (provider === CalendarProvider.GOOGLE) {
       return googleAuthUrl({
         clientId: this.google().clientId,
-        redirectUri: this.redirectUri('google'),
+        redirectUri: this.redirectUri('google', origin),
         state,
+        loginHint,
       });
     }
     return microsoftAuthUrl({
       clientId: this.microsoft().clientId,
-      redirectUri: this.redirectUri('microsoft'),
+      redirectUri: this.redirectUri('microsoft', origin),
       state,
     });
   }
@@ -217,19 +223,20 @@ export class CalendarService {
     if (link.provider !== params.provider) {
       throw new BadRequestException('Invalid calendar connect state.');
     }
+    const origin = this.resolveOrigin(link.redirectOrigin);
     const tokens =
       params.provider === CalendarProvider.GOOGLE
         ? await exchangeGoogleCode({
             code: params.code,
             clientId: this.google().clientId,
             clientSecret: this.google().clientSecret,
-            redirectUri: this.redirectUri('google'),
+            redirectUri: this.redirectUri('google', origin),
           })
         : await exchangeMicrosoftCode({
             code: params.code,
             clientId: this.microsoft().clientId,
             clientSecret: this.microsoft().clientSecret,
-            redirectUri: this.redirectUri('microsoft'),
+            redirectUri: this.redirectUri('microsoft', origin),
           });
     const identity =
       params.provider === CalendarProvider.GOOGLE
@@ -238,6 +245,12 @@ export class CalendarService {
     const existing = await this.accounts.findOne({
       where: { provider: params.provider, email: identity.email.toLowerCase() },
     });
+    if (!tokens.refreshToken && !existing?.refreshToken) {
+      const name = params.provider === CalendarProvider.GOOGLE ? 'Google' : 'Microsoft';
+      throw new BadRequestException(
+        `${name} did not grant offline access. Connect again and allow calendar access.`,
+      );
+    }
     const saved = existing ?? this.accounts.create();
     saved.provider = params.provider;
     saved.email = identity.email.toLowerCase();
@@ -251,6 +264,7 @@ export class CalendarService {
     if (ownerId) {
       saved.assignedBidderId = ownerId;
     }
+    saved.syncError = null;
     await this.accounts.save(saved);
     link.usedAt = new Date();
     await this.links.save(link);
@@ -359,11 +373,19 @@ export class CalendarService {
                   detail,
                 })
               : await microsoftEvents({ accessToken: access, from, to, detail });
+          if (account.syncError) {
+            account.syncError = null;
+            await this.accounts.save(account);
+          }
           return events.map((event) => this.toEventDto(account, event, profileRows));
         } catch (error) {
           const detailMessage =
             error instanceof Error ? error.message : 'Calendar sync failed.';
           syncErrors.push(`${account.email}: ${detailMessage}`);
+          if (account.syncError !== detailMessage) {
+            account.syncError = detailMessage;
+            await this.accounts.save(account);
+          }
           return [] as CalendarEventDto[];
         }
       }),
@@ -471,6 +493,7 @@ export class CalendarService {
       color: calendarColor(row.id),
       assignedBidderId: row.assignedBidderId,
       assignedBidderName: bidderName,
+      syncError: row.syncError,
     };
   }
 
@@ -572,8 +595,16 @@ export class CalendarService {
     );
   }
 
-  private redirectUri(provider: 'google' | 'microsoft') {
-    return `${this.origin()}/api/calendar/oauth/${provider}/callback`;
+  private resolveOrigin(explicit?: string | null) {
+    const value = (explicit ?? '').trim().replace(/\/$/, '');
+    if (/^https?:\/\/[^\s/]+(?::\d+)?$/i.test(value)) {
+      return value;
+    }
+    return this.origin();
+  }
+
+  private redirectUri(provider: 'google' | 'microsoft', origin = this.origin()) {
+    return `${origin}/api/calendar/oauth/${provider}/callback`;
   }
 
   private secret() {

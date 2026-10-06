@@ -240,9 +240,9 @@ export function InterviewsPage() {
             {syncErrors.length} calendar{syncErrors.length === 1 ? '' : 's'} need reconnecting
           </p>
           <p className="mt-1 text-[var(--text-secondary)]">
-            These Google logins expired (common while the Cloud project is in Testing
-            mode — about every 7 days). Disconnect each failed Gmail, then connect it
-            again. Maani still works because that login has not expired yet.
+            Open Connect calendars and use Reconnect on each failed Gmail. Only that
+            inbox's own calendar is shown. If a Gmail still drops about once a week,
+            publish the Google Cloud OAuth app from Testing to Production.
           </p>
           <ul className="mt-2 space-y-1 font-mono text-[12px] text-[var(--text-secondary)]">
             {syncErrors.map((row) => (
@@ -289,84 +289,86 @@ export function InterviewsPage() {
         </label>
       </div>
 
-      <div className="iv-people">
-        <button
-          type="button"
-          className={`iv-chip ${showAll ? 'is-on' : ''}`}
-          aria-pressed={showAll}
-          onClick={() => setSelected([])}
-        >
-          <span className={`iv-check ${showAll ? 'is-on' : ''}`}>
-            {showAll ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-          </span>
-          Everyone
-        </button>
-        {bidders.map((bidder) => {
-          const on = showAll || selected.includes(bidder.id)
-          return (
-            <button
-              key={bidder.id}
-              type="button"
-              className={`iv-chip ${on ? 'is-on' : ''} ${hovered === bidder.id && !on ? 'is-peek' : ''}`}
-              aria-pressed={on}
-              title={
-                showAll
-                  ? `Show only ${bidder.name}`
-                  : on
-                    ? `Hide ${bidder.name}`
-                    : `Show ${bidder.name}`
-              }
-              style={{ '--person': bidder.color } as CSSProperties}
-              onMouseEnter={() => setHovered(bidder.id)}
-              onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(bidder.id)}
-              onBlur={() => setHovered(null)}
-              onClick={() => setSelected((current) => toggleSelected(current, bidder.id))}
-            >
-              <span className={`iv-check ${on ? 'is-on' : ''}`}>
-                {on ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-              </span>
-              <span className="iv-chip-swatch">{bidder.initials.slice(0, 2)}</span>
-              <span className="iv-chip-copy">
-                <span>{bidder.name}</span>
-                <small>{personChipHint(bidder, user?.id)}</small>
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <div className="iv-board">
+        <div className="iv-people">
+          <button
+            type="button"
+            className={`iv-chip ${showAll ? 'is-on' : ''}`}
+            aria-pressed={showAll}
+            onClick={() => setSelected([])}
+          >
+            <span className={`iv-check ${showAll ? 'is-on' : ''}`}>
+              {showAll ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+            </span>
+            Everyone
+          </button>
+          {bidders.map((bidder) => {
+            const on = showAll || selected.includes(bidder.id)
+            return (
+              <button
+                key={bidder.id}
+                type="button"
+                className={`iv-chip ${on ? 'is-on' : ''} ${hovered === bidder.id && !on ? 'is-peek' : ''}`}
+                aria-pressed={on}
+                title={
+                  showAll
+                    ? `Show only ${bidder.name}`
+                    : on
+                      ? `Hide ${bidder.name}`
+                      : `Show ${bidder.name}`
+                }
+                style={{ '--person': bidder.color } as CSSProperties}
+                onMouseEnter={() => setHovered(bidder.id)}
+                onMouseLeave={() => setHovered(null)}
+                onFocus={() => setHovered(bidder.id)}
+                onBlur={() => setHovered(null)}
+                onClick={() => setSelected((current) => toggleSelected(current, bidder.id))}
+              >
+                <span className={`iv-check ${on ? 'is-on' : ''}`}>
+                  {on ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                </span>
+                <span className="iv-chip-swatch">{bidder.initials.slice(0, 2)}</span>
+                <span className="iv-chip-copy">
+                  <span>{bidder.name}</span>
+                  <small>{personChipHint(bidder, user?.id)}</small>
+                </span>
+              </button>
+            )
+          })}
+        </div>
 
-      {loading ? (
-        <div className="iv-cal-wrap">
-          <InterviewCalendarSkeleton />
-        </div>
-      ) : bidders.length === 0 ? (
-        <div className="iv-cal-wrap">
-          <EmptyState
-            title="No bidders yet"
-            description="Interviews show up here after calendars are connected to bidders."
-            action={
-              canConnectCalendars ? (
-                <Link to="/interviews/integrations" className="text-[13px] font-semibold text-[var(--accent)]">
-                  Connect calendars
-                </Link>
-              ) : undefined
-            }
-          />
-        </div>
-      ) : (
-        <div className="iv-cal-wrap">
-          <InterviewCalendar
-            days={shownDays}
-            events={visibleEvents}
-            bidderByAccount={bidderByAccount}
-            focusDay={focusDay}
-            board={board}
-            accentPersonId={showAll ? hovered : selected.length === 1 ? selected[0] : hovered}
-            onSelectDay={setFocusDay}
-          />
-        </div>
-      )}
+        {loading ? (
+          <div className="iv-cal-wrap">
+            <InterviewCalendarSkeleton />
+          </div>
+        ) : bidders.length === 0 ? (
+          <div className="iv-cal-wrap">
+            <EmptyState
+              title="No bidders yet"
+              description="Interviews show up here after calendars are connected to bidders."
+              action={
+                canConnectCalendars ? (
+                  <Link to="/interviews/integrations" className="text-[13px] font-semibold text-[var(--accent)]">
+                    Connect calendars
+                  </Link>
+                ) : undefined
+              }
+            />
+          </div>
+        ) : (
+          <div className="iv-cal-wrap">
+            <InterviewCalendar
+              days={shownDays}
+              events={visibleEvents}
+              bidderByAccount={bidderByAccount}
+              focusDay={focusDay}
+              board={board}
+              accentPersonId={showAll ? hovered : selected.length === 1 ? selected[0] : hovered}
+              onSelectDay={setFocusDay}
+            />
+          </div>
+        )}
+      </div>
     </section>
   )
 }
