@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 
 import type { Role } from '../api/types'
-import { useAuth } from '../auth/AuthContext'
+import { homePathForRole, useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { AvatarPhotoDialog } from '../ui/AvatarPhotoDialog'
 import { ChangePasswordDialog } from '../ui/ChangePasswordDialog'
@@ -120,12 +120,22 @@ const NAV: Record<Role, NavSection[]> = {
       ],
     },
   ],
+  CALLER: [
+    {
+      label: 'Overview',
+      items: [
+        { to: '/interviews', label: 'Dashboard', icon: LayoutDashboard, end: true },
+        { to: '/applications', label: 'Applications', icon: Send },
+      ],
+    },
+  ],
 }
 
 const ROLE_LABEL: Record<Role, string> = {
   ADMIN: 'Admin',
   BID_MANAGER: 'Bid Manager',
   BIDDER: 'Bidder',
+  CALLER: 'Caller',
 }
 
 function pageTitle(pathname: string, sections: NavSection[]) {
@@ -169,7 +179,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         }`}
       >
         <div className="flex shrink-0 items-center border-b border-[var(--border-glass)] px-5 py-5">
-          <BrandLockup onNavigate={() => setOpen(false)} />
+          <BrandLockup
+            to={user ? homePathForRole(user.role) : '/'}
+            onNavigate={() => setOpen(false)}
+          />
         </div>
         <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden p-3">
           {sections.map((section) => (

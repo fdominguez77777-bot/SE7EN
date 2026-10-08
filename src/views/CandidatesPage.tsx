@@ -19,6 +19,7 @@ const ROLE_SORT: Record<User['role'], number> = {
   ADMIN: 0,
   BID_MANAGER: 1,
   BIDDER: 2,
+  CALLER: 3,
 }
 
 const GENDER_OPTIONS = [

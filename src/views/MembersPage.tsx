@@ -28,7 +28,7 @@ type RoleFilter = 'all' | Role
 type StatusFilter = 'all' | 'active' | 'disabled'
 type Mode = 'list' | 'create' | 'detail'
 
-const ROLE_OPTIONS: Role[] = ['ADMIN', 'BID_MANAGER', 'BIDDER']
+const ROLE_OPTIONS: Role[] = ['ADMIN', 'BID_MANAGER', 'BIDDER', 'CALLER']
 
 function isActiveMember(member: User): boolean {
   return member.isActive !== false
@@ -464,6 +464,7 @@ export function MembersPage() {
                 <option value="ADMIN">Admin</option>
                 <option value="BID_MANAGER">Bid Manager</option>
                 <option value="BIDDER">Bidder</option>
+                <option value="CALLER">Caller</option>
               </select>
             </label>
             <label className="text-sm text-[var(--text-secondary)]">

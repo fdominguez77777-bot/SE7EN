@@ -210,7 +210,8 @@ function ApplicationCell({
 
 export function ApplicationsPage() {
   const { user } = useAuth()
-  const isStaff = user?.role === 'ADMIN' || user?.role === 'BID_MANAGER'
+  const canBrowseTeam =
+    user?.role === 'ADMIN' || user?.role === 'BID_MANAGER' || user?.role === 'CALLER'
   const [searchParams] = useSearchParams()
   const urlBidderId = searchParams.get('bidderId') || ''
   const urlApplicationId = searchParams.get('applicationId') || ''
@@ -269,7 +270,7 @@ export function ApplicationsPage() {
             limit: pageSize,
             keyword: keyword.length >= 2 ? keyword : undefined,
             status: statusFilter || undefined,
-            bidderId: isStaff ? bidderFilter || undefined : undefined,
+            bidderId: canBrowseTeam ? bidderFilter || undefined : undefined,
             company: appliedColumnFilters.companyName.trim() || undefined,
             position: appliedColumnFilters.jobTitle.trim() || undefined,
             source: appliedColumnFilters.source.trim() || undefined,
@@ -284,7 +285,7 @@ export function ApplicationsPage() {
           setCount(data.count)
         }),
     ]
-    if (isStaff) {
+    if (canBrowseTeam) {
       requests.push(
         api
           .get<ApplicationBidderOption[]>('/applications/bidders')
@@ -301,7 +302,7 @@ export function ApplicationsPage() {
     load()
       .catch((err) => setError(getApiErrorMessage(err)))
       .finally(() => setLoading(false))
-  }, [page, pageSize, keyword, statusFilter, bidderFilter, isStaff, appliedColumnFilters])
+  }, [page, pageSize, keyword, statusFilter, bidderFilter, canBrowseTeam, appliedColumnFilters])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -464,7 +465,7 @@ export function ApplicationsPage() {
           />
         </label>
         <Button onClick={runSearch}>Search</Button>
-        {isStaff ? (
+        {canBrowseTeam ? (
           <div className="apps-field">
             <label htmlFor="apps-user">User</label>
             <select

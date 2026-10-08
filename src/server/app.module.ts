@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -30,6 +31,8 @@ import { ProjectsModule } from './projects/projects.module';
 import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 import { DailySubmissionsModule } from './daily-submissions/daily-submissions.module';
+import { TransientDbFilter } from './database/transient-db.filter';
+import { TransientDbRetryInterceptor } from './database/transient-db.interceptor';
 import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
 
 @Module({
@@ -62,9 +65,11 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
             ? { rejectUnauthorized: false }
             : false,
           extra: process.env.VERCEL
-            ? { max: 1 }
+            ? { max: 1, connectionTimeoutMillis: 8_000 }
             : {
-                max: 10,
+                max: 8,
+                connectionTimeoutMillis: 8_000,
+                idleTimeoutMillis: 20_000,
                 keepAlive: true,
                 keepAliveInitialDelayMillis: 10_000,
               },
@@ -95,6 +100,10 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
     DashboardModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_FILTER, useClass: TransientDbFilter },
+    { provide: APP_INTERCEPTOR, useClass: TransientDbRetryInterceptor },
+  ],
 })
 export class AppModule {}

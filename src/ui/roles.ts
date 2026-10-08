@@ -6,14 +6,18 @@ export const ROLE_LABEL: Record<Role, string> = {
   ADMIN: 'Admin',
   BID_MANAGER: 'Bid Manager',
   BIDDER: 'Bidder',
+  CALLER: 'Caller',
 }
 
-export function roleBadgeTone(role: Role): 'info' | 'warning' | 'neutral' {
+export function roleBadgeTone(role: Role): 'info' | 'warning' | 'neutral' | 'success' {
   if (role === 'ADMIN') {
     return 'info'
   }
   if (role === 'BID_MANAGER') {
     return 'warning'
+  }
+  if (role === 'CALLER') {
+    return 'success'
   }
   return 'neutral'
 }

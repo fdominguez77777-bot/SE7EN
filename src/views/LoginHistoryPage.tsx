@@ -279,6 +279,7 @@ export function LoginHistoryPage() {
                   <option value="ADMIN">Admin</option>
                   <option value="BID_MANAGER">Bid Manager</option>
                   <option value="BIDDER">Bidder</option>
+                  <option value="CALLER">Caller</option>
                 </select>
               </div>
             }

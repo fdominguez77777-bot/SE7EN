@@ -160,6 +160,12 @@ export function getApiErrorMessage(error: unknown): string {
   if (axiosError.response?.status === 413) {
     return 'Photo must be 5 MB or smaller.'
   }
+  if (!axiosError.response) {
+    if (axiosError.code === 'ERR_NETWORK' || axiosError.message === 'Network Error') {
+      return 'The server did not respond. Try again in a moment.'
+    }
+    return axiosError.message || 'Request failed'
+  }
   return axiosError.message || 'Request failed'
 }
 

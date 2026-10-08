@@ -19,7 +19,7 @@ import { JiracodersApplicationsService } from './jiracoders.service';
 @ApiTags('applications')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER)
+@Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER, UserRole.CALLER)
 @Controller('applications')
 export class JiracodersApplicationsController {
   constructor(private readonly applications: JiracodersApplicationsService) {}

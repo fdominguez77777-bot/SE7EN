@@ -40,7 +40,7 @@ export function ApplicationDetailModal({
   onClose: () => void
 }) {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
+  const canCopyPrompt = user?.role === 'ADMIN' || user?.role === 'CALLER'
   const jobUrl = safeHttpUrl(application.jobUrl)
   const resumeUrl = safeHttpUrl(application.resumeUrl)
   const interviews = application.interviews ?? []
@@ -144,7 +144,7 @@ export function ApplicationDetailModal({
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </button>
-            {isAdmin ? (
+            {canCopyPrompt ? (
               <button
                 type="button"
                 className="apps-icon-btn"

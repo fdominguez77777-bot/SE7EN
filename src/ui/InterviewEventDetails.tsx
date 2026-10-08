@@ -1,14 +1,19 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { CalendarDays, Clock, ExternalLink, MapPin, Users, Video, X } from 'lucide-react'
+import { AlignLeft, CalendarDays, Clock, ExternalLink, MapPin, Users, Video, X } from 'lucide-react'
 
 import type { CalendarBidder, CalendarEvent, CalendarGuest } from '../api/types'
-import { useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from './avatar'
 import { formatEventWhen } from './calendar-week'
 import { Button } from './chrome'
 import { safeHttpUrl } from './job-application'
-import { descriptionToPlainText, firstHttpUrl, splitLinkedText } from './text-links'
+import {
+  calendarDescriptionHtml,
+  descriptionToPlainText,
+  firstHttpUrl,
+  isMeetingJoinUrl,
+  splitLinkedText,
+} from './text-links'
 
 const RSVP: Record<CalendarGuest['status'], string> = {
   accepted: 'Yes',
@@ -26,11 +31,10 @@ export function InterviewEventDetails({
   owner: CalendarBidder | null
   onClose: () => void
 }) {
-  const { user } = useAuth()
-  const canJoinMeeting = user?.role === 'ADMIN'
   const when = formatEventWhen(event.start, event.end, event.allDay)
-  const description = descriptionToPlainText(event.description)
-  const joinUrl = safeHttpUrl(event.joinUrl) ?? firstHttpUrl(description)
+  const descriptionText = descriptionToPlainText(event.description)
+  const descriptionHtml = calendarDescriptionHtml(event.description)
+  const joinUrl = safeHttpUrl(event.joinUrl) ?? firstHttpUrl(descriptionText)
   const calendarUrl = safeHttpUrl(event.htmlLink)
   const guests = event.guests ?? []
   const calendarLabel = event.profileName?.trim() || owner?.name || event.email
@@ -97,24 +101,62 @@ export function InterviewEventDetails({
           </div>
         </div>
         <div className="iv-detail-body">
-          {canJoinMeeting && joinUrl ? (
-            <a className="iv-detail-join" href={joinUrl} target="_blank" rel="noreferrer">
-              <Video className="h-4 w-4" />
-              Join meeting
-            </a>
-          ) : null}
           <DetailRow icon={Clock}>
             <p>{when.timeLabel}</p>
             <small>
               {when.zone}
               {when.duration ? ` · ${when.duration}` : ''}
-              {' · US Central'}
             </small>
           </DetailRow>
+          {joinUrl ? (
+            <DetailRow icon={Video}>
+              <p>
+                <a className="iv-meet-link" href={joinUrl} target="_blank" rel="noreferrer">
+                  {meetingLabel(joinUrl)}
+                </a>
+              </p>
+              <small>
+                <a className="iv-meet-link" href={joinUrl} target="_blank" rel="noreferrer">
+                  {joinUrl.replace(/^https?:\/\//, '')}
+                </a>
+              </small>
+            </DetailRow>
+          ) : null}
           {event.location ? (
             <DetailRow icon={MapPin}>
               <LinkedText text={event.location} as="p" />
             </DetailRow>
+          ) : null}
+          {guests.length > 0 ? (
+            <div className="iv-detail-guests">
+              <Users className="h-4 w-4" aria-hidden="true" />
+              <div>
+                <p>
+                  {guests.length} guest{guests.length === 1 ? '' : 's'}
+                </p>
+                <ul>
+                  {guests.map((guest) => (
+                    <li key={guest.email}>
+                      <EntityAvatar name={guest.name || guest.email} size="sm" />
+                      <span>
+                        <strong>{guest.name || guest.email}</strong>
+                        {guest.name && guest.name !== guest.email ? <small>{guest.email}</small> : null}
+                      </span>
+                      <em className={`iv-rsvp is-${guest.status}`}>{RSVP[guest.status]}</em>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+          {descriptionHtml ? (
+            <div className="iv-detail-notes">
+              <AlignLeft className="h-4 w-4" aria-hidden="true" />
+              <div
+                className="iv-detail-copy"
+                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+              />
+            </div>
           ) : null}
           <DetailRow icon={CalendarDays}>
             <p>{calendarLabel}</p>
@@ -123,37 +165,6 @@ export function InterviewEventDetails({
               {calendarEmail}
             </small>
           </DetailRow>
-          {event.organizerEmail || event.organizerName ? (
-            <DetailRow icon={Users}>
-              <p>
-                Organizer · {event.organizerName || event.organizerEmail}
-              </p>
-              {event.organizerEmail ? <small>{event.organizerEmail}</small> : null}
-            </DetailRow>
-          ) : null}
-          {guests.length > 0 ? (
-            <div className="iv-detail-guests">
-              <p className="iv-detail-label">{guests.length} guest{guests.length === 1 ? '' : 's'}</p>
-              <ul>
-                {guests.map((guest) => (
-                  <li key={guest.email}>
-                    <EntityAvatar name={guest.name || guest.email} size="sm" />
-                    <span>
-                      <strong>{guest.name || guest.email}</strong>
-                      <small>{guest.email}</small>
-                    </span>
-                    <em className={`iv-rsvp is-${guest.status}`}>{RSVP[guest.status]}</em>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {description ? (
-            <div className="iv-detail-notes">
-              <p className="iv-detail-label">Description</p>
-              <LinkedText text={description} as="pre" />
-            </div>
-          ) : null}
         </div>
         <div className="iv-detail-foot">
           {calendarUrl ? (
@@ -172,6 +183,23 @@ export function InterviewEventDetails({
     </div>,
     document.body,
   )
+}
+
+function meetingLabel(url: string) {
+  const value = url.toLowerCase()
+  if (value.includes('meet.google.com')) {
+    return 'Join with Google Meet'
+  }
+  if (value.includes('zoom.us')) {
+    return 'Join Zoom Meeting'
+  }
+  if (value.includes('teams.microsoft.com') || value.includes('teams.live.com')) {
+    return 'Join Microsoft Teams Meeting'
+  }
+  if (value.includes('webex.com')) {
+    return 'Join Webex meeting'
+  }
+  return 'Join meeting'
 }
 
 function DetailRow({
@@ -200,7 +228,13 @@ function LinkedText({
     <Tag>
       {splitLinkedText(text).map((part, index) =>
         part.href ? (
-          <a key={`${part.href}-${index}`} href={part.href} target="_blank" rel="noreferrer">
+          <a
+            key={`${part.href}-${index}`}
+            className={isMeetingJoinUrl(part.href) ? 'iv-meet-link' : undefined}
+            href={part.href}
+            target="_blank"
+            rel="noreferrer"
+          >
             {part.text}
           </a>
         ) : (

@@ -9,6 +9,7 @@ const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Admin',
   BID_MANAGER: 'Bid Manager',
   BIDDER: 'Bidder',
+  CALLER: 'Caller',
 }
 
 type Anchor = { top: number; left: number; width: number; above: boolean }

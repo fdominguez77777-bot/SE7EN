@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'BID_MANAGER' | 'BIDDER'
+export type Role = 'ADMIN' | 'BID_MANAGER' | 'BIDDER' | 'CALLER'
 
 export type User = {
   id: number

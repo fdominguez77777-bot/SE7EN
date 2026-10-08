@@ -78,10 +78,12 @@ function personChipHint(person: CalendarBidder, meId: number | undefined) {
   const role =
     person.id === meId
       ? 'You'
-      : person.role === 'ADMIN'
-        ? 'Admin'
-        : person.role === 'BID_MANAGER'
-          ? 'Bid manager'
+      :     person.role === 'ADMIN'
+      ? 'Admin'
+      : person.role === 'BID_MANAGER'
+        ? 'Bid manager'
+        : person.role === 'CALLER'
+          ? 'Caller'
           : 'Bidder'
   if (count === 0) {
     return `${role} · Not connected`

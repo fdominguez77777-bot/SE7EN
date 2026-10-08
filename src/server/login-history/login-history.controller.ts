@@ -29,7 +29,7 @@ export class LoginHistoryController {
 
   @Post('session')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER)
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER, UserRole.CALLER)
   @ApiOperation({
     summary: 'Record or refresh an open platform visit (any signed-in member)',
   })

@@ -249,6 +249,9 @@ export function useAuth(): AuthState {
   return context
 }
 
-export function homePathForRole(_role: Role): string {
+export function homePathForRole(role: Role): string {
+  if (role === 'CALLER') {
+    return '/interviews'
+  }
   return '/'
 }

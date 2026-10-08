@@ -72,6 +72,10 @@ describe('calendar.rules', () => {
     expect(canSeeCalendarPerson('BIDDER', 'ADMIN')).toBe(false);
     expect(canSeeCalendarPerson('BID_MANAGER', 'ADMIN')).toBe(true);
     expect(canSeeCalendarPerson('ADMIN', 'ADMIN')).toBe(true);
+    expect(canSeeCalendarPerson('CALLER', 'ADMIN')).toBe(true);
+    expect(canSeeCalendarPerson('CALLER', 'BIDDER')).toBe(true);
+    expect(canAssignCalendar('CALLER')).toBe(false);
+    expect(canConnectCalendar('CALLER')).toBe(false);
   });
 
   it('keeps connect links reusable until they expire', () => {

@@ -2456,17 +2456,30 @@ label .req,
   font-size: 12px;
 }
 
-.iv-detail-label {
-  margin-bottom: 8px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.iv-detail-guests,
+.iv-detail-notes {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.iv-detail-guests {
-  margin-top: 10px;
+.iv-detail-guests > svg,
+.iv-detail-notes > svg {
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--ev, #e8845a) 50%, #fff);
+}
+
+.iv-detail-guests p {
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .iv-detail-guests ul {
@@ -2530,24 +2543,41 @@ label .req,
   color: #e8c98a;
 }
 
-.iv-detail-notes {
-  margin-top: 10px;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.025);
+.iv-detail-copy {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
   user-select: text;
 }
 
-.iv-detail-notes pre {
-  margin: 0;
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  user-select: text;
+.iv-detail-copy p,
+.iv-detail-copy ul,
+.iv-detail-copy ol,
+.iv-detail-copy blockquote {
+  margin: 0 0 0.7em;
+}
+
+.iv-detail-copy p:last-child,
+.iv-detail-copy ul:last-child,
+.iv-detail-copy ol:last-child,
+.iv-detail-copy blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.iv-detail-copy ul,
+.iv-detail-copy ol {
+  padding-left: 1.2em;
+}
+
+.iv-detail-copy li {
+  margin: 0.15em 0;
+}
+
+.iv-detail-copy b,
+.iv-detail-copy strong {
+  color: var(--text-primary);
+  font-weight: 650;
 }
 
 .iv-detail-notes a,
@@ -2564,6 +2594,22 @@ label .req,
 .iv-detail-notes a:hover,
 .iv-detail-row a:hover {
   color: var(--accent-hover);
+}
+
+a.iv-meet-link {
+  background: none;
+  color: #7eb6ff;
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-decoration-color: #7eb6ff;
+  text-underline-offset: 3px;
+}
+
+a.iv-meet-link:hover {
+  background: none;
+  color: #b7d4ff;
+  text-decoration-color: #b7d4ff;
 }
 
 .iv-detail-foot {

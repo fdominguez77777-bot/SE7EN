@@ -28,7 +28,7 @@ import { AssignCalendarBidderDto, CreateCalendarLinkDto } from './dto/calendar.d
 @ApiTags('calendar')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER)
+@Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER, UserRole.CALLER)
 @Controller('calendar')
 export class CalendarController {
   constructor(private readonly calendar: CalendarService) {}
