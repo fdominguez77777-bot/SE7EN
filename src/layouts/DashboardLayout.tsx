@@ -14,7 +14,6 @@ import {
   Menu,
   MessageSquareQuote,
   Send,
-  SquareKanban,
   UserRoundCog,
   Users,
   UsersRound,
@@ -46,7 +45,7 @@ const NAV: Record<Role, NavSection[]> = {
   ADMIN: [
     {
       label: 'Overview',
-      items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }, { to: '/tasks', label: 'Tasks', icon: SquareKanban }, { to: '/wallet', label: 'Wallet', icon: Wallet }],
+      items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }, { to: '/wallet', label: 'Wallet', icon: Wallet }],
     },
     {
       label: 'Operations',
@@ -83,7 +82,7 @@ const NAV: Record<Role, NavSection[]> = {
   BID_MANAGER: [
     {
       label: 'Overview',
-      items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }, { to: '/tasks', label: 'Tasks', icon: SquareKanban }, { to: '/wallet', label: 'Wallet', icon: Wallet }],
+      items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }, { to: '/wallet', label: 'Wallet', icon: Wallet }],
     },
     {
       label: 'Operations',
@@ -108,7 +107,7 @@ const NAV: Record<Role, NavSection[]> = {
   BIDDER: [
     {
       label: 'Overview',
-      items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }, { to: '/tasks', label: 'Tasks', icon: SquareKanban }, { to: '/wallet', label: 'Wallet', icon: Wallet }],
+      items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }, { to: '/wallet', label: 'Wallet', icon: Wallet }],
     },
     {
       label: 'My work',

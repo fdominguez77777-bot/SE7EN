@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Repository } from 'typeorm';
 
+import { CalendarAccount } from '../calendar/calendar-account.entity';
+import { CalendarProvider } from '../calendar/calendar.rules';
 import { User } from '../users/user.entity';
 import { LoginHistory } from './login-history.entity';
 import {
@@ -28,6 +30,7 @@ export type LoginHistoryRow = {
   browser: string | null;
   os: string | null;
   deviceSummary: string;
+  gmailAddresses: string[];
   createdAt: string;
   lastSeenAt: string;
   durationMs: number;
@@ -39,6 +42,8 @@ export class LoginHistoryService {
   constructor(
     @InjectRepository(LoginHistory)
     private readonly history: Repository<LoginHistory>,
+    @InjectRepository(CalendarAccount)
+    private readonly calendars: Repository<CalendarAccount>,
   ) {}
 
   /** Alias used by auth login — opens or extends a platform visit. */
@@ -135,7 +140,8 @@ export class LoginHistoryService {
       qb.andWhere('h.createdAt < :to', { to: query.to });
     }
     const rows = await qb.getMany();
-    const items = rows.map((row) => this.toRow(row));
+    const gmails = await this.gmailsByUser(rows.map((row) => row.userId));
+    const items = rows.map((row) => this.toRow(row, gmails.get(row.userId) ?? []));
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -160,7 +166,36 @@ export class LoginHistoryService {
     };
   }
 
-  private toRow(row: LoginHistory): LoginHistoryRow {
+  /** Google accounts connected to this member. That is the Gmail they signed in with. */
+  private async gmailsByUser(userIds: number[]): Promise<Map<number, string[]>> {
+    const ids = [...new Set(userIds.filter((id) => id > 0))];
+    const map = new Map<number, string[]>();
+    if (ids.length === 0) {
+      return map;
+    }
+    const accounts = await this.calendars.find({
+      where: { assignedBidderId: In(ids), provider: CalendarProvider.GOOGLE },
+      select: { assignedBidderId: true, email: true },
+    });
+    for (const account of accounts) {
+      const ownerId = account.assignedBidderId;
+      const email = account.email.trim().toLowerCase();
+      if (!ownerId || !email) {
+        continue;
+      }
+      const list = map.get(ownerId) ?? [];
+      if (!list.includes(email)) {
+        list.push(email);
+      }
+      map.set(ownerId, list);
+    }
+    for (const list of map.values()) {
+      list.sort((left, right) => left.localeCompare(right));
+    }
+    return map;
+  }
+
+  private toRow(row: LoginHistory, gmailAddresses: string[]): LoginHistoryRow {
     const lastSeenAt = row.lastSeenAt ?? row.createdAt;
     const durationMs = Math.max(
       0,
@@ -185,6 +220,7 @@ export class LoginHistoryService {
       browser: row.browser,
       os: row.os,
       deviceSummary: deviceSummary || 'Unknown device',
+      gmailAddresses,
       createdAt: row.createdAt.toISOString(),
       lastSeenAt: lastSeenAt.toISOString(),
       durationMs,

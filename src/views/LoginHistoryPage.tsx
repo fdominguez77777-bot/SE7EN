@@ -152,7 +152,8 @@ export function LoginHistoryPage() {
         row.username.toLowerCase().includes(needle) ||
         row.ipAddress.toLowerCase().includes(needle) ||
         row.location.toLowerCase().includes(needle) ||
-        row.deviceSummary.toLowerCase().includes(needle)
+        row.deviceSummary.toLowerCase().includes(needle) ||
+        (row.gmailAddresses ?? []).some((email) => email.toLowerCase().includes(needle))
       )
     })
   }, [data, query, roleFilter])
@@ -166,7 +167,7 @@ export function LoginHistoryPage() {
       <PageHeader
         eyebrow="Security"
         title="Login history"
-        description="Platform visits — when members open SE7EN, how long they stay, plus IP, region, and device."
+        description="Platform visits — when members open SE7EN, how long they stay, which Gmail is connected, plus IP, region, and device."
         actions={
           <Button
             variant="secondary"
@@ -267,7 +268,7 @@ export function LoginHistoryPage() {
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search member, IP, location…"
+                    placeholder="Search member, Gmail, IP, location…"
                   />
                 </label>
                 <select
@@ -380,6 +381,15 @@ function HistoryRow({ row }: { row: LoginHistoryRow }) {
           <div className="min-w-0">
             <p className="lh-member-name">{row.displayName}</p>
             <p className="lh-member-user">@{row.username}</p>
+            {(row.gmailAddresses ?? []).length > 0 ? (
+              (row.gmailAddresses ?? []).map((email) => (
+                <p key={email} className="lh-member-gmail">
+                  {email}
+                </p>
+              ))
+            ) : (
+              <p className="lh-member-gmail is-empty">No Gmail connected</p>
+            )}
             <div className="lh-member-role">
               <StatusBadge tone={roleBadgeTone(row.role as Role)}>
                 {ROLE_LABEL[row.role as Role] ?? row.role}

@@ -37,6 +37,7 @@ export type LoginHistoryRow = {
   browser: string | null
   os: string | null
   deviceSummary: string
+  gmailAddresses: string[]
   createdAt: string
   lastSeenAt: string
   durationMs: number

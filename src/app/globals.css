@@ -4895,6 +4895,19 @@ a.iv-meet-link:hover {
   color: var(--text-muted);
 }
 
+.lh-member-gmail {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8ab4f8;
+  overflow-wrap: anywhere;
+}
+
+.lh-member-gmail.is-empty {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
 .lh-member-role {
   margin-top: 6px;
 }
