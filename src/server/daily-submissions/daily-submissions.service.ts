@@ -35,8 +35,9 @@ import {
   dailySubmissionRowUserIds,
   difference,
   freezeSystemSnapshot,
+  isAdminCompleted,
   isDailyReportUnread,
-  isManagerFinalized,
+  isManagerReportFiled,
   parseReportingDate,
   shouldNotifyAdminOfDailyChange,
   submissionBlockReason,
@@ -64,18 +65,28 @@ export class DailySubmissionsService {
 
   async list(actor: User, date?: string) {
     this.assertStaff(actor);
-    const where: {
+    type Where = {
       managerId?: number;
       reportingDate?: string;
-      status?: FindOperator<string>;
-    } = {};
+      status?: string | FindOperator<string>;
+      manager?: { role: UserRole };
+    };
+    let where: Where[];
     if (actor.role === UserRole.BID_MANAGER) {
-      where.managerId = actor.id;
-      if (date) {
-        where.reportingDate = parseReportingDate(date);
-      }
+      const reportingDate = date ? parseReportingDate(date) : undefined;
+      where = [
+        { managerId: actor.id, reportingDate },
+        {
+          status: DailySubmissionStatus.REVIEWED,
+          manager: { role: UserRole.ADMIN },
+          reportingDate,
+        },
+      ];
     } else {
-      where.status = Not(DailySubmissionStatus.DRAFT);
+      where = [
+        { status: Not(DailySubmissionStatus.DRAFT) },
+        { managerId: actor.id },
+      ];
     }
     const items = await this.submissions.find({
       where,
@@ -101,13 +112,7 @@ export class DailySubmissionsService {
         'r.dailySubmissionId = s.id AND r.userId = :userId',
         { userId: actor.id },
       )
-      .where(
-        '(s.status = :submitted OR (s.status = :reviewed AND s.reviewedByUserId = s.managerId))',
-        {
-          submitted: DailySubmissionStatus.SUBMITTED,
-          reviewed: DailySubmissionStatus.REVIEWED,
-        },
-      )
+      .where('s.status = :status', { status: DailySubmissionStatus.SUBMITTED })
       .andWhere('s.contentChangedAt IS NOT NULL')
       .andWhere('(r.id IS NULL OR r.readAt < s.contentChangedAt)')
       .getCount();
@@ -227,6 +232,7 @@ export class DailySubmissionsService {
     this.assertCanAccess(actor, submission);
     if (
       actor.role === UserRole.ADMIN &&
+      !isAdminAuthored(submission) &&
       !adminCanSeeDailySubmission(submission.status)
     ) {
       throw new ForbiddenException(DAILY_SUBMISSION_MESSAGES.notSubmitted);
@@ -246,6 +252,12 @@ export class DailySubmissionsService {
     if (actor.role === UserRole.ADMIN) {
       return this.list(actor, reportingDate);
     }
+    const adminReport = await this.findAdminReport(reportingDate, [
+      DailySubmissionStatus.REVIEWED,
+    ]);
+    if (adminReport) {
+      return this.toDetailDto(adminReport);
+    }
     let submission = await this.submissions.findOne({
       where: { managerId: actor.id, reportingDate },
       relations: { manager: true, rows: { bidder: true } },
@@ -259,12 +271,32 @@ export class DailySubmissionsService {
     return this.toDetailDto(submission);
   }
 
+  /** Opens (or creates) the ADMIN-written report for a day. */
+  async startAdminReport(actor: User, date?: string) {
+    this.assertAdmin(actor);
+    const reportingDate = date ? parseReportingDate(date) : todayReportingDate();
+    const existing = await this.findAdminReport(reportingDate);
+    if (existing) {
+      if (shouldRefreshLiveSystemCounts(existing.status)) {
+        await this.syncDraft(existing);
+      }
+      return this.toDetailDto(await this.loadOrFail(existing.id));
+    }
+    await this.assertNoManagerReportFiled(reportingDate);
+    return this.toDetailDto(await this.createDraft(actor, reportingDate));
+  }
+
   async saveDraft(id: number, dto: SaveDailySubmissionDto, actor: User) {
     this.assertStaff(actor);
     const submission = await this.loadOrFail(id);
     this.assertCanAccess(actor, submission);
-    if (!canEditSubmission(submission.status, actor.role)) {
-      throw new BadRequestException(DAILY_SUBMISSION_MESSAGES.locked);
+    const adminAuthored = isAdminAuthored(submission);
+    if (!canEditSubmission(submission.status, actor.role, adminAuthored)) {
+      throw new BadRequestException(
+        adminAuthored
+          ? DAILY_SUBMISSION_MESSAGES.adminCompleted
+          : DAILY_SUBMISSION_MESSAGES.locked,
+      );
     }
     if (
       actor.role === UserRole.BID_MANAGER &&
@@ -301,6 +333,7 @@ export class DailySubmissionsService {
     await this.rows.save(submission.rows);
     if (
       actor.role !== UserRole.ADMIN &&
+      !adminAuthored &&
       shouldNotifyAdminOfDailyChange(submission.status)
     ) {
       await this.markContentChanged(id);
@@ -315,11 +348,30 @@ export class DailySubmissionsService {
     this.assertStaff(actor);
     const submission = await this.loadOrFail(id);
     this.assertCanAccess(actor, submission);
-    if (actor.role !== UserRole.BID_MANAGER || actor.id !== submission.managerId) {
-      throw new ForbiddenException(DAILY_SUBMISSION_MESSAGES.notOwner);
-    }
-    if (!canSubmitSubmission(submission.status)) {
-      throw new BadRequestException(DAILY_SUBMISSION_MESSAGES.notDraft);
+    const adminAuthored = isAdminAuthored(submission);
+    const reportingDate = this.reportingDateString(submission.reportingDate);
+    if (actor.role === UserRole.ADMIN) {
+      if (!adminAuthored) {
+        throw new ForbiddenException(DAILY_SUBMISSION_MESSAGES.notOwner);
+      }
+      if (submission.status !== DailySubmissionStatus.DRAFT) {
+        throw new BadRequestException(DAILY_SUBMISSION_MESSAGES.notDraft);
+      }
+      await this.assertNoManagerReportFiled(reportingDate);
+    } else {
+      if (actor.id !== submission.managerId) {
+        throw new ForbiddenException(DAILY_SUBMISSION_MESSAGES.notOwner);
+      }
+      if (!canSubmitSubmission(submission.status)) {
+        throw new BadRequestException(DAILY_SUBMISSION_MESSAGES.notDraft);
+      }
+      if (
+        await this.findAdminReport(reportingDate, [
+          DailySubmissionStatus.REVIEWED,
+        ])
+      ) {
+        throw new BadRequestException(DAILY_SUBMISSION_MESSAGES.adminCompleted);
+      }
     }
     await this.syncDraft(submission);
     const current = await this.loadOrFail(id);
@@ -340,12 +392,21 @@ export class DailySubmissionsService {
     }
     await this.rows.save(current.rows);
     const now = new Date();
-    current.status = DailySubmissionStatus.REVIEWED;
     current.submittedAt = now;
-    current.reviewedAt = now;
-    current.reviewedByUserId = actor.id;
-    current.contentChangedAt = now;
+    if (adminAuthored) {
+      current.status = DailySubmissionStatus.REVIEWED;
+      current.reviewedAt = now;
+      current.reviewedByUserId = actor.id;
+    } else {
+      current.status = DailySubmissionStatus.SUBMITTED;
+      current.reviewedAt = null;
+      current.reviewedByUserId = null;
+      current.contentChangedAt = now;
+    }
     await this.submissions.save(current);
+    if (adminAuthored) {
+      await this.removeManagerDrafts(reportingDate);
+    }
     return this.toDetailDto(await this.loadOrFail(id));
   }
 
@@ -588,10 +649,60 @@ export class DailySubmissionsService {
       actorRole: actor.role,
       actorId: actor.id,
       managerId: submission.managerId,
+      adminCompleted: isAdminCompleted({
+        status: submission.status,
+        authorRole: submission.manager?.role,
+      }),
     });
     if (reason) {
       throw new ForbiddenException(reason);
     }
+  }
+
+  private async findAdminReport(reportingDate: string, statuses?: string[]) {
+    return this.submissions.findOne({
+      where: {
+        reportingDate,
+        manager: { role: UserRole.ADMIN },
+        ...(statuses ? { status: In(statuses) } : {}),
+      },
+      relations: { manager: true, rows: { bidder: true }, reviewedByUser: true },
+      order: { id: 'ASC' },
+    });
+  }
+
+  private async assertNoManagerReportFiled(reportingDate: string) {
+    const reports = await this.submissions.find({
+      where: { reportingDate },
+      relations: { manager: true },
+    });
+    const filed = reports.some((report) =>
+      isManagerReportFiled({
+        status: report.status,
+        authorRole: report.manager?.role,
+      }),
+    );
+    if (filed) {
+      throw new BadRequestException(DAILY_SUBMISSION_MESSAGES.managerSubmitted);
+    }
+  }
+
+  private async removeManagerDrafts(reportingDate: string) {
+    const drafts = await this.submissions.find({
+      where: {
+        reportingDate,
+        status: DailySubmissionStatus.DRAFT,
+        manager: { role: Not(UserRole.ADMIN) },
+      },
+      relations: { manager: true },
+    });
+    const ids = drafts.map((draft) => draft.id);
+    if (ids.length === 0) {
+      return;
+    }
+    await this.reads.delete({ dailySubmissionId: In(ids) });
+    await this.rows.delete({ dailySubmissionId: In(ids) });
+    await this.submissions.delete(ids);
   }
 
   private async markContentChanged(id: number) {
@@ -650,7 +761,6 @@ export class DailySubmissionsService {
           status: item.status,
           contentChangedAt: item.contentChangedAt,
           readAt: readAtById.get(item.id) ?? null,
-          managerFinalized: isManagerFinalized(item),
         }),
       );
     }
@@ -680,6 +790,7 @@ export class DailySubmissionsService {
             id: submission.manager.id,
             name: submission.manager.name,
             email: submission.manager.email,
+            role: submission.manager.role,
             avatarUrl: avatarPublicUrl(submission.manager.avatarPath),
           }
         : null,
@@ -746,6 +857,7 @@ export class DailySubmissionsService {
             id: submission.manager.id,
             name: submission.manager.name,
             email: submission.manager.email,
+            role: submission.manager.role,
             avatarUrl: avatarPublicUrl(submission.manager.avatarPath),
           }
         : null,
@@ -809,6 +921,10 @@ function resolveWorkStatusPeriod(periodRaw?: string) {
     periodStart: toDateOnly(from),
     periodEnd: toDateOnly(new Date(to.getTime() - 1)),
   };
+}
+
+function isAdminAuthored(submission: DailySubmission) {
+  return submission.manager?.role === UserRole.ADMIN;
 }
 
 function bidderOnlyRows<T extends { bidder?: { role?: string } | null }>(

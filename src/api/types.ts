@@ -417,7 +417,13 @@ export type DailySubmissionDetail = {
   id: number
   reportingDate: string
   status: DailySubmissionStatus
-  manager: { id: number; name: string; email: string; avatarUrl?: string | null } | null
+  manager: {
+    id: number
+    name: string
+    email: string
+    role?: Role
+    avatarUrl?: string | null
+  } | null
   submittedAt: string | null
   reviewedAt: string | null
   reviewedByUser: { id: number; name: string } | null
@@ -431,7 +437,13 @@ export type DailySubmissionListItem = {
   id: number
   reportingDate: string
   status: DailySubmissionStatus
-  manager: { id: number; name: string; email: string; avatarUrl?: string | null } | null
+  manager: {
+    id: number
+    name: string
+    email: string
+    role?: Role
+    avatarUrl?: string | null
+  } | null
   submittedAt: string | null
   reviewedAt: string | null
   updated_at: string

@@ -63,6 +63,15 @@ export class DailySubmissionsController {
     return this.dailySubmissions.weeklyWorkStatus(actor, period);
   }
 
+  @Post('admin-report')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Open or create the ADMIN-written report for a date (ADMIN)',
+  })
+  startAdminReport(@CurrentUser() actor: User, @Query('date') date?: string) {
+    return this.dailySubmissions.startAdminReport(actor, date);
+  }
+
   @Post('seen')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Mark all daily reports as seen by the current admin' })
@@ -89,8 +98,11 @@ export class DailySubmissionsController {
   }
 
   @Post(':id/submit')
-  @Roles(UserRole.BID_MANAGER)
-  @ApiOperation({ summary: 'Submit a daily report (BID_MANAGER)' })
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({
+    summary:
+      'Submit a daily report (BID_MANAGER, for approval) or complete an ADMIN-written one',
+  })
   submit(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User) {
     return this.dailySubmissions.submit(id, actor);
   }

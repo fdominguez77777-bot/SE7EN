@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@/lib/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type {
@@ -22,14 +22,18 @@ import { StatusBadge } from '../ui/StatusBadge'
 
 const DAILY_FLASH_KEY = 'daily-submission-flash'
 
-function statusLabel(status: DailySubmissionStatus) {
+function statusLabel(status: DailySubmissionStatus, adminAuthored = false) {
   if (status === 'SUBMITTED') {
     return 'Pending approval'
   }
   if (status === 'REVIEWED') {
-    return 'Approved'
+    return adminAuthored ? 'Completed by admin' : 'Approved'
   }
   return 'Draft'
+}
+
+function isAdminAuthored(item: { manager: { role?: string } | null }) {
+  return item.manager?.role === 'ADMIN'
 }
 
 function statusTone(status: DailySubmissionStatus) {
@@ -186,8 +190,11 @@ export function DailySubmissionsPage() {
   }, [selectedId])
 
   const rows = detail?.rows ?? []
+  const adminAuthored = Boolean(detail && isAdminAuthored(detail))
   const canEdit = Boolean(
-    detail && (isManager || (isAdmin && detail.status !== 'DRAFT')),
+    detail &&
+      ((isAdmin && (adminAuthored || detail.status !== 'DRAFT')) ||
+        (isManager && !adminAuthored && detail.status !== 'REVIEWED')),
   )
 
   const totals = useMemo(() => {
@@ -212,10 +219,15 @@ export function DailySubmissionsPage() {
     setPending(true)
     setError('')
     try {
-      const { data } = await api.get<DailySubmissionDetail>(
-        '/daily-submissions/workspace',
-        { params: { date: nextDate } },
-      )
+      const { data } = isAdmin
+        ? await api.post<DailySubmissionDetail>(
+            '/daily-submissions/admin-report',
+            undefined,
+            { params: { date: nextDate } },
+          )
+        : await api.get<DailySubmissionDetail>('/daily-submissions/workspace', {
+            params: { date: nextDate },
+          })
       navigate(`/daily-submissions/${data.id}`)
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -231,7 +243,7 @@ export function DailySubmissionsPage() {
       }),
       api.post('/daily-submissions/seen').catch(() => null),
     ])
-    setList(data.filter((item) => item.status !== 'DRAFT'))
+    setList(data.filter((item) => item.status !== 'DRAFT' || isAdminAuthored(item)))
     notifyDailySubmissionInbox()
     if (id) {
       const { data: report } = await api.get<DailySubmissionDetail>(
@@ -269,7 +281,11 @@ export function DailySubmissionsPage() {
             return
           }
           setDetail(null)
-          setList(isAdmin ? data.filter((item) => item.status !== 'DRAFT') : data)
+          setList(
+            isAdmin
+              ? data.filter((item) => item.status !== 'DRAFT' || isAdminAuthored(item))
+              : data,
+          )
           if (isAdmin) {
             await api.post('/daily-submissions/seen').catch(() => null)
             notifyDailySubmissionInbox()
@@ -367,7 +383,7 @@ export function DailySubmissionsPage() {
     } catch {
       return
     }
-    if (isAdmin && detail) {
+    if (isAdmin && detail && !(adminAuthored && detail.status === 'DRAFT')) {
       backToList(
         `Changes saved for ${formatReportingDateLabel(detail.reportingDate)}.`,
       )
@@ -387,15 +403,42 @@ export function DailySubmissionsPage() {
       setError('Complete the verified counts for all bidders before submitting.')
       return
     }
+    const dayLabel = formatReportingDateLabel(detail.reportingDate)
+    const counts = `Gmail confirmed applications: ${totals.gmail}. Verified interview schedules: ${totals.verified}.`
+    if (adminAuthored) {
+      ask({
+        title: `Complete the daily report for ${dayLabel}?`,
+        description: `${counts} It is marked complete right away, with no approval step. Bid Managers will see it as read-only.`,
+        confirmLabel: 'Complete report',
+        pendingLabel: 'Completing…',
+        confirmTone: 'primary',
+        action: async () => {
+          await saveDraft()
+          try {
+            const { data } = await api.post<DailySubmissionDetail>(
+              `/daily-submissions/${detail.id}/submit`,
+            )
+            setDetail(data)
+            backToList(
+              `Daily report for ${formatReportingDateLabel(data.reportingDate)} completed.`,
+            )
+          } catch (err) {
+            setError(getApiErrorMessage(err))
+            throw err
+          }
+        },
+      })
+      return
+    }
     const isUpdate = detail.status !== 'DRAFT'
     ask({
       title: isUpdate
-        ? `Update the daily report for ${formatReportingDateLabel(detail.reportingDate)}?`
-        : `Submit the daily report for ${formatReportingDateLabel(detail.reportingDate)}?`,
-      description: `Gmail confirmed applications: ${totals.gmail}. Verified interview schedules: ${totals.verified}.${
+        ? `Update the daily report for ${dayLabel}?`
+        : `Submit the daily report for ${dayLabel}?`,
+      description: `${counts}${
         isUpdate
-          ? ' Your changes replace the current report.'
-          : ' Submitting finalizes the report. You can still update it later.'
+          ? ' You can keep editing until a manager approves this report.'
+          : ' After you submit, it waits for manager approval. You can still change it until it is approved.'
       }`,
       confirmLabel: isUpdate ? 'Update Report' : 'Submit Report',
       pendingLabel: isUpdate ? 'Updating…' : 'Submitting…',
@@ -409,8 +452,8 @@ export function DailySubmissionsPage() {
           setDetail(data)
           backToList(
             isUpdate
-              ? `Daily report for ${formatReportingDateLabel(data.reportingDate)} updated.`
-              : `Daily report for ${formatReportingDateLabel(data.reportingDate)} submitted.`,
+              ? `Daily report for ${formatReportingDateLabel(data.reportingDate)} updated. Still waiting for manager approval.`
+              : `Daily report for ${formatReportingDateLabel(data.reportingDate)} submitted. Waiting for manager approval.`,
           )
         } catch (err) {
           setError(getApiErrorMessage(err))
@@ -426,7 +469,9 @@ export function DailySubmissionsPage() {
     }
     ask({
       title: 'Return this report to draft?',
-      description: 'The Bid Manager will be able to edit and resubmit.',
+      description: adminAuthored
+        ? 'Bid Managers stop seeing it until you complete it again.'
+        : 'The Bid Manager will be able to edit and resubmit.',
       confirmLabel: 'Reopen report',
       pendingLabel: 'Reopening…',
       confirmTone: 'primary',
@@ -507,11 +552,20 @@ export function DailySubmissionsPage() {
         title="Daily Submission"
         description={
           isAdmin
-            ? 'Daily reports for the week. Open one to review or approve it.'
+            ? 'Daily reports for the week. Review Bid Manager reports, or create one yourself. Yours are complete with no approval step.'
             : 'Open a day, enter the confirmed counts, and submit.'
         }
         actions={
-          <>
+          <div className="flex items-end gap-2">
+            {isAdmin && selectedId == null ? (
+              <Button
+                disabled={pending}
+                onClick={() => void openReportForDate(date)}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Create report
+              </Button>
+            ) : null}
             <label className="text-sm text-[var(--text-secondary)]">
               Reporting date
               <input
@@ -528,7 +582,7 @@ export function DailySubmissionsPage() {
                 }}
               />
             </label>
-          </>
+          </div>
         }
       />
 
@@ -562,7 +616,7 @@ export function DailySubmissionsPage() {
           showUnread={isAdmin}
           onDateChange={setDate}
           onView={(id) => void openAdminReport(id)}
-          onStart={isManager ? (day) => void openReportForDate(day) : undefined}
+          onStart={(day) => void openReportForDate(day)}
           onDelete={
             isAdmin
               ? (item) =>
@@ -581,6 +635,7 @@ export function DailySubmissionsPage() {
           totals={totals}
           canEdit={Boolean(canEdit)}
           isAdmin={isAdmin}
+          adminAuthored={adminAuthored}
           pending={pending}
           onPatchRow={patchRow}
           onSave={() => void onSaveChanges()}
@@ -652,15 +707,17 @@ function AdminList({
     return (
       <div className="mt-5">
         <EmptyState
-          title={showUnread ? 'No submitted daily reports' : 'No daily reports yet'}
+          title="No daily reports yet"
           description={
             showUnread
-              ? `Bid Managers have not sent a daily report for ${formatReportDay(date)} yet. Submitted reports will appear in this log.`
+              ? `No report for ${formatReportDay(date)} yet. Wait for a Bid Manager to submit one, or create it yourself. Reports you create are complete with no approval step.`
               : 'Start a report for the selected date when you are ready to verify counts. Saved drafts and submitted reports stay in this list with their status.'
           }
           action={
             onStart ? (
-              <Button onClick={() => onStart(date)}>Start report</Button>
+              <Button onClick={() => onStart(date)}>
+                {showUnread ? 'Create report' : 'Start report'}
+              </Button>
             ) : undefined
           }
         />
@@ -734,7 +791,10 @@ function AdminList({
                       <td className="py-3 pr-3 font-medium text-[var(--text-primary)]">
                         {formatListDay(day)}
                       </td>
-                      <td className="py-3 pr-3 text-[var(--text-muted)]" colSpan={3}>
+                      <td
+                        className="py-3 pr-3 text-[var(--text-muted)]"
+                        colSpan={showUnread ? 4 : 3}
+                      >
                         No report
                       </td>
                       <td className="py-3 text-right">
@@ -775,7 +835,7 @@ function AdminList({
                     ) : null}
                     <td className="py-3 pr-3">
                       <StatusBadge tone={statusTone(item.status)}>
-                        {statusLabel(item.status)}
+                        {statusLabel(item.status, isAdminAuthored(item))}
                       </StatusBadge>
                     </td>
                     <td className="py-3 pr-3 text-right tabular-nums text-[var(--text-primary)]">
@@ -821,6 +881,7 @@ function ReportWorkspace({
   totals,
   canEdit,
   isAdmin,
+  adminAuthored,
   pending,
   onPatchRow,
   onSave,
@@ -840,6 +901,7 @@ function ReportWorkspace({
   }
   canEdit: boolean
   isAdmin: boolean
+  adminAuthored: boolean
   pending: boolean
   onPatchRow: (
     bidderId: number,
@@ -878,13 +940,14 @@ function ReportWorkspace({
             </h2>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {detail.manager?.name}
+              {adminAuthored ? ' (admin)' : ''}
               {detail.submittedAt
-                ? ` · Submitted ${formatTime(detail.submittedAt)}`
+                ? ` · ${adminAuthored ? 'Completed' : 'Submitted'} ${formatTime(detail.submittedAt)}`
                 : ''}
             </p>
           </div>
           <StatusBadge tone={statusTone(detail.status)}>
-            {statusLabel(detail.status)}
+            {statusLabel(detail.status, adminAuthored)}
           </StatusBadge>
         </div>
 
@@ -982,17 +1045,22 @@ function ReportWorkspace({
               <Button variant="secondary" disabled={pending} onClick={onSave}>
                 {pending
                   ? 'Saving…'
-                  : isAdmin
-                    ? 'Save changes'
-                    : detail.status === 'DRAFT'
-                      ? 'Save Draft'
+                  : detail.status === 'DRAFT'
+                    ? 'Save Draft'
+                    : isAdmin
+                      ? 'Save changes'
                       : 'Save'}
               </Button>
               {!isAdmin ? (
                 <Button disabled={pending} onClick={onSubmit}>
                   {detail.status === 'DRAFT'
                     ? 'Submit Daily Report'
-                    : 'Update report'}
+                    : 'Update submitted report'}
+                </Button>
+              ) : null}
+              {isAdmin && adminAuthored && detail.status === 'DRAFT' ? (
+                <Button disabled={pending} onClick={onSubmit}>
+                  Complete report
                 </Button>
               ) : null}
               {isAdmin && detail.status === 'SUBMITTED' ? (
@@ -1003,6 +1071,13 @@ function ReportWorkspace({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {isAdmin && adminAuthored && detail.status === 'DRAFT' ? (
+        <Alert tone="info">
+          Your report skips approval. Once you complete it, Bid Managers see it
+          as read-only and can't submit their own for this day.
+        </Alert>
       ) : null}
 
       {isAdmin && detail.status !== 'DRAFT' ? (
@@ -1022,7 +1097,16 @@ function ReportWorkspace({
         </div>
       ) : null}
 
-      {!isAdmin && detail.status === 'SUBMITTED' ? (
+      {!isAdmin && adminAuthored ? (
+        <Alert tone="info">
+          An admin completed this report for the day, so it is read-only. You
+          can't submit another one for this date.
+        </Alert>
+      ) : !isAdmin && detail.status === 'REVIEWED' ? (
+        <Alert tone="info">
+          This daily report is approved. Only a manager can change it.
+        </Alert>
+      ) : !isAdmin && detail.status === 'SUBMITTED' ? (
         <Alert tone="info">
           Waiting for manager approval. You can still change this report until it
           is approved.

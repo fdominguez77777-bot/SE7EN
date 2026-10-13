@@ -17,8 +17,9 @@ import {
   dailySubmissionRowUserIds,
   difference,
   freezeSystemSnapshot,
+  isAdminCompleted,
   isDailyReportUnread,
-  isManagerFinalized,
+  isManagerReportFiled,
   parseReportingDate,
   shouldNotifyAdminOfDailyChange,
   shouldRefreshLiveSystemCounts,
@@ -225,35 +226,18 @@ describe('daily-submission.rules', () => {
     ).toBeNull();
   });
 
-  it('lets Bid Managers edit and resubmit at any stage', () => {
+  it('lets Bid Managers edit until ADMIN approves, then only ADMIN can edit', () => {
     expect(canEditSubmission(DailySubmissionStatus.DRAFT)).toBe(true);
     expect(canEditSubmission(DailySubmissionStatus.SUBMITTED)).toBe(true);
     expect(
       canEditSubmission(DailySubmissionStatus.REVIEWED, UserRole.BID_MANAGER),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       canEditSubmission(DailySubmissionStatus.REVIEWED, UserRole.ADMIN),
     ).toBe(true);
-    expect(
-      canEditSubmission(DailySubmissionStatus.DRAFT, UserRole.ADMIN),
-    ).toBe(false);
     expect(canSubmitSubmission(DailySubmissionStatus.DRAFT)).toBe(true);
     expect(canSubmitSubmission(DailySubmissionStatus.SUBMITTED)).toBe(true);
-    expect(canSubmitSubmission(DailySubmissionStatus.REVIEWED)).toBe(true);
-    expect(
-      isManagerFinalized({
-        status: DailySubmissionStatus.REVIEWED,
-        managerId: 4,
-        reviewedByUserId: 4,
-      }),
-    ).toBe(true);
-    expect(
-      isManagerFinalized({
-        status: DailySubmissionStatus.REVIEWED,
-        managerId: 4,
-        reviewedByUserId: 1,
-      }),
-    ).toBe(false);
+    expect(canSubmitSubmission(DailySubmissionStatus.REVIEWED)).toBe(false);
     expect(shouldRefreshLiveSystemCounts(DailySubmissionStatus.DRAFT)).toBe(
       true,
     );
@@ -270,6 +254,54 @@ describe('daily-submission.rules', () => {
     expect(adminCanSeeDailySubmission(DailySubmissionStatus.REVIEWED)).toBe(
       true,
     );
+  });
+
+  it('lets an ADMIN-written report skip approval and stay read-only for Bid Managers', () => {
+    expect(
+      canEditSubmission(DailySubmissionStatus.DRAFT, UserRole.ADMIN, true),
+    ).toBe(true);
+    expect(
+      canEditSubmission(DailySubmissionStatus.DRAFT, UserRole.ADMIN),
+    ).toBe(false);
+    expect(
+      canEditSubmission(
+        DailySubmissionStatus.REVIEWED,
+        UserRole.BID_MANAGER,
+        true,
+      ),
+    ).toBe(false);
+    expect(
+      isAdminCompleted({
+        status: DailySubmissionStatus.REVIEWED,
+        authorRole: UserRole.ADMIN,
+      }),
+    ).toBe(true);
+    expect(
+      isAdminCompleted({
+        status: DailySubmissionStatus.DRAFT,
+        authorRole: UserRole.ADMIN,
+      }),
+    ).toBe(false);
+    expect(
+      accessBlockReason({
+        actorRole: UserRole.BID_MANAGER,
+        actorId: 5,
+        managerId: 1,
+        adminCompleted: true,
+      }),
+    ).toBeNull();
+    expect(
+      isManagerReportFiled({
+        status: DailySubmissionStatus.SUBMITTED,
+        authorRole: UserRole.BID_MANAGER,
+      }),
+    ).toBe(true);
+    expect(
+      isManagerReportFiled({
+        status: DailySubmissionStatus.DRAFT,
+        authorRole: UserRole.BID_MANAGER,
+      }),
+    ).toBe(false);
   });
 
   it('treats a manager submit or later change as unread until admin opens it', () => {
@@ -293,17 +325,6 @@ describe('daily-submission.rules', () => {
         readAt: null,
       }),
     ).toBe(false);
-    expect(
-      isDailyReportUnread({
-        status: DailySubmissionStatus.REVIEWED,
-        contentChangedAt: new Date('2026-08-31T17:00:00.000Z'),
-        readAt: null,
-        managerFinalized: true,
-      }),
-    ).toBe(true);
-    expect(
-      shouldNotifyAdminOfDailyChange(DailySubmissionStatus.REVIEWED),
-    ).toBe(true);
     const changed = new Date('2026-08-31T17:00:00.000Z');
     expect(
       isDailyReportUnread({

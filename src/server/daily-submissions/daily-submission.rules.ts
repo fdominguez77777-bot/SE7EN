@@ -16,7 +16,11 @@ export const DAILY_SUBMISSION_STAFF_ROLES = [
 export const DAILY_SUBMISSION_MESSAGES = {
   bidderForbidden: 'Bidders cannot access daily submissions.',
   notOwner: 'You can only access your own daily submissions.',
-  locked: 'This daily report cannot be edited right now.',
+  locked: 'This daily report is locked. Ask a manager to return it to draft if a correction is needed.',
+  adminCompleted:
+    'An admin already completed the report for this day. It is read-only.',
+  managerSubmitted:
+    'A Bid Manager already submitted a report for this day. Review it instead.',
   incomplete:
     'Complete the verified counts for all bidders before submitting.',
   notDraft: 'This daily report cannot be submitted.',
@@ -148,37 +152,54 @@ export function submissionBlockReason(
   return incomplete ? DAILY_SUBMISSION_MESSAGES.incomplete : null;
 }
 
-export function canEditSubmission(status: string, actorRole?: string) {
+/** `adminAuthored`: the report was written by an ADMIN, not a Bid Manager. */
+export function canEditSubmission(
+  status: string,
+  actorRole?: string,
+  adminAuthored = false,
+) {
   if (actorRole === UserRole.ADMIN) {
     return (
+      adminAuthored ||
       status === DailySubmissionStatus.SUBMITTED ||
       status === DailySubmissionStatus.REVIEWED
     );
   }
+  if (adminAuthored) {
+    return false;
+  }
   return (
     status === DailySubmissionStatus.DRAFT ||
-    status === DailySubmissionStatus.SUBMITTED ||
-    status === DailySubmissionStatus.REVIEWED
+    status === DailySubmissionStatus.SUBMITTED
   );
 }
 
 export function canSubmitSubmission(status: string) {
   return (
     status === DailySubmissionStatus.DRAFT ||
-    status === DailySubmissionStatus.SUBMITTED ||
-    status === DailySubmissionStatus.REVIEWED
+    status === DailySubmissionStatus.SUBMITTED
   );
 }
 
-/** A Bid Manager's own submit approves the report; no ADMIN step. */
-export function isManagerFinalized(params: {
+/** ADMIN-written reports skip approval: completing one marks it REVIEWED. */
+export function isAdminCompleted(params: {
   status: string;
-  managerId: number;
-  reviewedByUserId: number | null | undefined;
+  authorRole: string | null | undefined;
 }) {
   return (
-    params.status === DailySubmissionStatus.REVIEWED &&
-    params.reviewedByUserId === params.managerId
+    params.authorRole === UserRole.ADMIN &&
+    params.status === DailySubmissionStatus.REVIEWED
+  );
+}
+
+/** A Bid Manager's report counts as "first" once it leaves draft. */
+export function isManagerReportFiled(params: {
+  status: string;
+  authorRole: string | null | undefined;
+}) {
+  return (
+    params.authorRole !== UserRole.ADMIN &&
+    params.status !== DailySubmissionStatus.DRAFT
   );
 }
 
@@ -262,9 +283,8 @@ export function isDailyReportUnread(params: {
   status: string;
   contentChangedAt: Date | string | null | undefined;
   readAt: Date | string | null | undefined;
-  managerFinalized?: boolean;
 }) {
-  if (params.status !== DailySubmissionStatus.SUBMITTED && !params.managerFinalized) {
+  if (params.status !== DailySubmissionStatus.SUBMITTED) {
     return false;
   }
   if (!params.contentChangedAt) {
@@ -280,23 +300,22 @@ export function isDailyReportUnread(params: {
 }
 
 export function shouldNotifyAdminOfDailyChange(status: string) {
-  return (
-    status === DailySubmissionStatus.SUBMITTED ||
-    status === DailySubmissionStatus.REVIEWED
-  );
+  return status === DailySubmissionStatus.SUBMITTED;
 }
 
 export function accessBlockReason(params: {
   actorRole: string;
   actorId: number;
   managerId: number;
+  adminCompleted?: boolean;
 }): string | null {
   if (params.actorRole === UserRole.BIDDER) {
     return DAILY_SUBMISSION_MESSAGES.bidderForbidden;
   }
   if (
     params.actorRole === UserRole.BID_MANAGER &&
-    params.actorId !== params.managerId
+    params.actorId !== params.managerId &&
+    !params.adminCompleted
   ) {
     return DAILY_SUBMISSION_MESSAGES.notOwner;
   }
