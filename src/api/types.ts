@@ -488,6 +488,28 @@ export type CallerProfile = {
   assignedAt: string | null
 }
 
+export type CallerProfileDetail = CallerProfile & {
+  phone: string | null
+  location: string | null
+  linkedinUrl: string | null
+  githubUrl: string | null
+  portfolioUrl: string | null
+  experiences: Array<{
+    companyName: string
+    role: string | null
+    location: string | null
+    startDate: string
+    endDate: string | null
+    current: boolean
+  }>
+  educations: Array<{
+    institutionName: string
+    degree: string | null
+    fromDate: string | null
+    toDate: string | null
+  }>
+}
+
 export type Caller = {
   id: number
   name: string

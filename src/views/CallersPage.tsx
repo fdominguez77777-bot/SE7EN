@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@/lib/navigation'
 import {
+  Briefcase,
   CalendarClock,
   Check,
   Copy,
+  ExternalLink,
+  GraduationCap,
   Headset,
+  Mail,
+  MapPin,
+  Phone,
   RefreshCw,
   Search,
   Send,
@@ -13,7 +19,7 @@ import {
 } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
-import type { AssignableProfile, Caller, CallerProfile } from '../api/types'
+import type { AssignableProfile, Caller, CallerProfileDetail } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { Alert, Button } from '../ui/chrome'
@@ -523,29 +529,24 @@ function ManageCallersView() {
 }
 
 function MyProfilesView() {
-  const [me, setMe] = useState<Caller | null>(null)
+  const [me, setMe] = useState<MyCaller | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [copied, setCopied] = useState<number | null>(null)
+  const [activeId, setActiveId] = useState<number | null>(null)
 
   useEffect(() => {
     api
-      .get<Caller>('/callers/me')
-      .then(({ data }) => setMe(data))
+      .get<MyCaller>('/callers/me')
+      .then(({ data }) => {
+        setMe(data)
+        setActiveId(data.profiles[0]?.id ?? null)
+      })
       .catch((err) => setError(getApiErrorMessage(err)))
       .finally(() => setLoading(false))
   }, [])
 
-  async function copyEmail(profile: CallerProfile) {
-    if (!profile.email) {
-      return
-    }
-    await navigator.clipboard.writeText(profile.email)
-    setCopied(profile.id)
-    window.setTimeout(() => setCopied(null), 1500)
-  }
-
   const profiles = me?.profiles ?? []
+  const active = profiles.find((row) => row.id === activeId) ?? profiles[0] ?? null
 
   return (
     <section>
@@ -595,65 +596,275 @@ function MyProfilesView() {
         </div>
       ) : (
         <>
-          <p className="mt-5 text-sm text-[var(--text-secondary)]">
-            <span className="num-metric font-semibold text-[var(--text-primary)]">
-              {profiles.length}
-            </span>{' '}
-            {profiles.length === 1 ? 'profile' : 'profiles'} assigned to you
-          </p>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {profiles.map((profile) => (
-              <article key={profile.id} className="glass-card px-4 py-4">
-                <div className="flex items-start gap-3">
-                  <EntityAvatar name={profile.fullName || profile.profileName} />
-                  <div className="min-w-0 flex-1">
-                    <h2 className="truncate text-base font-semibold text-[var(--text-primary)]">
-                      {profile.profileName}
-                    </h2>
-                    {profile.fullName && profile.fullName !== profile.profileName ? (
-                      <p className="truncate text-sm text-[var(--text-secondary)]">
-                        {profile.fullName}
-                      </p>
-                    ) : null}
-                  </div>
-                  {profile.status && profile.status !== 'ACTIVE' ? (
-                    <StatusBadge muted>{profile.status.toLowerCase()}</StatusBadge>
-                  ) : null}
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--border-glass)] pt-3">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium tracking-wide text-[var(--text-muted)] uppercase">
-                      Gmail
-                    </p>
-                    <p className="truncate text-sm text-[var(--text-primary)]">
-                      {profile.email || 'Not on file'}
-                    </p>
-                  </div>
-                  {profile.email ? (
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-md p-1.5 text-[var(--text-muted)] hover:bg-white/[0.06] hover:text-[var(--text-primary)]"
-                      aria-label={`Copy ${profile.email}`}
-                      onClick={() => void copyEmail(profile)}
-                    >
-                      {copied === profile.id ? (
-                        <Check className="h-4 w-4 text-[#83c99c]" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </button>
-                  ) : null}
-                </div>
-                {formatAssigned(profile.assignedAt) ? (
-                  <p className="mt-2 text-xs text-[var(--text-muted)]">
-                    Assigned {formatAssigned(profile.assignedAt)}
-                  </p>
-                ) : null}
-              </article>
-            ))}
-          </div>
+          {profiles.length > 1 ? (
+            <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Your profiles">
+              {profiles.map((profile) => {
+                const on = profile.id === active?.id
+                return (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setActiveId(profile.id)}
+                    className={`inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm transition-colors ${
+                      on
+                        ? 'border-[var(--accent)]/50 bg-white/[0.07] text-[var(--text-primary)]'
+                        : 'border-white/10 text-[var(--text-secondary)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    <EntityAvatar name={profile.fullName || profile.profileName} size="sm" />
+                    {profile.profileName}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+          {active ? <ProfileSheet key={active.id} profile={active} /> : null}
         </>
       )}
+    </section>
+  )
+}
+
+type MyCaller = Omit<Caller, 'profiles'> & { profiles: CallerProfileDetail[] }
+
+const LIST_PREVIEW = 3
+
+function monthYear(value: string | null) {
+  if (!value) {
+    return ''
+  }
+  const [year, month] = value.split('-').map(Number)
+  if (!year) {
+    return value
+  }
+  if (!month) {
+    return String(year)
+  }
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function dateSpan(start: string | null, end: string | null, current = false) {
+  const from = monthYear(start)
+  const to = current ? 'Present' : monthYear(end)
+  if (!from && !to) {
+    return ''
+  }
+  return `${from || '—'} – ${to || '—'}`
+}
+
+function ProfileSheet({ profile }: { profile: CallerProfileDetail }) {
+  const links = [
+    { label: 'LinkedIn', href: safeLink(profile.linkedinUrl) },
+    { label: 'GitHub', href: safeLink(profile.githubUrl) },
+    { label: 'Portfolio', href: safeLink(profile.portfolioUrl) },
+  ].filter((row): row is { label: string; href: string } => Boolean(row.href))
+  const current = profile.experiences.find((row) => row.current) ?? profile.experiences[0]
+  const assigned = formatAssigned(profile.assignedAt)
+
+  return (
+    <article className="glass-panel mt-4 overflow-hidden">
+      <header className="flex flex-wrap items-center gap-4 border-b border-[var(--border-glass)] px-5 py-4">
+        <EntityAvatar name={profile.fullName || profile.profileName} size="lg" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-xl font-semibold tracking-tight text-[var(--text-primary)]">
+              {profile.profileName}
+            </h2>
+            {profile.status && profile.status !== 'ACTIVE' ? (
+              <StatusBadge muted>{profile.status.toLowerCase()}</StatusBadge>
+            ) : null}
+          </div>
+          <p className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">
+            {[
+              profile.fullName !== profile.profileName ? profile.fullName : '',
+              current ? [current.role, current.companyName].filter(Boolean).join(' at ') : '',
+            ]
+              .filter(Boolean)
+              .join(' · ') || 'No headline on file'}
+          </p>
+        </div>
+        {assigned ? (
+          <p className="text-xs text-[var(--text-muted)]">Assigned {assigned}</p>
+        ) : null}
+      </header>
+
+      <dl className="grid grid-cols-1 gap-px bg-[var(--border-glass)] sm:grid-cols-3">
+        <Fact icon={Mail} label="Gmail" value={profile.email} copyable />
+        <Fact icon={Phone} label="Phone" value={profile.phone} copyable />
+        <Fact icon={MapPin} label="Location" value={profile.location} />
+      </dl>
+
+      {links.length > 0 ? (
+        <div className="flex flex-wrap gap-2 border-t border-[var(--border-glass)] px-5 py-3">
+          {links.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] hover:bg-white/[0.05] hover:text-[var(--text-primary)]"
+            >
+              {link.label}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-px border-t border-[var(--border-glass)] bg-[var(--border-glass)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Timeline
+          icon={Briefcase}
+          title="Experience"
+          empty="No work experience on file."
+          rows={profile.experiences.map((row) => ({
+            title: row.companyName,
+            subtitle: [row.role, row.location].filter(Boolean).join(' · '),
+            when: dateSpan(row.startDate, row.endDate, row.current),
+            highlight: row.current,
+          }))}
+        />
+        <Timeline
+          icon={GraduationCap}
+          title="Education"
+          empty="No education on file."
+          rows={profile.educations.map((row) => ({
+            title: row.institutionName,
+            subtitle: row.degree ?? '',
+            when: dateSpan(row.fromDate, row.toDate),
+            highlight: false,
+          }))}
+        />
+      </div>
+    </article>
+  )
+}
+
+function safeLink(value: string | null) {
+  const raw = value?.trim()
+  if (!raw) {
+    return null
+  }
+  const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+  try {
+    return new URL(url).toString()
+  } catch {
+    return null
+  }
+}
+
+function Fact({
+  icon: Icon,
+  label,
+  value,
+  copyable = false,
+}: {
+  icon: typeof Mail
+  label: string
+  value: string | null
+  copyable?: boolean
+}) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    if (!value) {
+      return
+    }
+    await navigator.clipboard.writeText(value)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="flex items-center gap-3 bg-[var(--bg-glass-solid)] px-5 py-3">
+      <Icon className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <dt className="text-[11px] font-medium tracking-wide text-[var(--text-muted)] uppercase">
+          {label}
+        </dt>
+        <dd
+          className={`truncate text-sm ${value ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}
+          title={value ?? undefined}
+        >
+          {value || 'Not on file'}
+        </dd>
+      </div>
+      {copyable && value ? (
+        <button
+          type="button"
+          className="shrink-0 rounded-md p-1.5 text-[var(--text-muted)] hover:bg-white/[0.06] hover:text-[var(--text-primary)]"
+          aria-label={`Copy ${label.toLowerCase()}`}
+          onClick={() => void copy()}
+        >
+          {copied ? <Check className="h-4 w-4 text-[#83c99c]" /> : <Copy className="h-4 w-4" />}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function Timeline({
+  icon: Icon,
+  title,
+  empty,
+  rows,
+}: {
+  icon: typeof Briefcase
+  title: string
+  empty: string
+  rows: Array<{ title: string; subtitle: string; when: string; highlight: boolean }>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const shown = expanded ? rows : rows.slice(0, LIST_PREVIEW)
+  const hidden = rows.length - shown.length
+
+  return (
+    <section className="bg-[var(--bg-glass-solid)] px-5 py-4">
+      <h3 className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-[var(--text-muted)] uppercase">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        {title}
+        {rows.length > 0 ? <span className="normal-case">· {rows.length}</span> : null}
+      </h3>
+      {rows.length === 0 ? (
+        <p className="mt-2 text-sm text-[var(--text-muted)]">{empty}</p>
+      ) : (
+        <ol className="mt-2 space-y-2.5">
+          {shown.map((row, index) => (
+            <li key={`${row.title}-${index}`} className="flex items-baseline gap-3">
+              <span
+                aria-hidden="true"
+                className={`mt-1.5 h-1.5 w-1.5 shrink-0 self-start rounded-full ${
+                  row.highlight ? 'bg-[var(--accent)]' : 'bg-white/25'
+                }`}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--text-primary)]">{row.title}</p>
+                {row.subtitle ? (
+                  <p className="truncate text-xs text-[var(--text-secondary)]">{row.subtitle}</p>
+                ) : null}
+              </div>
+              {row.when ? (
+                <span className="shrink-0 text-xs whitespace-nowrap text-[var(--text-muted)]">
+                  {row.when}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      )}
+      {rows.length > LIST_PREVIEW ? (
+        <button
+          type="button"
+          className="mt-3 text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]"
+          onClick={() => setExpanded((open) => !open)}
+        >
+          {expanded ? 'Show less' : `Show ${hidden} more`}
+        </button>
+      ) : null}
     </section>
   )
 }

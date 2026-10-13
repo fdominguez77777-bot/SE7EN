@@ -22,6 +22,28 @@ export type CallerProfileDto = {
   assignedAt: string | null;
 };
 
+export type CallerProfileDetailDto = CallerProfileDto & {
+  phone: string | null;
+  location: string | null;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  portfolioUrl: string | null;
+  experiences: Array<{
+    companyName: string;
+    role: string | null;
+    location: string | null;
+    startDate: string;
+    endDate: string | null;
+    current: boolean;
+  }>;
+  educations: Array<{
+    institutionName: string;
+    degree: string | null;
+    fromDate: string | null;
+    toDate: string | null;
+  }>;
+};
+
 export type CallerDto = {
   id: number;
   name: string;
@@ -125,16 +147,21 @@ export class CallersService {
     return updated;
   }
 
-  async mine(actor: User): Promise<CallerDto> {
+  async mine(actor: User): Promise<
+    Omit<CallerDto, 'profiles'> & { profiles: CallerProfileDetailDto[] }
+  > {
     const links = await this.links.find({ where: { callerId: actor.id } });
     const profiles = links.length
-      ? await this.profiles.find({ where: { id: In(links.map((link) => link.profileId)) } })
+      ? await this.profiles.find({
+          where: { id: In(links.map((link) => link.profileId)) },
+          relations: { experiences: true, educations: true },
+        })
       : [];
     const assignedAt = new Map(links.map((link) => [link.profileId, link.assignedAt]));
     return {
       ...this.callerFields(actor),
       profiles: profiles
-        .map((profile) => toProfileDto(profile, assignedAt.get(profile.id) ?? null))
+        .map((profile) => toProfileDetailDto(profile, assignedAt.get(profile.id) ?? null))
         .sort((left, right) => left.profileName.localeCompare(right.profileName)),
     };
   }
@@ -168,6 +195,49 @@ export class CallersService {
       avatarUrl: pub.avatarUrl ?? null,
     };
   }
+}
+
+function joinParts(...parts: Array<string | null | undefined>) {
+  return parts.map((part) => (part ?? '').trim()).filter(Boolean).join(', ') || null;
+}
+
+/** What a caller needs to speak as the profile; no DOB, street address, or demographics. */
+function toProfileDetailDto(
+  profile: BidderProfile,
+  assignedAt: Date | null,
+): CallerProfileDetailDto {
+  const newestFirst = (left: string | null, right: string | null) =>
+    (right ?? '').localeCompare(left ?? '');
+  return {
+    ...toProfileDto(profile, assignedAt),
+    phone: profile.phoneNumber?.trim() || profile.phone?.trim() || null,
+    location: joinParts(profile.city, profile.stateRegion),
+    linkedinUrl: profile.linkedinUrl,
+    githubUrl: profile.githubUrl,
+    portfolioUrl: profile.portfolioUrl,
+    experiences: [...(profile.experiences ?? [])]
+      .sort(
+        (left, right) =>
+          Number(right.currentlyWorksHere) - Number(left.currentlyWorksHere) ||
+          newestFirst(left.startDate, right.startDate),
+      )
+      .map((row) => ({
+        companyName: row.companyName,
+        role: row.industry,
+        location: joinParts(row.city, row.state),
+        startDate: row.startDate,
+        endDate: row.endDate,
+        current: row.currentlyWorksHere,
+      })),
+    educations: [...(profile.educations ?? [])]
+      .sort((left, right) => newestFirst(left.fromDate, right.fromDate))
+      .map((row) => ({
+        institutionName: row.institutionName,
+        degree: row.degree,
+        fromDate: row.fromDate,
+        toDate: row.toDate,
+      })),
+  };
 }
 
 function toProfileDto(profile: BidderProfile, assignedAt: Date | null): CallerProfileDto {
