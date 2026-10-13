@@ -61,6 +61,46 @@ describe('jiracoders mapper', () => {
     expect(mapped?.bidderName).toBe('Yel');
   });
 
+  it('credits the assigned bidder when the JiraCoders account is not a local user', () => {
+    const bidders = [
+      {
+        id: 8,
+        name: 'Yel',
+        username: null,
+        isActive: true,
+        applicationsCount: 0,
+        profileKeys: ['esad omerovic'],
+      },
+      {
+        id: 12,
+        name: 'Vincent',
+        username: null,
+        isActive: true,
+        applicationsCount: 0,
+        profileKeys: ['edward ellis'],
+      },
+    ];
+    const viaProfile = mapApplicationListItem(
+      { ...listFixture, bidder: { name: 'saad' }, profile: { name: 'Edward Ellis' } },
+      bidders,
+    );
+    expect(viaProfile?.bidderId).toBe(12);
+    expect(viaProfile?.bidderName).toBe('Vincent');
+
+    const nameWins = mapApplicationListItem(
+      { ...listFixture, bidder: { name: 'Yel' }, profile: { name: 'Edward Ellis' } },
+      bidders,
+    );
+    expect(nameWins?.bidderId).toBe(8);
+
+    const unknown = mapApplicationListItem(
+      { ...listFixture, bidder: { name: 'saad' }, profile: { name: 'Nobody' } },
+      bidders,
+    );
+    expect(unknown?.bidderId).toBeNull();
+    expect(unknown?.bidderName).toBe('saad');
+  });
+
   it('maps details fields used by the row panel', () => {
     const mapped = mapApplicationDetails({
       ...listFixture,

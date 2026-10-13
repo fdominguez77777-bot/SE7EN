@@ -1,6 +1,13 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 
-import { applicationInCallerScope, profileScopeKeys } from '../../callers/caller.rules';
+import { BidderProfile } from '../../bidder-profiles/bidder-profile.entity';
+import {
+  applicationInCallerScope,
+  fullProfileName,
+  profileScopeKeys,
+} from '../../callers/caller.rules';
 import { CallersService } from '../../callers/callers.service';
 import { UsersService } from '../../users/users.service';
 import { User } from '../../users/user.entity';
@@ -12,7 +19,6 @@ import {
   matchesApplicationColumnFilters,
 } from './application-column-filter';
 import {
-  countApplicationsByBidderName,
   countsFromBidderStats,
   countsTowardApplicationTotal,
   normalizeBidderName,
@@ -51,6 +57,8 @@ export class JiracodersApplicationsService {
     private readonly client: JiracodersClient,
     private readonly users: UsersService,
     private readonly callers: CallersService,
+    @InjectRepository(BidderProfile)
+    private readonly profiles: Repository<BidderProfile>,
   ) {
     this.listCache = new Map();
     this.listInflight = new Map();
@@ -288,7 +296,9 @@ export class JiracodersApplicationsService {
     if (actor.role === UserRole.CALLER) {
       return [];
     }
-    const bidders = await this.loadLocalBidders();
+    const bidders = (await this.loadLocalBidders()).map(
+      ({ profileKeys: _profileKeys, ...bidder }) => bidder,
+    );
     const visible =
       actor.role === UserRole.ADMIN
         ? bidders
@@ -314,7 +324,12 @@ export class JiracodersApplicationsService {
   ): Promise<Map<number, number>> {
     const bidders = await this.loadLocalBidders();
     const credited = await this.creditedApplications(from, to);
-    const counts = countApplicationsByBidderName(credited, bidders);
+    const counts = new Map<number, number>();
+    for (const row of credited) {
+      if (row.bidderId != null) {
+        counts.set(row.bidderId, (counts.get(row.bidderId) ?? 0) + 1);
+      }
+    }
     for (const bidder of bidders) {
       if (!counts.has(bidder.id)) {
         counts.set(bidder.id, 0);
@@ -447,7 +462,34 @@ export class JiracodersApplicationsService {
   }
 
   private async loadLocalBidders(): Promise<ApplicationBidderOption[]> {
-    const users = await this.users.findTeamMembers();
+    const [users, profiles] = await Promise.all([
+      this.users.findTeamMembers(),
+      this.profiles.find({
+        where: { assignedBidderId: Not(IsNull()) },
+        select: {
+          id: true,
+          name: true,
+          firstName: true,
+          middleName: true,
+          lastName: true,
+          assignedBidderId: true,
+        },
+      }),
+    ]);
+    const profileKeys = new Map<number, string[]>();
+    for (const profile of profiles) {
+      if (profile.assignedBidderId == null) {
+        continue;
+      }
+      const keys = profileKeys.get(profile.assignedBidderId) ?? [];
+      for (const value of [profile.name, fullProfileName(profile)]) {
+        const key = normalizeBidderName(value);
+        if (key && !keys.includes(key)) {
+          keys.push(key);
+        }
+      }
+      profileKeys.set(profile.assignedBidderId, keys);
+    }
     return users.map((user) => ({
       id: user.id,
       name: user.name,
@@ -455,6 +497,7 @@ export class JiracodersApplicationsService {
       isActive: user.isActive !== false,
       applicationsCount: 0,
       role: user.role,
+      profileKeys: profileKeys.get(user.id) ?? [],
     }));
   }
 

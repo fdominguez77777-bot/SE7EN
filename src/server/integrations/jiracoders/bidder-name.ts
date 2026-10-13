@@ -103,6 +103,34 @@ export function matchBidderIdByEmail(
   return matches[0]?.id ?? null;
 }
 
+/** The local bidder a profile is assigned to; null when unassigned or ambiguous. */
+export function matchBidderIdByProfile(
+  profileName: string | null | undefined,
+  bidders: Array<{ id: number; profileKeys?: string[] }>,
+): number | null {
+  const key = normalizeBidderName(profileName);
+  if (!key) {
+    return null;
+  }
+  const owners = bidders.filter((bidder) => bidder.profileKeys?.includes(key));
+  return owners.length === 1 ? owners[0].id : null;
+}
+
+/**
+ * JiraCoders' bidder is the account that applied, which may not be a local
+ * user. Fall back to whoever the application's profile is assigned to.
+ */
+export function creditApplicationBidderId(
+  bidderName: string | null | undefined,
+  profileName: string | null | undefined,
+  bidders: Array<{ id: number; name: string; profileKeys?: string[] }>,
+): number | null {
+  return (
+    matchBidderIdByName(bidderName, bidders) ??
+    matchBidderIdByProfile(profileName, bidders)
+  );
+}
+
 /** Prefer the calendar assignment, then the connected Gmail. */
 export function creditInterviewBidderId(
   event: { bidderId?: number | null; email?: string | null },

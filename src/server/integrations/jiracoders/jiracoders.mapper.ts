@@ -1,4 +1,4 @@
-import { matchBidderIdByName } from './bidder-name';
+import { creditApplicationBidderId, matchBidderIdByName } from './bidder-name';
 import {
   JiracodersApplicationDetails,
   JiracodersApplicationListItem,
@@ -65,6 +65,8 @@ export type ApplicationBidderOption = {
   isActive: boolean;
   applicationsCount: number;
   role?: string | null;
+  /** Normalized names of the local profiles assigned to this bidder. */
+  profileKeys?: string[];
 };
 
 function text(value: unknown): string | null {
@@ -176,7 +178,13 @@ export function mapApplicationListItem(
   if (!Number.isFinite(row.id) || row.id < 1) {
     return null;
   }
-  const bidderName = text(row.bidder?.name);
+  const jiraBidderName = text(row.bidder?.name);
+  const profileName = profileDisplayName(row.profile);
+  const bidderId = creditApplicationBidderId(jiraBidderName, profileName, bidders);
+  const bidderName =
+    matchBidderIdByName(jiraBidderName, bidders) == null && bidderId != null
+      ? (bidders.find((bidder) => bidder.id === bidderId)?.name ?? jiraBidderName)
+      : jiraBidderName;
 
   return {
     id: row.id,
@@ -189,8 +197,8 @@ export function mapApplicationListItem(
     jobUrl: text(row.url),
     candidateFullName: text(row.user?.name),
     candidateAvatarUrl: text(row.user?.avatar),
-    profileName: profileDisplayName(row.profile),
-    bidderId: matchBidderIdByName(bidderName, bidders),
+    profileName,
+    bidderId,
     bidderName,
   };
 }
