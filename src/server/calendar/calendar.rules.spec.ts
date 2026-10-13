@@ -66,10 +66,11 @@ describe('calendar.rules', () => {
     expect(canAssignCalendar('GUEST')).toBe(false);
   });
 
-  it('lets bidders see other bidders only', () => {
+  it('lets every role see the full calendar', () => {
     expect(canSeeCalendarPerson('BIDDER', 'BIDDER')).toBe(true);
-    expect(canSeeCalendarPerson('BIDDER', 'BID_MANAGER')).toBe(false);
-    expect(canSeeCalendarPerson('BIDDER', 'ADMIN')).toBe(false);
+    expect(canSeeCalendarPerson('BIDDER', 'BID_MANAGER')).toBe(true);
+    expect(canSeeCalendarPerson('BIDDER', 'ADMIN')).toBe(true);
+    expect(canSeeCalendarPerson('BIDDER', 'CALLER')).toBe(true);
     expect(canSeeCalendarPerson('BID_MANAGER', 'ADMIN')).toBe(true);
     expect(canSeeCalendarPerson('ADMIN', 'ADMIN')).toBe(true);
     expect(canSeeCalendarPerson('CALLER', 'ADMIN')).toBe(true);

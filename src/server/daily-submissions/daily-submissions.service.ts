@@ -36,6 +36,7 @@ import {
   difference,
   freezeSystemSnapshot,
   isDailyReportUnread,
+  isManagerFinalized,
   parseReportingDate,
   shouldNotifyAdminOfDailyChange,
   submissionBlockReason,
@@ -100,7 +101,13 @@ export class DailySubmissionsService {
         'r.dailySubmissionId = s.id AND r.userId = :userId',
         { userId: actor.id },
       )
-      .where('s.status = :status', { status: DailySubmissionStatus.SUBMITTED })
+      .where(
+        '(s.status = :submitted OR (s.status = :reviewed AND s.reviewedByUserId = s.managerId))',
+        {
+          submitted: DailySubmissionStatus.SUBMITTED,
+          reviewed: DailySubmissionStatus.REVIEWED,
+        },
+      )
       .andWhere('s.contentChangedAt IS NOT NULL')
       .andWhere('(r.id IS NULL OR r.readAt < s.contentChangedAt)')
       .getCount();
@@ -292,7 +299,10 @@ export class DailySubmissionsService {
       );
     }
     await this.rows.save(submission.rows);
-    if (shouldNotifyAdminOfDailyChange(submission.status)) {
+    if (
+      actor.role !== UserRole.ADMIN &&
+      shouldNotifyAdminOfDailyChange(submission.status)
+    ) {
       await this.markContentChanged(id);
     }
     if (shouldRefreshLiveSystemCounts(submission.status)) {
@@ -329,11 +339,12 @@ export class DailySubmissionsService {
       row.interviewDifference = snapshot.interviewDifference;
     }
     await this.rows.save(current.rows);
-    current.status = DailySubmissionStatus.SUBMITTED;
-    current.submittedAt = new Date();
-    current.reviewedAt = null;
-    current.reviewedByUserId = null;
-    current.contentChangedAt = new Date();
+    const now = new Date();
+    current.status = DailySubmissionStatus.REVIEWED;
+    current.submittedAt = now;
+    current.reviewedAt = now;
+    current.reviewedByUserId = actor.id;
+    current.contentChangedAt = now;
     await this.submissions.save(current);
     return this.toDetailDto(await this.loadOrFail(id));
   }
@@ -639,6 +650,7 @@ export class DailySubmissionsService {
           status: item.status,
           contentChangedAt: item.contentChangedAt,
           readAt: readAtById.get(item.id) ?? null,
+          managerFinalized: isManagerFinalized(item),
         }),
       );
     }

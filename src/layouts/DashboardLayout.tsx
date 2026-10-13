@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   CalendarClock,
   ChartNoAxesCombined,
+  Headset,
   History,
   KeyRound,
   LayoutDashboard,
@@ -52,6 +53,7 @@ const NAV: Record<Role, NavSection[]> = {
       items: [
         { to: '/candidates', label: 'Profiles', icon: Users },
         { to: '/bidders', label: 'Bidders', icon: UserRoundCog },
+        { to: '/callers', label: 'Callers', icon: Headset },
         { to: '/applications', label: 'Applications', icon: Send },
         { to: '/interviews', label: 'Interviews', icon: CalendarClock },
       ],
@@ -89,6 +91,7 @@ const NAV: Record<Role, NavSection[]> = {
       items: [
         { to: '/candidates', label: 'Profiles', icon: Users },
         { to: '/bidders', label: 'Bidders', icon: UserRoundCog },
+        { to: '/callers', label: 'Callers', icon: Headset },
         { to: '/applications', label: 'Applications', icon: Send },
         { to: '/interviews', label: 'Interviews', icon: CalendarClock },
       ],
@@ -125,6 +128,7 @@ const NAV: Record<Role, NavSection[]> = {
       items: [
         { to: '/interviews', label: 'Dashboard', icon: LayoutDashboard, end: true },
         { to: '/applications', label: 'Applications', icon: Send },
+        { to: '/callers', label: 'My profiles', icon: Headset },
       ],
     },
   ],

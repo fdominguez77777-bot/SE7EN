@@ -74,6 +74,9 @@ function toggleSelected(current: number[], id: number) {
 }
 
 function personChipHint(person: CalendarBidder, meId: number | undefined) {
+  if (person.role === 'PROFILE') {
+    return person.email
+  }
   const count = person.calendarEmails?.length ?? (person.calendarEmail ? 1 : 0)
   const role =
     person.id === meId
@@ -302,7 +305,7 @@ export function InterviewsPage() {
             <span className={`iv-check ${showAll ? 'is-on' : ''}`}>
               {showAll ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
             </span>
-            Everyone
+            {user?.role === 'CALLER' ? 'All profiles' : 'Everyone'}
           </button>
           {bidders.map((bidder) => {
             const on = showAll || selected.includes(bidder.id)
@@ -343,11 +346,15 @@ export function InterviewsPage() {
           <div className="iv-cal-wrap">
             <InterviewCalendarSkeleton />
           </div>
-        ) : bidders.length === 0 ? (
+        ) : bidders.length === 0 && events.length === 0 ? (
           <div className="iv-cal-wrap">
             <EmptyState
-              title="No bidders yet"
-              description="Interviews show up here after calendars are connected to bidders."
+              title={user?.role === 'CALLER' ? 'No schedules for your profiles' : 'No bidders yet'}
+              description={
+                user?.role === 'CALLER'
+                  ? 'Interviews appear here for the profiles assigned to you. Check My profiles, or ask your manager to assign one.'
+                  : 'Interviews show up here after calendars are connected to bidders.'
+              }
               action={
                 canConnectCalendars ? (
                   <Link to="/interviews/integrations" className="text-[13px] font-semibold text-[var(--accent)]">

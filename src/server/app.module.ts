@@ -24,6 +24,7 @@ import { JobApplicationsModule } from './job-applications/job-applications.modul
 import { TalynIngestModule } from './integrations/talyn/talyn.module';
 import { JiracodersModule } from './integrations/jiracoders/jiracoders.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { CallersModule } from './callers/callers.module';
 import { CompensationModule } from './compensation/compensation.module';
 import { WalletModule } from './wallet/wallet.module';
 import { LoginHistoryModule } from './login-history/login-history.module';
@@ -94,6 +95,7 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
     TalynIngestModule,
     JiracodersModule,
     CalendarModule,
+    CallersModule,
     CompensationModule,
     WalletModule,
     TasksModule,

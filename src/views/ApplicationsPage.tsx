@@ -210,8 +210,8 @@ function ApplicationCell({
 
 export function ApplicationsPage() {
   const { user } = useAuth()
-  const canBrowseTeam =
-    user?.role === 'ADMIN' || user?.role === 'BID_MANAGER' || user?.role === 'CALLER'
+  const isCaller = user?.role === 'CALLER'
+  const canBrowseTeam = user?.role === 'ADMIN' || user?.role === 'BID_MANAGER'
   const [searchParams] = useSearchParams()
   const urlBidderId = searchParams.get('bidderId') || ''
   const urlApplicationId = searchParams.get('applicationId') || ''
@@ -367,7 +367,9 @@ export function ApplicationsPage() {
     })
   }, [items, sortKey, sortDir])
 
-  const visibleColumns = columnOrder
+  const visibleColumns = isCaller
+    ? columnOrder.filter((key) => key !== 'bidderName')
+    : columnOrder
 
   useEffect(() => {
     localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(columnOrder))

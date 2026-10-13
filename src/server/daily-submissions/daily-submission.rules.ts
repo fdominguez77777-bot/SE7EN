@@ -16,7 +16,7 @@ export const DAILY_SUBMISSION_STAFF_ROLES = [
 export const DAILY_SUBMISSION_MESSAGES = {
   bidderForbidden: 'Bidders cannot access daily submissions.',
   notOwner: 'You can only access your own daily submissions.',
-  locked: 'This daily report is locked. Ask a manager to return it to draft if a correction is needed.',
+  locked: 'This daily report cannot be edited right now.',
   incomplete:
     'Complete the verified counts for all bidders before submitting.',
   notDraft: 'This daily report cannot be submitted.',
@@ -157,14 +157,28 @@ export function canEditSubmission(status: string, actorRole?: string) {
   }
   return (
     status === DailySubmissionStatus.DRAFT ||
-    status === DailySubmissionStatus.SUBMITTED
+    status === DailySubmissionStatus.SUBMITTED ||
+    status === DailySubmissionStatus.REVIEWED
   );
 }
 
 export function canSubmitSubmission(status: string) {
   return (
     status === DailySubmissionStatus.DRAFT ||
-    status === DailySubmissionStatus.SUBMITTED
+    status === DailySubmissionStatus.SUBMITTED ||
+    status === DailySubmissionStatus.REVIEWED
+  );
+}
+
+/** A Bid Manager's own submit approves the report; no ADMIN step. */
+export function isManagerFinalized(params: {
+  status: string;
+  managerId: number;
+  reviewedByUserId: number | null | undefined;
+}) {
+  return (
+    params.status === DailySubmissionStatus.REVIEWED &&
+    params.reviewedByUserId === params.managerId
   );
 }
 
@@ -248,8 +262,9 @@ export function isDailyReportUnread(params: {
   status: string;
   contentChangedAt: Date | string | null | undefined;
   readAt: Date | string | null | undefined;
+  managerFinalized?: boolean;
 }) {
-  if (params.status !== DailySubmissionStatus.SUBMITTED) {
+  if (params.status !== DailySubmissionStatus.SUBMITTED && !params.managerFinalized) {
     return false;
   }
   if (!params.contentChangedAt) {
@@ -265,7 +280,10 @@ export function isDailyReportUnread(params: {
 }
 
 export function shouldNotifyAdminOfDailyChange(status: string) {
-  return status === DailySubmissionStatus.SUBMITTED;
+  return (
+    status === DailySubmissionStatus.SUBMITTED ||
+    status === DailySubmissionStatus.REVIEWED
+  );
 }
 
 export function accessBlockReason(params: {

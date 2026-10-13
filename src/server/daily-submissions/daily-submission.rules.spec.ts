@@ -18,6 +18,7 @@ import {
   difference,
   freezeSystemSnapshot,
   isDailyReportUnread,
+  isManagerFinalized,
   parseReportingDate,
   shouldNotifyAdminOfDailyChange,
   shouldRefreshLiveSystemCounts,
@@ -224,18 +225,35 @@ describe('daily-submission.rules', () => {
     ).toBeNull();
   });
 
-  it('lets Bid Managers edit until ADMIN approves, then only ADMIN can edit', () => {
+  it('lets Bid Managers edit and resubmit at any stage', () => {
     expect(canEditSubmission(DailySubmissionStatus.DRAFT)).toBe(true);
     expect(canEditSubmission(DailySubmissionStatus.SUBMITTED)).toBe(true);
     expect(
       canEditSubmission(DailySubmissionStatus.REVIEWED, UserRole.BID_MANAGER),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canEditSubmission(DailySubmissionStatus.REVIEWED, UserRole.ADMIN),
     ).toBe(true);
+    expect(
+      canEditSubmission(DailySubmissionStatus.DRAFT, UserRole.ADMIN),
+    ).toBe(false);
     expect(canSubmitSubmission(DailySubmissionStatus.DRAFT)).toBe(true);
     expect(canSubmitSubmission(DailySubmissionStatus.SUBMITTED)).toBe(true);
-    expect(canSubmitSubmission(DailySubmissionStatus.REVIEWED)).toBe(false);
+    expect(canSubmitSubmission(DailySubmissionStatus.REVIEWED)).toBe(true);
+    expect(
+      isManagerFinalized({
+        status: DailySubmissionStatus.REVIEWED,
+        managerId: 4,
+        reviewedByUserId: 4,
+      }),
+    ).toBe(true);
+    expect(
+      isManagerFinalized({
+        status: DailySubmissionStatus.REVIEWED,
+        managerId: 4,
+        reviewedByUserId: 1,
+      }),
+    ).toBe(false);
     expect(shouldRefreshLiveSystemCounts(DailySubmissionStatus.DRAFT)).toBe(
       true,
     );
@@ -275,6 +293,17 @@ describe('daily-submission.rules', () => {
         readAt: null,
       }),
     ).toBe(false);
+    expect(
+      isDailyReportUnread({
+        status: DailySubmissionStatus.REVIEWED,
+        contentChangedAt: new Date('2026-08-31T17:00:00.000Z'),
+        readAt: null,
+        managerFinalized: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldNotifyAdminOfDailyChange(DailySubmissionStatus.REVIEWED),
+    ).toBe(true);
     const changed = new Date('2026-08-31T17:00:00.000Z');
     expect(
       isDailyReportUnread({

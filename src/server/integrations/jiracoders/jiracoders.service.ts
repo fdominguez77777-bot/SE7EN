@@ -1,5 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
+import { applicationInCallerScope, profileScopeKeys } from '../../callers/caller.rules';
+import { CallersService } from '../../callers/callers.service';
 import { UsersService } from '../../users/users.service';
 import { User } from '../../users/user.entity';
 import { UserRole } from '../../users/user-role.enum';
@@ -48,6 +50,7 @@ export class JiracodersApplicationsService {
   constructor(
     private readonly client: JiracodersClient,
     private readonly users: UsersService,
+    private readonly callers: CallersService,
   ) {
     this.listCache = new Map();
     this.listInflight = new Map();
@@ -83,6 +86,9 @@ export class JiracodersApplicationsService {
       query.bidderId && query.bidderId > 0 ? query.bidderId : undefined;
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, Math.max(1, query.limit ?? 25));
+    if (actor.role === UserRole.CALLER) {
+      return this.listForCaller(actor, query, columnFilters, page, limit);
+    }
     const bidders = await this.loadLocalBidders();
     const hideAdminApps = actor.role !== UserRole.ADMIN;
     const adminOwned = hideAdminApps
@@ -144,6 +150,41 @@ export class JiracodersApplicationsService {
     return {
       items,
       count: list.count ?? items.length,
+      page,
+      limit,
+    };
+  }
+
+  /** Callers only see applications for their assigned profiles, without bidder names. */
+  private async listForCaller(
+    actor: User,
+    query: {
+      keyword?: string;
+      status?: string;
+      fromDate?: string;
+      toDate?: string;
+    },
+    columnFilters: ApplicationColumnFilters,
+    page: number,
+    limit: number,
+  ) {
+    const scope = profileScopeKeys(await this.callers.scopeFor(actor.id));
+    if (scope.names.size === 0) {
+      return { items: [], count: 0, page, limit };
+    }
+    const rows = (await this.collectMapped(query, await this.loadLocalBidders()))
+      .filter((row) => applicationInCallerScope(row.profileName, scope))
+      .filter(
+        (row) =>
+          !(query.fromDate || query.toDate) ||
+          inInclusiveDateRange(row.appliedAt, query.fromDate, query.toDate),
+      )
+      .map(withoutBidder)
+      .filter((row) => matchesApplicationColumnFilters(row, columnFilters));
+    const start = (page - 1) * limit;
+    return {
+      items: rows.slice(start, start + limit),
+      count: rows.length,
       page,
       limit,
     };
@@ -223,6 +264,15 @@ export class JiracodersApplicationsService {
     if (!mapped) {
       throw new NotFoundException('Job application not found.');
     }
+    if (actor.role === UserRole.CALLER) {
+      const scope = profileScopeKeys(await this.callers.scopeFor(actor.id));
+      if (!applicationInCallerScope(mapped.profileName, scope)) {
+        throw new ForbiddenException(
+          'This application belongs to a profile that is not assigned to you.',
+        );
+      }
+      return withoutBidder(mapped);
+    }
     if (
       actor.role !== UserRole.ADMIN &&
       isAdminOwnedApplication(mapped, adminOwned)
@@ -235,6 +285,9 @@ export class JiracodersApplicationsService {
   }
 
   async listBidders(actor: User): Promise<ApplicationBidderOption[]> {
+    if (actor.role === UserRole.CALLER) {
+      return [];
+    }
     const bidders = await this.loadLocalBidders();
     const visible =
       actor.role === UserRole.ADMIN
@@ -441,6 +494,12 @@ function isAdminOwnedApplication(
   }
   const key = normalizeBidderName(row.bidderName);
   return Boolean(key) && adminOwned.names.has(key);
+}
+
+function withoutBidder<T extends { bidderId: number | null; bidderName: string | null }>(
+  row: T,
+): T {
+  return { ...row, bidderId: null, bidderName: null };
 }
 
 function pushMapped(

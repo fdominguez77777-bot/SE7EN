@@ -155,6 +155,11 @@ export async function detachUserReferences(
   );
   await manager.update(Task, { reporterUserId: userId }, { reporterUserId: null });
   await manager.query(`DELETE FROM "task_assignee" WHERE "userId" = $1`, [userId]);
+  await manager.query(`DELETE FROM "caller_profile" WHERE "callerId" = $1`, [userId]);
+  await manager.query(
+    `UPDATE "caller_profile" SET "assignedById" = NULL WHERE "assignedById" = $1`,
+    [userId],
+  );
   await manager.update(TaskActivity, { actorUserId: userId }, { actorUserId: null });
   await manager.query(
     `DELETE FROM "task_completion" WHERE "completedByUserId" = $1`,

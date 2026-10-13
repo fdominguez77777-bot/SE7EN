@@ -32,13 +32,11 @@ export function canAssignCalendar(role: string | null | undefined) {
   return role === 'ADMIN' || role === 'BID_MANAGER' || role === 'BIDDER';
 }
 
+/** Every signed-in role sees the same interview board. */
 export function canSeeCalendarPerson(
-  actorRole: string | null | undefined,
-  personRole: string | null | undefined,
+  _actorRole: string | null | undefined,
+  _personRole: string | null | undefined,
 ) {
-  if (actorRole === 'BIDDER' && personRole !== 'BIDDER') {
-    return false;
-  }
   return true;
 }
 

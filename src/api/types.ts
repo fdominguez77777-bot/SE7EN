@@ -479,6 +479,28 @@ export type CalendarAccount = {
   syncError?: string | null
 }
 
+export type CallerProfile = {
+  id: number
+  profileName: string
+  fullName: string
+  email: string | null
+  status: string
+  assignedAt: string | null
+}
+
+export type Caller = {
+  id: number
+  name: string
+  email: string
+  isActive: boolean
+  avatarUrl: string | null
+  profiles: CallerProfile[]
+}
+
+export type AssignableProfile = Omit<CallerProfile, 'assignedAt'> & {
+  callerIds: number[]
+}
+
 export type CalendarBidder = {
   id: number
   name: string

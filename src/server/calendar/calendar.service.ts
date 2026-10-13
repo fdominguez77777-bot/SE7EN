@@ -11,7 +11,10 @@ import { Repository } from 'typeorm';
 
 import { EnvironmentVariables } from '../config/env.validation';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
+import { calendarInCallerScope, profileScopeKeys } from '../callers/caller.rules';
+import { CallersService } from '../callers/callers.service';
 import { User } from '../users/user.entity';
+import { UserRole } from '../users/user-role.enum';
 import { UsersService } from '../users/users.service';
 import { singleflight, TtlCache } from '../cache/singleflight';
 import { CalendarAccount } from './calendar-account.entity';
@@ -124,6 +127,7 @@ export class CalendarService {
     @InjectRepository(BidderProfile)
     private readonly profiles: Repository<BidderProfile>,
     private readonly users: UsersService,
+    private readonly callers: CallersService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.eventsCache = new TtlCache(EVENTS_CACHE_MS);
@@ -149,6 +153,11 @@ export class CalendarService {
   async listBidders(actor: User): Promise<CalendarBidderDto[]> {
     return singleflight(this.biddersInflight, String(actor.id), async () => {
       await this.maybeAutoAssignByEmail();
+      if (actor.role === UserRole.CALLER) {
+        const profiles = await this.profiles.find();
+        const accounts = await this.visibleAccounts(actor, profiles);
+        return accounts.map((account) => this.toProfileDto(account, profiles));
+      }
       const people = (await this.users.findCalendarPeople()).filter((person) =>
         canSeeCalendarPerson(actor.role, person.role),
       );
@@ -353,7 +362,7 @@ export class CalendarService {
         .map((person) => person.id),
     );
     const profileRows = await this.profiles.find();
-    const accounts = (await this.accounts.find({ order: { id: 'ASC' } })).filter(
+    const accounts = (await this.visibleAccounts(actor, profileRows)).filter(
       (account) =>
         !account.assignedBidderId || !hiddenOwnerIds.has(account.assignedBidderId),
     );
@@ -377,7 +386,10 @@ export class CalendarService {
             account.syncError = null;
             await this.accounts.save(account);
           }
-          return events.map((event) => this.toEventDto(account, event, profileRows));
+          return events.map((event) => {
+            const dto = this.toEventDto(account, event, profileRows);
+            return actor?.role === UserRole.CALLER ? { ...dto, bidderId: null } : dto;
+          });
         } catch (error) {
           const detailMessage =
             error instanceof Error ? error.message : 'Calendar sync failed.';
@@ -541,6 +553,35 @@ export class CalendarService {
       accountIds: linked.map((row) => row.id),
       color: calendarColor(person.id),
       initials: calendarInitials(person.name, emails[0] || person.email),
+    };
+  }
+
+  /** Callers only get Gmails that belong to profiles assigned to them. */
+  private async visibleAccounts(actor: User | undefined, profiles: BidderProfile[]) {
+    const accounts = await this.accounts.find({ order: { id: 'ASC' } });
+    if (actor?.role !== UserRole.CALLER) {
+      return accounts;
+    }
+    const scope = profileScopeKeys(await this.callers.scopeFor(actor.id));
+    return accounts.filter((account) =>
+      calendarInCallerScope(account, resolveCalendarProfileName(account, profiles), scope),
+    );
+  }
+
+  /** Callers see each Gmail as its profile, never the bidder behind it. */
+  private toProfileDto(account: CalendarAccount, profiles: BidderProfile[]): CalendarBidderDto {
+    const name = resolveCalendarProfileName(account, profiles) || account.email;
+    return {
+      id: account.id,
+      name,
+      email: account.email,
+      role: 'PROFILE',
+      calendarEmail: account.email,
+      calendarEmails: [account.email],
+      accountId: account.id,
+      accountIds: [account.id],
+      color: calendarColor(account.id),
+      initials: calendarInitials(name, account.email),
     };
   }
 

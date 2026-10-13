@@ -187,11 +187,8 @@ export function DailySubmissionsPage() {
 
   const rows = detail?.rows ?? []
   const canEdit = Boolean(
-    detail &&
-      ((isManager && detail.status !== 'REVIEWED') ||
-        (isAdmin && detail.status !== 'DRAFT')),
+    detail && (isManager || (isAdmin && detail.status !== 'DRAFT')),
   )
-  const lockedForManager = Boolean(isManager && detail?.status === 'REVIEWED')
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -397,8 +394,8 @@ export function DailySubmissionsPage() {
         : `Submit the daily report for ${formatReportingDateLabel(detail.reportingDate)}?`,
       description: `Gmail confirmed applications: ${totals.gmail}. Verified interview schedules: ${totals.verified}.${
         isUpdate
-          ? ' You can keep editing until a manager approves this report.'
-          : ' After you submit, it waits for manager approval. You can still change it until it is approved.'
+          ? ' Your changes replace the current report.'
+          : ' Submitting finalizes the report. You can still update it later.'
       }`,
       confirmLabel: isUpdate ? 'Update Report' : 'Submit Report',
       pendingLabel: isUpdate ? 'Updating…' : 'Submitting…',
@@ -412,8 +409,8 @@ export function DailySubmissionsPage() {
           setDetail(data)
           backToList(
             isUpdate
-              ? `Daily report for ${formatReportingDateLabel(data.reportingDate)} updated. Still waiting for manager approval.`
-              : `Daily report for ${formatReportingDateLabel(data.reportingDate)} submitted. Waiting for manager approval.`,
+              ? `Daily report for ${formatReportingDateLabel(data.reportingDate)} updated.`
+              : `Daily report for ${formatReportingDateLabel(data.reportingDate)} submitted.`,
           )
         } catch (err) {
           setError(getApiErrorMessage(err))
@@ -585,7 +582,6 @@ export function DailySubmissionsPage() {
           canEdit={Boolean(canEdit)}
           isAdmin={isAdmin}
           pending={pending}
-          lockedForManager={lockedForManager}
           onPatchRow={patchRow}
           onSave={() => void onSaveChanges()}
           onSubmit={requestSubmit}
@@ -826,7 +822,6 @@ function ReportWorkspace({
   canEdit,
   isAdmin,
   pending,
-  lockedForManager,
   onPatchRow,
   onSave,
   onSubmit,
@@ -846,7 +841,6 @@ function ReportWorkspace({
   canEdit: boolean
   isAdmin: boolean
   pending: boolean
-  lockedForManager: boolean
   onPatchRow: (
     bidderId: number,
     patch: Partial<
@@ -998,7 +992,7 @@ function ReportWorkspace({
                 <Button disabled={pending} onClick={onSubmit}>
                   {detail.status === 'DRAFT'
                     ? 'Submit Daily Report'
-                    : 'Update submitted report'}
+                    : 'Update report'}
                 </Button>
               ) : null}
               {isAdmin && detail.status === 'SUBMITTED' ? (
@@ -1028,11 +1022,7 @@ function ReportWorkspace({
         </div>
       ) : null}
 
-      {lockedForManager ? (
-        <Alert tone="info">
-          This daily report is approved. Only a manager can change it.
-        </Alert>
-      ) : !isAdmin && detail.status === 'SUBMITTED' ? (
+      {!isAdmin && detail.status === 'SUBMITTED' ? (
         <Alert tone="info">
           Waiting for manager approval. You can still change this report until it
           is approved.
