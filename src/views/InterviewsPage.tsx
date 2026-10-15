@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Link } from '@/lib/navigation'
-import { Check, ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react'
+import { CalendarSearch, Check, ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type { CalendarBidder, CalendarEvent } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { Alert, Button } from '../ui/chrome'
 import { EmptyState } from '../ui/EmptyState'
+import { FreeSlotsDialog } from '../ui/FreeSlotsDialog'
 import { InterviewCalendar, InterviewCalendarSkeleton } from '../ui/InterviewCalendar'
 import {
   addDays,
@@ -111,6 +112,7 @@ export function InterviewsPage() {
   const [syncErrors, setSyncErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [board, setBoard] = useState(0)
+  const [showFreeSlots, setShowFreeSlots] = useState(false)
 
   const days = useMemo(() => weekDays(weekStart), [weekStart])
   const from = weekStart.toISOString()
@@ -180,17 +182,22 @@ export function InterviewsPage() {
 
   const showAll = selected.length === 0
   const selectedPeople = bidders.filter((row) => selected.includes(row.id))
-  const visibleEvents = events.filter((event) => {
-    if (!showAll) {
-      const owner = bidderByAccount.get(event.accountId)
-      const ownerId = owner?.id ?? event.bidderId
-      if (!ownerId || !selected.includes(ownerId)) {
-        return false
-      }
+  const isSelectedEvent = (event: CalendarEvent) => {
+    if (showAll) {
+      return true
     }
+    const ownerId = bidderByAccount.get(event.accountId)?.id ?? event.bidderId
+    return Boolean(ownerId && selected.includes(ownerId))
+  }
+  const visibleEvents = events.filter(isSelectedEvent).filter((event) => {
     const haystack = `${event.title} ${event.email} ${event.profileName ?? ''}`.toLowerCase()
     return haystack.includes(query.trim().toLowerCase())
   })
+  const freeSlotsScope = showAll
+    ? 'Everyone free'
+    : selectedPeople.length === 1
+      ? selectedPeople[0].name
+      : `${selectedPeople.length} people all free`
 
   const shownDays = focusDay === 'all' ? days : days.filter((day) => chicagoDateKey(day) === focusDay)
 
@@ -221,6 +228,10 @@ export function InterviewsPage() {
             }}
           >
             This week
+          </Button>
+          <Button variant="secondary" onClick={() => setShowFreeSlots(true)}>
+            <CalendarSearch className="h-4 w-4" />
+            Find free times
           </Button>
           <Button variant="secondary" onClick={() => void load(true)}>
             <RefreshCw className="h-4 w-4" />
@@ -378,6 +389,14 @@ export function InterviewsPage() {
           </div>
         )}
       </div>
+      {showFreeSlots ? (
+        <FreeSlotsDialog
+          weekStart={weekStart}
+          scopeLabel={freeSlotsScope}
+          includeEvent={isSelectedEvent}
+          onClose={() => setShowFreeSlots(false)}
+        />
+      ) : null}
     </section>
   )
 }
