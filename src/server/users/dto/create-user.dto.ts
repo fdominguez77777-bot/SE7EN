@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsOptional,
@@ -41,7 +43,22 @@ export class CreateUserDto {
   @MaxLength(72)
   password?: string;
 
-  @ApiProperty({ enum: UserRole })
+  @ApiPropertyOptional({
+    enum: UserRole,
+    isArray: true,
+    description: 'One or more roles. Prefer this over singular role.',
+  })
+  @ValidateIf((dto: CreateUserDto) => !dto.role)
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsEnum(UserRole, { each: true })
+  roles?: UserRole[];
+
+  @ApiPropertyOptional({
+    enum: UserRole,
+    description: 'Legacy single role. Used when roles is omitted.',
+  })
+  @ValidateIf((dto: CreateUserDto) => !dto.roles?.length)
   @IsEnum(UserRole)
-  role: UserRole;
+  role?: UserRole;
 }

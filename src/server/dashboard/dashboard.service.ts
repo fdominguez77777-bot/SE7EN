@@ -14,6 +14,12 @@ import { mondaySundayWeek } from '../reporting/week-range';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import {
+  hasAnyRole,
+  hasRole,
+  primaryRole,
+  userRoles,
+} from '../users/user-roles';
+import {
   canSeeTeamDashboard,
   countInRange,
   dailyCounts,
@@ -116,7 +122,7 @@ export class DashboardService {
         interviews: number;
       }[],
     };
-    if (!canSeeTeamDashboard(actor.role)) {
+    if (!canSeeTeamDashboard(actor)) {
       return {
         ...base,
         activeBidderCount: 0,
@@ -150,22 +156,41 @@ export class DashboardService {
       Math.max(end.getTime(), weekTo.getTime(), tomorrow.getTime()),
     );
 
-    const people = await this.users.find({
-      where: [
-        { role: UserRole.ADMIN },
-        { role: UserRole.BID_MANAGER },
-        { role: UserRole.BIDDER },
-      ],
-      order: { name: 'ASC' },
-      select: { id: true, name: true, email: true, isActive: true, role: true },
+    const people = await this.users
+      .createQueryBuilder('user')
+      .select([
+        'user.id',
+        'user.name',
+        'user.email',
+        'user.isActive',
+        'user.role',
+        'user.roles',
+      ])
+      .where(
+        `(
+          :admin = ANY(user.roles)
+          OR :manager = ANY(user.roles)
+          OR :bidder = ANY(user.roles)
+        )`,
+        {
+          admin: UserRole.ADMIN,
+          manager: UserRole.BID_MANAGER,
+          bidder: UserRole.BIDDER,
+        },
+      )
+      .orderBy('user.name', 'ASC')
+      .getMany();
+    const bidderInputs = people.map((row) => {
+      const roles = userRoles(row);
+      return {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        isActive: row.isActive !== false,
+        role: primaryRole(roles),
+        roles,
+      };
     });
-    const bidderInputs = people.map((row) => ({
-      id: row.id,
-      name: row.name,
-      email: row.email,
-      isActive: row.isActive !== false,
-      role: row.role,
-    }));
 
     const [applicationRows, interviewRows] = await Promise.all([
       this.loadApplicationCredits(windowFrom, windowTo),
@@ -219,7 +244,6 @@ export class DashboardService {
       weekApplications: weekById.get(row.id)?.applications ?? 0,
       weekInterviews: weekById.get(row.id)?.interviews ?? 0,
     }));
-
     const recent = [
       ...selectedApps.slice(0, 8).map((row) => ({
         id: `app-${row.id}`,
@@ -257,9 +281,9 @@ export class DashboardService {
     return {
       ...base,
       activeBidderCount: bidderInputs.filter(
-        (row) => row.role === UserRole.BIDDER && row.isActive,
+        (row) => hasRole(row, UserRole.BIDDER) && row.isActive,
       ).length,
-      bidderCount: bidderInputs.filter((row) => row.role === UserRole.BIDDER)
+      bidderCount: bidderInputs.filter((row) => hasRole(row, UserRole.BIDDER))
         .length,
       applications: selectedApps.length,
       interviews: selectedInts.length,
@@ -295,7 +319,11 @@ export class DashboardService {
         ...row,
         interviews: weekInterviewByDay.get(row.date) ?? 0,
       })),
-      bidders: team.filter((row) => row.role === UserRole.BIDDER),
+      // Include multi-role members (e.g. Bid Manager + Bidder); primary role alone
+      // used to drop them from the ranking payload.
+      bidders: team.filter((row) =>
+        hasAnyRole(row, [UserRole.BIDDER, UserRole.BID_MANAGER]),
+      ),
       recent,
     };
   }

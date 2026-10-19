@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 
 import { User } from '../../users/user.entity';
 import { UserRole } from '../../users/user-role.enum';
+import { hasAnyRole } from '../../users/user-roles';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
@@ -25,6 +26,6 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
-    return requiredRoles.includes(user.role as UserRole);
+    return hasAnyRole(user, requiredRoles);
   }
 }

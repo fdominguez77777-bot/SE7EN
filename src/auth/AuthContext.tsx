@@ -19,6 +19,7 @@ import {
   setStoredToken,
 } from '../api/client'
 import type { AuthResponse, Role, User } from '../api/types'
+import { normalizeSessionUser } from '../ui/roles'
 
 const USER_KEY = 'bp_user'
 
@@ -28,7 +29,7 @@ function readStoredUser(): User | null {
   }
   try {
     const raw = localStorage.getItem(USER_KEY)
-    return raw ? (JSON.parse(raw) as User) : null
+    return raw ? normalizeSessionUser(JSON.parse(raw) as User) : null
   } catch {
     return null
   }
@@ -74,14 +75,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: username,
       password,
     })
+    const nextUser = normalizeSessionUser(data.user)
     setStoredToken(data.accessToken)
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user))
+    localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
     setToken(data.accessToken)
-    setUser(data.user)
+    setUser(nextUser)
     setWorkspaceError(false)
     setStatus('authenticated')
     setMessage('Preparing your workspace…')
-    return data.user
+    return nextUser
   }, [])
 
   const retry = useCallback(() => {
@@ -92,8 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const applyUser = useCallback((next: User) => {
-    localStorage.setItem(USER_KEY, JSON.stringify(next))
-    setUser(next)
+    const normalized = normalizeSessionUser(next)
+    localStorage.setItem(USER_KEY, JSON.stringify(normalized))
+    setUser(normalized)
   }, [])
 
   useEffect(() => {
@@ -121,8 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) {
           return
         }
-        localStorage.setItem(USER_KEY, JSON.stringify(data))
-        setUser(data)
+        const nextUser = normalizeSessionUser(data)
+        localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+        setUser(nextUser)
         setToken(stored)
         setWorkspaceError(false)
         setStatus('authenticated')
@@ -249,7 +253,10 @@ export function useAuth(): AuthState {
   return context
 }
 
-export function homePathForRole(role: Role): string {
+export function homePathForRole(
+  userOrRole: Role | { role: Role; roles?: Role[] | null },
+): string {
+  const role = typeof userOrRole === 'string' ? userOrRole : userOrRole.role
   if (role === 'CALLER') {
     return '/interviews'
   }

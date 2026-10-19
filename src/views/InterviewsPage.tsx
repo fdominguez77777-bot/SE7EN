@@ -16,6 +16,7 @@ import {
   startOfWeek,
   weekDays,
 } from '../ui/calendar-week'
+import { hasAnyMemberRole, hasMemberRole } from '../ui/roles'
 
 const SELECTED_KEY = 'bp_interview_bidder'
 
@@ -100,7 +101,7 @@ function personChipHint(person: CalendarBidder, meId: number | undefined) {
 
 export function InterviewsPage() {
   const { user } = useAuth()
-  const canConnectCalendars = user?.role === 'ADMIN'
+  const canConnectCalendars = Boolean(user && hasMemberRole(user, 'ADMIN'))
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [bidders, setBidders] = useState<CalendarBidder[]>([])
   const [events, setEvents] = useState<CalendarEvent[]>([])
@@ -316,7 +317,11 @@ export function InterviewsPage() {
             <span className={`iv-check ${showAll ? 'is-on' : ''}`}>
               {showAll ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
             </span>
-            {user?.role === 'CALLER' ? 'All profiles' : 'Everyone'}
+            {user &&
+            hasMemberRole(user, 'CALLER') &&
+            !hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER', 'BIDDER'])
+              ? 'All profiles'
+              : 'Everyone'}
           </button>
           {bidders.map((bidder) => {
             const on = showAll || selected.includes(bidder.id)
@@ -360,9 +365,17 @@ export function InterviewsPage() {
         ) : bidders.length === 0 && events.length === 0 ? (
           <div className="iv-cal-wrap">
             <EmptyState
-              title={user?.role === 'CALLER' ? 'No schedules for your profiles' : 'No bidders yet'}
+              title={
+                user &&
+                hasMemberRole(user, 'CALLER') &&
+                !hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER', 'BIDDER'])
+                  ? 'No schedules for your profiles'
+                  : 'No bidders yet'
+              }
               description={
-                user?.role === 'CALLER'
+                user &&
+                hasMemberRole(user, 'CALLER') &&
+                !hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER', 'BIDDER'])
                   ? 'Interviews appear here for the profiles assigned to you. Check My profiles, or ask your manager to assign one.'
                   : 'Interviews show up here after calendars are connected to bidders.'
               }

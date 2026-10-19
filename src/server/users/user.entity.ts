@@ -27,8 +27,13 @@ export class User {
   @Column({ type: 'varchar', nullable: true, select: false })
   passwordVault: string | null;
 
+  /** Primary role (highest priority among `roles`). Kept for legacy equality checks. */
   @Column({ type: 'varchar', default: UserRole.BIDDER })
   role: string;
+
+  /** All roles held by this member. Always includes at least `role`. */
+  @Column('text', { array: true, default: () => `'{BIDDER}'` })
+  roles: string[];
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;

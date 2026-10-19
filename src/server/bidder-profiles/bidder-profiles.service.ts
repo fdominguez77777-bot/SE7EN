@@ -135,6 +135,7 @@ export class BidderProfilesService {
       await this.audit.record('candidate_profile', id, 'unassign', actor.id, {
         profileId: id,
       });
+      this.usersService.forgetPeopleCache();
       return this.toDto(await this.requireProfile(id), actor);
     }
     const bidder = await this.usersService.findByIdOrFail(bidderId);
@@ -165,6 +166,7 @@ export class BidderProfilesService {
       userId: bidder.id,
       profileId: id,
     });
+    this.usersService.forgetPeopleCache();
     return this.toDto(await this.requireProfile(id), actor);
   }
 

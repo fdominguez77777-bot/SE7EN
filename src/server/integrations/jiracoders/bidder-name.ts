@@ -117,8 +117,9 @@ export function matchBidderIdByProfile(
 }
 
 /**
- * JiraCoders' bidder is the account that applied, which may not be a local
- * user. Fall back to whoever the application's profile is assigned to.
+ * JiraCoders' bidder is often the profile identity (e.g. "Edward Ellis"), not
+ * the local member name ("Vincent"). Match local users first, then treat the
+ * Jira bidder name as a profile key, then the application profile name.
  */
 export function creditApplicationBidderId(
   bidderName: string | null | undefined,
@@ -127,6 +128,7 @@ export function creditApplicationBidderId(
 ): number | null {
   return (
     matchBidderIdByName(bidderName, bidders) ??
+    matchBidderIdByProfile(bidderName, bidders) ??
     matchBidderIdByProfile(profileName, bidders)
   );
 }

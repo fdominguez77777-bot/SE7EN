@@ -71,7 +71,11 @@ export class CallersService {
 
   async listCallers(): Promise<CallerDto[]> {
     const [callers, links, profiles] = await Promise.all([
-      this.users.find({ where: { role: UserRole.CALLER }, order: { name: 'ASC' } }),
+      this.users
+        .createQueryBuilder('user')
+        .where(':role = ANY(user.roles)', { role: UserRole.CALLER })
+        .orderBy('user.name', 'ASC')
+        .getMany(),
       this.links.find(),
       this.profiles.find({ order: { name: 'ASC' } }),
     ]);

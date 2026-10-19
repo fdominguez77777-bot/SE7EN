@@ -1,4 +1,5 @@
 import { UserRole } from '../users/user-role.enum';
+import { hasAnyRole } from '../users/user-roles';
 
 export type TeamBidderInput = {
   id: number;
@@ -6,6 +7,7 @@ export type TeamBidderInput = {
   email: string;
   isActive: boolean;
   role?: string;
+  roles?: string[];
 };
 
 export type TeamCountInput = {
@@ -17,12 +19,16 @@ export type TeamBidderRow = TeamBidderInput & {
   interviews: number;
 };
 
-export function canSeeTeamDashboard(role: string) {
-  return (
-    role === UserRole.ADMIN ||
-    role === UserRole.BID_MANAGER ||
-    role === UserRole.BIDDER
-  );
+export function canSeeTeamDashboard(
+  roleOrUser: string | { role?: string; roles?: string[] | null },
+) {
+  const user =
+    typeof roleOrUser === 'string' ? { role: roleOrUser } : roleOrUser;
+  return hasAnyRole(user, [
+    UserRole.ADMIN,
+    UserRole.BID_MANAGER,
+    UserRole.BIDDER,
+  ]);
 }
 
 export function rollupTeamBidderPerformance(

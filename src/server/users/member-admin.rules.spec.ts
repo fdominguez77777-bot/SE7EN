@@ -169,6 +169,8 @@ describe('member-admin.rules', () => {
     expect(publicUser.avatarUrl).toBeNull();
     expect(JSON.stringify(publicUser)).not.toContain('$2b$');
     expect(publicUser.isActive).toBe(true);
+    expect(publicUser.roles).toEqual([UserRole.ADMIN]);
+    expect(publicUser.role).toBe(UserRole.ADMIN);
   });
 
   it('hashes a replacement password so the previous secret no longer matches', async () => {

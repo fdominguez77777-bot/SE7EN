@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsOptional,
@@ -31,7 +33,21 @@ export class UpdateUserDto {
   @Matches(USERNAME_PATTERN, { message: USERNAME_HINT })
   email?: string;
 
-  @ApiPropertyOptional({ enum: UserRole })
+  @ApiPropertyOptional({
+    enum: UserRole,
+    isArray: true,
+    description: 'Replace all roles for this member.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsEnum(UserRole, { each: true })
+  roles?: UserRole[];
+
+  @ApiPropertyOptional({
+    enum: UserRole,
+    description: 'Legacy single role. Sets roles to [role] when roles is omitted.',
+  })
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;

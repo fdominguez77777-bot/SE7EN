@@ -16,6 +16,7 @@ import { DailySubmission } from '../daily-submissions/daily-submission.entity';
 import { parseReportingDate } from '../daily-submissions/daily-submission.rules';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
+import { hasRole } from '../users/user-roles';
 import { SaveWeeklyInvoiceDto } from './dto/weekly-invoice.dto';
 import { WeeklyInvoiceBidder } from './weekly-invoice-bidder.entity';
 import { WeeklyInvoiceDailyBidder } from './weekly-invoice-daily-bidder.entity';
@@ -256,7 +257,7 @@ export class WeeklyInvoicesService {
       throw new BadRequestException(missingBlock);
     }
     current.rows = current.rows.filter(
-      (row) => row.bidder?.role === UserRole.BIDDER,
+      (row) => row.bidder && hasRole(row.bidder, UserRole.BIDDER),
     );
     for (const row of current.rows) {
       if (!row.countAdjustmentReason?.trim()) {
@@ -544,10 +545,11 @@ export class WeeklyInvoicesService {
   }
 
   private async invoiceBidders(dailyRows: DailySubmissionBidder[]) {
-    const allBidders = await this.users.find({
-      where: { role: UserRole.BIDDER },
-      order: { name: 'ASC' },
-    });
+    const allBidders = await this.users
+      .createQueryBuilder('user')
+      .where(':role = ANY(user.roles)', { role: UserRole.BIDDER })
+      .orderBy('user.name', 'ASC')
+      .getMany();
     const activeIds = allBidders
       .filter((row) => row.isActive !== false)
       .map((row) => row.id);
@@ -563,7 +565,7 @@ export class WeeklyInvoicesService {
     }
     return ids
       .map((id) => byId.get(id))
-      .filter((row): row is User => Boolean(row && row.role === UserRole.BIDDER))
+      .filter((row): row is User => Boolean(row && hasRole(row, UserRole.BIDDER)))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -673,7 +675,7 @@ export class WeeklyInvoicesService {
 
   private toPublishedDto(invoice: WeeklyInvoice) {
     const rows = [...(invoice.rows ?? [])]
-      .filter((row) => row.bidder?.role === UserRole.BIDDER)
+      .filter((row) => row.bidder && hasRole(row.bidder, UserRole.BIDDER))
       .sort((a, b) =>
         (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
       );
@@ -758,7 +760,7 @@ export class WeeklyInvoicesService {
   private async toDetailDto(invoice: WeeklyInvoice) {
     const assigned = await this.assignedCounts();
     const rows = [...(invoice.rows ?? [])]
-      .filter((row) => row.bidder?.role === UserRole.BIDDER)
+      .filter((row) => row.bidder && hasRole(row.bidder, UserRole.BIDDER))
       .sort((a, b) =>
         (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
       );

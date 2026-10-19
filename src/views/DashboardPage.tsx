@@ -4,6 +4,7 @@ import { api, getApiErrorMessage } from '../api/client'
 import type { DashboardSummary, DashboardTeamBidder } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { Alert, SectionCard } from '../ui/chrome'
+import { hasAnyMemberRole } from '../ui/roles'
 import { EmptyState } from '../ui/EmptyState'
 import { PageSkeleton } from '../ui/loading/page-skeletons'
 import { PeriodSelector, usePeriodFilter } from '../ui/PeriodSelector'
@@ -47,7 +48,9 @@ function metricForPeriod(
 
 export function DashboardPage() {
   const { user } = useAuth()
-  const isStaff = user?.role === 'ADMIN' || user?.role === 'BID_MANAGER'
+  const isStaff = Boolean(
+    user && hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER']),
+  )
   const period = usePeriodFilter('today')
   const range = period.range
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
@@ -160,9 +163,24 @@ export function DashboardPage() {
   const sparkDates = weekPoints.map((point) => point.date)
 
   const performance = useMemo(() => {
-    const pool = (summary?.bidders ?? []).filter(
-      (bidder) => (bidder.role ?? 'BIDDER') === 'BIDDER',
-    )
+    // Rank anyone who holds Bidder/Bid Manager, or already has credited activity.
+    const pool = (summary?.bidders ?? []).filter((bidder) => {
+      const member = {
+        role: bidder.role ?? 'BIDDER',
+        roles: bidder.roles,
+      }
+      if (hasAnyMemberRole(member, ['BIDDER', 'BID_MANAGER'])) {
+        return true
+      }
+      return (
+        (bidder.todayApplications ?? 0) > 0 ||
+        (bidder.weekApplications ?? 0) > 0 ||
+        (bidder.applications ?? 0) > 0 ||
+        (bidder.todayInterviews ?? 0) > 0 ||
+        (bidder.weekInterviews ?? 0) > 0 ||
+        (bidder.interviews ?? 0) > 0
+      )
+    })
     const rows = pool.map((bidder) => {
       const value = metricForPeriod(bidder, rankPeriod, rankMetric)
       return { bidder, value }

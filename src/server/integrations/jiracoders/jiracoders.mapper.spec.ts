@@ -77,7 +77,7 @@ describe('jiracoders mapper', () => {
         username: null,
         isActive: true,
         applicationsCount: 0,
-        profileKeys: ['edward ellis'],
+        profileKeys: ['edward ellis', 'edward'],
       },
     ];
     const viaProfile = mapApplicationListItem(
@@ -86,6 +86,20 @@ describe('jiracoders mapper', () => {
     );
     expect(viaProfile?.bidderId).toBe(12);
     expect(viaProfile?.bidderName).toBe('Vincent');
+
+    // Jira often puts the profile identity in bidder.name, not only profile.name.
+    const viaBidderAsProfile = mapApplicationListItem(
+      { ...listFixture, bidder: { name: 'Edward Ellis' }, profile: { name: 'Resume A' } },
+      bidders,
+    );
+    expect(viaBidderAsProfile?.bidderId).toBe(12);
+    expect(viaBidderAsProfile?.bidderName).toBe('Vincent');
+
+    const viaFirstName = mapApplicationListItem(
+      { ...listFixture, bidder: { name: 'Edward' }, profile: { name: 'Resume A' } },
+      bidders,
+    );
+    expect(viaFirstName?.bidderId).toBe(12);
 
     const nameWins = mapApplicationListItem(
       { ...listFixture, bidder: { name: 'Yel' }, profile: { name: 'Edward Ellis' } },

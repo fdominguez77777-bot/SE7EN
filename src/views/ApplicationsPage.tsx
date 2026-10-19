@@ -18,6 +18,7 @@ import {
   jobApplicationSourceLabel,
   jobApplicationStatusLabel,
 } from '../ui/job-application'
+import { hasAnyMemberRole, hasMemberRole } from '../ui/roles'
 
 const PAGE_SIZES = [25, 50, 100]
 
@@ -210,8 +211,14 @@ function ApplicationCell({
 
 export function ApplicationsPage() {
   const { user } = useAuth()
-  const isCaller = user?.role === 'CALLER'
-  const canBrowseTeam = user?.role === 'ADMIN' || user?.role === 'BID_MANAGER'
+  const isCaller = Boolean(
+    user &&
+      hasMemberRole(user, 'CALLER') &&
+      !hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER', 'BIDDER']),
+  )
+  const canBrowseTeam = Boolean(
+    user && hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER']),
+  )
   const [searchParams] = useSearchParams()
   const urlBidderId = searchParams.get('bidderId') || ''
   const urlApplicationId = searchParams.get('applicationId') || ''

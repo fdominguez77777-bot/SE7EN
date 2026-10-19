@@ -4,7 +4,10 @@ export type User = {
   id: number
   name: string
   email: string
+  /** Primary role (highest priority among roles). */
   role: Role
+  /** All roles held by this member. */
+  roles: Role[]
   isActive: boolean
   avatarUrl: string | null
   created_at: string
@@ -149,6 +152,7 @@ export type DashboardTeamBidder = {
   email: string
   isActive: boolean
   role?: Role
+  roles?: Role[]
   applications: number
   interviews: number
   todayApplications: number

@@ -12,6 +12,7 @@ import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { Interview } from '../interviews/interview.entity';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
+import { hasRole } from '../users/user-roles';
 import { avatarPublicUrl } from '../storage/image-kind';
 import { mondaySundayWeek } from '../reporting/week-range';
 import { DailySubmissionBidder } from './daily-submission-bidder.entity';
@@ -580,11 +581,12 @@ export class DailySubmissionsService {
 
   private async reportParticipants(manager: User) {
     const bidders = (
-      await this.users.find({
-        where: { role: UserRole.BIDDER },
-        order: { name: 'ASC' },
-      })
-    ).filter((row) => row.isActive !== false && row.role !== UserRole.ADMIN);
+      await this.users
+        .createQueryBuilder('user')
+        .where(':role = ANY(user.roles)', { role: UserRole.BIDDER })
+        .orderBy('user.name', 'ASC')
+        .getMany()
+    ).filter((row) => row.isActive !== false && !hasRole(row, UserRole.ADMIN));
     const ids = dailySubmissionRowUserIds({
       activeBidderIds: bidders.map((row) => row.id),
       managerId: manager.id,
@@ -595,7 +597,7 @@ export class DailySubmissionsService {
     if (missing.length > 0) {
       const extras = await this.users.find({ where: { id: In(missing) } });
       for (const extra of extras) {
-        if (extra.isActive === false || extra.role === UserRole.ADMIN) {
+        if (extra.isActive === false || hasRole(extra, UserRole.ADMIN)) {
           continue;
         }
         bidders.push(extra);

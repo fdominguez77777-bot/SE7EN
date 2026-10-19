@@ -11,7 +11,7 @@ import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
 import { FunLoader } from '../ui/loading/fun-loader'
 import { PageHeader } from '../ui/page-header'
-import { ROLE_LABEL } from '../ui/roles'
+import { ROLE_LABEL, hasMemberRole } from '../ui/roles'
 import { StatusBadge } from '../ui/StatusBadge'
 
 const ASSIGNABLE_ROLES: Array<User['role']> = ['ADMIN', 'BID_MANAGER', 'BIDDER']
@@ -219,7 +219,7 @@ function withCurrentOption(options: string[], current: string) {
 export function CandidatesPage() {
   const { user } = useAuth()
   const { ask, dialog } = useConfirmDialog()
-  const isAdmin = user?.role === 'ADMIN'
+  const isAdmin = Boolean(user && hasMemberRole(user, 'ADMIN'))
   const [profiles, setProfiles] = useState<CandidateProfile[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [query, setQuery] = useState('')

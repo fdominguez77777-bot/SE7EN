@@ -17,7 +17,11 @@ import { EmptyState } from '../ui/EmptyState'
 import { LoginPasswordPanel } from '../ui/login-password'
 import { PageHeader } from '../ui/page-header'
 import { StatusBadge } from '../ui/StatusBadge'
-import { DEFAULT_MEMBER_PASSWORD } from '../ui/roles'
+import {
+  DEFAULT_MEMBER_PASSWORD,
+  hasAnyMemberRole,
+  hasMemberRole,
+} from '../ui/roles'
 import {
   buildBidderReport,
   candidateFullName,
@@ -93,8 +97,10 @@ function DayCell({
 export function BiddersPage() {
   const { user } = useAuth()
   const { ask, dialog } = useConfirmDialog()
-  const isAdmin = user?.role === 'ADMIN'
-  const isStaff = user?.role === 'ADMIN' || user?.role === 'BID_MANAGER'
+  const isAdmin = Boolean(user && hasMemberRole(user, 'ADMIN'))
+  const isStaff = Boolean(
+    user && hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER']),
+  )
   const [bidders, setBidders] = useState<User[]>([])
   const [profiles, setProfiles] = useState<CandidateProfile[]>([])
   const [weekWork, setWeekWork] = useState<BidderWeeklyWorkStatusResponse | null>(
@@ -133,7 +139,7 @@ export function BiddersPage() {
       ),
     ]
     const [bidderRes, profileRes, workRes] = await Promise.all(requests)
-    setBidders(bidderRes.data.filter((bidder) => bidder.role === 'BIDDER'))
+    setBidders(bidderRes.data.filter((bidder) => hasMemberRole(bidder, 'BIDDER')))
     setProfiles(profileRes?.data ?? [])
     setWeekWork(workRes.data)
   }

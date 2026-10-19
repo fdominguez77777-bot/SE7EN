@@ -23,7 +23,7 @@ export function TeamRanking({
   isStaff: boolean
 }) {
   const ranked = rows
-    .filter((row) => row.rank > 0)
+    .filter((row) => row.rank > 0 && row.value > 0)
     .sort(
       (a, b) =>
         a.rank - b.rank ||

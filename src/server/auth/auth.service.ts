@@ -29,7 +29,7 @@ export class AuthService {
       name: dto.name,
       email: dto.email,
       password: dto.password,
-      role: UserRole.BIDDER,
+      roles: [UserRole.BIDDER],
     });
     return this.buildAuthResponse(user);
   }

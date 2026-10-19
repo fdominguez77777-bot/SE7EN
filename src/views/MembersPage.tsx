@@ -18,8 +18,11 @@ import { StatusBadge } from '../ui/StatusBadge'
 import {
   DEFAULT_MEMBER_PASSWORD,
   ROLE_LABEL,
+  ROLE_OPTIONS,
   composeName,
   formatMemberDate,
+  hasMemberRole,
+  memberRoles,
   roleBadgeTone,
   splitName,
 } from '../ui/roles'
@@ -28,10 +31,56 @@ type RoleFilter = 'all' | Role
 type StatusFilter = 'all' | 'active' | 'disabled'
 type Mode = 'list' | 'create' | 'detail'
 
-const ROLE_OPTIONS: Role[] = ['ADMIN', 'BID_MANAGER', 'BIDDER', 'CALLER']
-
 function isActiveMember(member: User): boolean {
   return member.isActive !== false
+}
+
+function RolePicker({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: Role[]
+  disabled?: boolean
+  onChange: (next: Role[]) => void
+}) {
+  function toggle(role: Role) {
+    if (value.includes(role)) {
+      if (value.length === 1) {
+        return
+      }
+      onChange(value.filter((row) => row !== role))
+      return
+    }
+    onChange([...value, role])
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {ROLE_OPTIONS.map((option) => {
+        const on = value.includes(option)
+        return (
+          <label
+            key={option}
+            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+              on
+                ? 'border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--text-primary)]'
+                : 'border-[var(--border-glass)] bg-white/[0.02] text-[var(--text-secondary)]'
+            } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+          >
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
+              checked={on}
+              disabled={disabled}
+              onChange={() => toggle(option)}
+            />
+            {ROLE_LABEL[option]}
+          </label>
+        )
+      })}
+    </div>
+  )
 }
 
 function generateTemporaryPassword(): string {
@@ -59,7 +108,7 @@ export function MembersPage() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Role>('BIDDER')
+  const [roles, setRoles] = useState<Role[]>(['BIDDER'])
   const [createPassword, setCreatePassword] = useState(DEFAULT_MEMBER_PASSWORD)
   const [useDefaultPassword, setUseDefaultPassword] = useState(true)
   const [newPassword, setNewPassword] = useState('')
@@ -81,7 +130,7 @@ export function MembersPage() {
     setFirstName(parts.firstName)
     setLastName(parts.lastName)
     setEmail(data.email)
-    setRole(data.role)
+    setRoles(memberRoles(data))
     return data
   }
 
@@ -95,7 +144,7 @@ export function MembersPage() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return members.filter((member) => {
-      if (roleFilter !== 'all' && member.role !== roleFilter) {
+      if (roleFilter !== 'all' && !hasMemberRole(member, roleFilter)) {
         return false
       }
       if (statusFilter === 'active' && !isActiveMember(member)) {
@@ -114,9 +163,9 @@ export function MembersPage() {
   const stats = useMemo(() => {
     return {
       total: members.length,
-      admins: members.filter((row) => row.role === 'ADMIN').length,
-      managers: members.filter((row) => row.role === 'BID_MANAGER').length,
-      bidders: members.filter((row) => row.role === 'BIDDER').length,
+      admins: members.filter((row) => hasMemberRole(row, 'ADMIN')).length,
+      managers: members.filter((row) => hasMemberRole(row, 'BID_MANAGER')).length,
+      bidders: members.filter((row) => hasMemberRole(row, 'BIDDER')).length,
       active: members.filter(isActiveMember).length,
       disabled: members.filter((row) => !isActiveMember(row)).length,
     }
@@ -125,10 +174,12 @@ export function MembersPage() {
   const selected = members.find((row) => row.id === selectedId) ?? detail
   const isSelf = currentUser?.id === selectedId
   const activeAdminCount = members.filter(
-    (row) => row.role === 'ADMIN' && isActiveMember(row),
+    (row) => hasMemberRole(row, 'ADMIN') && isActiveMember(row),
   ).length
   const isLastAdmin =
-    selected?.role === 'ADMIN' && activeAdminCount <= 1 && isActiveMember(selected)
+    Boolean(selected && hasMemberRole(selected, 'ADMIN')) &&
+    activeAdminCount <= 1 &&
+    Boolean(selected && isActiveMember(selected))
   const canChangeRole = !isSelf && !isLastAdmin
   const canDisable = !isSelf && !isLastAdmin
   const canDelete = !isSelf && !isLastAdmin
@@ -140,7 +191,7 @@ export function MembersPage() {
     setFirstName('')
     setLastName('')
     setEmail('')
-    setRole('BIDDER')
+    setRoles(['BIDDER'])
     setCreatePassword(DEFAULT_MEMBER_PASSWORD)
     setUseDefaultPassword(true)
     setError('')
@@ -178,12 +229,16 @@ export function MembersPage() {
       setError('Enter a first name or last name.')
       return
     }
+    if (roles.length === 0) {
+      setError('Select at least one role.')
+      return
+    }
     setPending(true)
     try {
       await api.post('/users', {
         name,
         email,
-        role,
+        roles,
         ...(useDefaultPassword
           ? { useDefaultPassword: true }
           : { password: createPassword }),
@@ -233,11 +288,15 @@ export function MembersPage() {
     }
     setError('')
     setNotice('')
+    if (roles.length === 0) {
+      setError('Select at least one role.')
+      return
+    }
     setPending(true)
     try {
-      await api.patch(`/users/${selectedId}`, { role })
+      await api.patch(`/users/${selectedId}`, { roles })
       await Promise.all([loadMembers(), loadDetail(selectedId)])
-      setNotice('Role updated.')
+      setNotice('Roles updated.')
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {
@@ -535,9 +594,13 @@ export function MembersPage() {
                             />
                           </td>
                           <td>
-                            <StatusBadge tone={roleBadgeTone(member.role)}>
-                              {ROLE_LABEL[member.role]}
-                            </StatusBadge>
+                            <div className="flex flex-wrap gap-1">
+                              {memberRoles(member).map((role) => (
+                                <StatusBadge key={role} tone={roleBadgeTone(role)}>
+                                  {ROLE_LABEL[role]}
+                                </StatusBadge>
+                              ))}
+                            </div>
                           </td>
                           <td>
                             <StatusBadge
@@ -595,9 +658,11 @@ export function MembersPage() {
                           />
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          <StatusBadge tone={roleBadgeTone(member.role)}>
-                            {ROLE_LABEL[member.role]}
-                          </StatusBadge>
+                          {memberRoles(member).map((role) => (
+                            <StatusBadge key={role} tone={roleBadgeTone(role)}>
+                              {ROLE_LABEL[role]}
+                            </StatusBadge>
+                          ))}
                           <StatusBadge
                             tone={isActiveMember(member) ? 'success' : 'danger'}
                           >
@@ -699,20 +764,12 @@ export function MembersPage() {
                 />
               </label>
             )}
-            <label className="text-sm">
-              <span className="text-[var(--text-secondary)]">Role</span>
-              <select
-                className="input-field"
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-              >
-                {ROLE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {ROLE_LABEL[option]}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="text-sm md:col-span-2">
+              <span className="text-[var(--text-secondary)]">Roles</span>
+              <div className="mt-1.5">
+                <RolePicker value={roles} onChange={setRoles} />
+              </div>
+            </div>
           </div>
           <div className="mt-4 flex gap-2">
             <Button type="submit" disabled={pending}>
@@ -735,9 +792,11 @@ export function MembersPage() {
                   <h2 className="text-lg font-semibold text-[var(--text-primary)]">{selected.name}</h2>
                   <p className="text-sm text-[var(--text-muted)]">{selected.email}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <StatusBadge tone={roleBadgeTone(selected.role)}>
-                      {ROLE_LABEL[selected.role]}
-                    </StatusBadge>
+                    {memberRoles(selected).map((role) => (
+                      <StatusBadge key={role} tone={roleBadgeTone(role)}>
+                        {ROLE_LABEL[role]}
+                      </StatusBadge>
+                    ))}
                     <StatusBadge
                       tone={isActiveMember(selected) ? 'success' : 'danger'}
                     >
@@ -802,34 +861,25 @@ export function MembersPage() {
             </form>
           </SectionCard>
 
-          <SectionCard title="Access" description="Role and sign-in status.">
+          <SectionCard title="Access" description="Roles and sign-in status. Members can hold more than one role.">
             <form onSubmit={onSaveAccess} className="space-y-3">
-              <label className="block text-sm">
-                <span className="text-[var(--text-secondary)]">Role</span>
-                <select
-                  className="input-field max-w-xs"
-                  value={role}
-                  disabled={!canChangeRole}
-                  onChange={(e) => setRole(e.target.value as Role)}
-                >
-                  {ROLE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {ROLE_LABEL[option]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="text-sm">
+                <span className="text-[var(--text-secondary)]">Roles</span>
+                <div className="mt-1.5">
+                  <RolePicker value={roles} disabled={!canChangeRole} onChange={setRoles} />
+                </div>
+              </div>
               {isSelf ? (
                 <p className="text-sm text-[var(--text-muted)]">
-                  You cannot change your own role.
+                  You cannot change your own roles.
                 </p>
               ) : isLastAdmin ? (
                 <p className="text-sm text-[var(--text-muted)]">
-                  This is the last Admin account. The role cannot be changed.
+                  This is the last Admin account. Admin cannot be removed.
                 </p>
               ) : null}
               <Button type="submit" disabled={pending || !canChangeRole}>
-                {pending ? 'Saving…' : 'Update role'}
+                {pending ? 'Saving…' : 'Update roles'}
               </Button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--border-glass)] pt-4">
@@ -941,7 +991,7 @@ export function MembersPage() {
             </dl>
           </SectionCard>
 
-          {selected.role === 'BIDDER' ? (
+          {hasMemberRole(selected, 'BIDDER') ? (
             <SectionCard
               title="Bidder context"
               description="Operational work stays on the Bidders page."

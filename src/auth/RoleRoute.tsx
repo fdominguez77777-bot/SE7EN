@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import type { Role } from '../api/types'
 import { homePathForRole, useAuth } from './AuthContext'
 import { AppLoadingScreen } from '../ui/loading/AppLoadingScreen'
+import { hasAnyMemberRole } from '../ui/roles'
 
 export function RoleRoute({
   roles,
@@ -21,8 +22,8 @@ export function RoleRoute({
   if (!user) {
     return <Navigate to="/login" replace />
   }
-  if (!roles.includes(user.role)) {
-    return <Navigate to={homePathForRole(user.role)} replace />
+  if (!hasAnyMemberRole(user, roles)) {
+    return <Navigate to={homePathForRole(user)} replace />
   }
   return <>{children}</>
 }

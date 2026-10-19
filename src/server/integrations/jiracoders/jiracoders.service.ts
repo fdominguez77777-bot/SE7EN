@@ -21,6 +21,8 @@ import {
 import {
   countsFromBidderStats,
   countsTowardApplicationTotal,
+  creditApplicationBidderId,
+  matchBidderIdByName,
   normalizeBidderName,
 } from './bidder-name';
 import { JiracodersClient } from './jiracoders.client';
@@ -393,12 +395,14 @@ export class JiracodersApplicationsService {
     });
     const cached = this.listCache.get(cacheKey);
     if (cached && Date.now() - cached.at < CACHE_MS) {
-      return cached.items;
+      // Re-credit with current profile assignments; cached rows can go stale
+      // after a profile is moved between members.
+      return cached.items.map((row) => recreditMappedRow(row, bidders));
     }
     return singleflight(this.listInflight, cacheKey, async () => {
       const again = this.listCache.get(cacheKey);
       if (again && Date.now() - again.at < CACHE_MS) {
-        return again.items;
+        return again.items.map((row) => recreditMappedRow(row, bidders));
       }
 
       const first = await this.client.listApplications({
@@ -482,7 +486,15 @@ export class JiracodersApplicationsService {
         continue;
       }
       const keys = profileKeys.get(profile.assignedBidderId) ?? [];
-      for (const value of [profile.name, fullProfileName(profile)]) {
+      const first = (profile.firstName ?? '').trim();
+      const last = (profile.lastName ?? '').trim();
+      for (const value of [
+        profile.name,
+        fullProfileName(profile),
+        first,
+        last,
+        [first, last].filter(Boolean).join(' '),
+      ]) {
         const key = normalizeBidderName(value);
         if (key && !keys.includes(key)) {
           keys.push(key);
@@ -556,6 +568,30 @@ function pushMapped(
       into.push(mapped);
     }
   }
+}
+
+function recreditMappedRow(
+  row: ApplicationTableRow,
+  bidders: ApplicationBidderOption[],
+): ApplicationTableRow {
+  const bidderId = creditApplicationBidderId(
+    row.bidderName,
+    row.profileName,
+    bidders,
+  );
+  const matched = bidderId != null ? bidders.find((bidder) => bidder.id === bidderId) : null;
+  // Keep the upstream Jira bidder label when it already matched a local user name;
+  // otherwise show the local member who owns the profile.
+  const localNameMatched =
+    row.bidderName != null && matchBidderIdByName(row.bidderName, bidders) != null;
+  return {
+    ...row,
+    bidderId,
+    bidderName:
+      bidderId != null && !localNameMatched
+        ? (matched?.name ?? row.bidderName)
+        : row.bidderName,
+  };
 }
 
 function columnFiltersFromQuery(query: {

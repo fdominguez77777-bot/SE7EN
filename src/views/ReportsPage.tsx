@@ -12,6 +12,7 @@ import { Alert, Button, SectionCard, Tabs } from '../ui/chrome'
 import { EmptyState } from '../ui/EmptyState'
 import { MetricCard } from '../ui/MetricCard'
 import { PageHeader } from '../ui/page-header'
+import { hasMemberRole } from '../ui/roles'
 import { PeriodSelector, usePeriodFilter } from '../ui/PeriodSelector'
 import { StatusBadge, paymentStatusTone } from '../ui/StatusBadge'
 import {
@@ -25,7 +26,7 @@ import { rangeQuery, toIsoDate } from '../ui/reporting-period'
 
 export function ReportsPage() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
+  const isAdmin = Boolean(user && hasMemberRole(user, 'ADMIN'))
   const [bidders, setBidders] = useState<User[]>([])
   const [profiles, setProfiles] = useState<CandidateProfile[]>([])
   const [activity, setActivity] = useState<ActivityBidderRow[]>([])

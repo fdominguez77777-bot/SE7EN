@@ -27,6 +27,7 @@ import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
 import { FunLoader } from '../ui/loading/fun-loader'
 import { PageHeader } from '../ui/page-header'
+import { hasAnyMemberRole, hasMemberRole } from '../ui/roles'
 import { StatusBadge } from '../ui/StatusBadge'
 
 type ProfileFilter = 'all' | 'assigned' | 'available'
@@ -63,7 +64,9 @@ function plural(count: number, word: string) {
 
 export function CallersPage() {
   const { user } = useAuth()
-  return user?.role === 'CALLER' ? <MyProfilesView /> : <ManageCallersView />
+  return user && hasMemberRole(user, 'CALLER') && !hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER'])
+    ? <MyProfilesView />
+    : <ManageCallersView />
 }
 
 function ManageCallersView() {
@@ -255,7 +258,7 @@ function ManageCallersView() {
             title="No callers yet"
             description="Add a member with the Caller role, then come back to assign their profiles."
             action={
-              user?.role === 'ADMIN' ? (
+              user && hasMemberRole(user, 'ADMIN') ? (
                 <Link
                   to="/admin/members"
                   className="text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]"

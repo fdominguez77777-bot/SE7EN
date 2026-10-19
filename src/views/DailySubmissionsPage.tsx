@@ -18,6 +18,7 @@ import { useConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/page-header'
 import { isWeekend, parseLocalDate, toIsoDate } from '../ui/reporting-period'
+import { hasMemberRole } from '../ui/roles'
 import { StatusBadge } from '../ui/StatusBadge'
 
 const DAILY_FLASH_KEY = 'daily-submission-flash'
@@ -168,8 +169,8 @@ export function DailySubmissionsPage() {
   const navigate = useNavigate()
   const { submissionId: submissionIdParam } = useParams<{ submissionId?: string }>()
   const selectedId = parseRouteId(submissionIdParam)
-  const isAdmin = user?.role === 'ADMIN'
-  const isManager = user?.role === 'BID_MANAGER'
+  const isAdmin = Boolean(user && hasMemberRole(user, 'ADMIN'))
+  const isManager = Boolean(user && hasMemberRole(user, 'BID_MANAGER'))
   const [date, setDate] = useState(toIsoDate(new Date()))
   const [detail, setDetail] = useState<DailySubmissionDetail | null>(null)
   const [list, setList] = useState<DailySubmissionListItem[]>([])

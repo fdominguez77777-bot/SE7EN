@@ -21,7 +21,7 @@ export function LoginPage() {
   }
 
   if (status === 'authenticated' && user) {
-    return <Navigate to={homePathForRole(user.role)} replace />
+    return <Navigate to={homePathForRole(user)} replace />
   }
 
   async function onSubmit(event: FormEvent) {
@@ -33,7 +33,7 @@ export function LoginPage() {
     setPending(true)
     try {
       const nextUser = await login(email, password)
-      navigate(homePathForRole(nextUser.role), { replace: true })
+      navigate(homePathForRole(nextUser), { replace: true })
     } catch (err) {
       setError(getApiErrorMessage(err))
       setPending(false)

@@ -41,15 +41,22 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import {
   DEFAULT_MEMBER_PASSWORD,
+  MEMBER_MESSAGES,
   deleteBlock,
   publicUserFields,
-  roleChangeBlockReason,
+  rolesChangeBlockReason,
   shouldSeedDefaultAdmin,
   statusChangeBlockReason,
 } from './member-admin.rules';
 import { normalizeUsername } from './username.rules';
 import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
+import {
+  hasRole,
+  normalizeRoles,
+  primaryRole,
+  userRoles,
+} from './user-roles';
 
 const BCRYPT_ROUNDS = 10;
 const USER_CACHE_MS = 45_000;
@@ -64,7 +71,7 @@ export type CreateUserInput = {
   name: string;
   email: string;
   password: string;
-  role: UserRole;
+  roles: UserRole[];
 };
 
 @Injectable()
@@ -113,6 +120,7 @@ export class UsersService implements OnModuleInit {
         password: await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, BCRYPT_ROUNDS),
         passwordVault: this.encryptPassword(DEFAULT_ADMIN_PASSWORD),
         role: UserRole.ADMIN,
+        roles: [UserRole.ADMIN],
         isActive: true,
       }),
     );
@@ -133,12 +141,14 @@ export class UsersService implements OnModuleInit {
       throw new ConflictException('Username already in use');
     }
 
+    const roles = normalizeRoles(input.roles);
     const user = this.usersRepository.create({
       name: input.name.trim(),
       email,
       password: await bcrypt.hash(input.password, BCRYPT_ROUNDS),
       passwordVault: this.encryptPassword(input.password),
-      role: input.role,
+      role: primaryRole(roles),
+      roles,
       isActive: true,
     });
 
@@ -290,10 +300,11 @@ export class UsersService implements OnModuleInit {
   }
 
   async findBidders(): Promise<User[]> {
-    return this.usersRepository.find({
-      where: { role: UserRole.BIDDER },
-      order: { name: 'ASC' },
-    });
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .where(':role = ANY(user.roles)', { role: UserRole.BIDDER })
+      .orderBy('user.name', 'ASC')
+      .getMany();
   }
 
   /** Admins, bid managers, and bidders — everyone whose Jira applications count for the team. */
@@ -306,10 +317,11 @@ export class UsersService implements OnModuleInit {
   }
 
   async findManagers(): Promise<User[]> {
-    return this.usersRepository.find({
-      where: { role: UserRole.BID_MANAGER },
-      order: { name: 'ASC' },
-    });
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .where(':role = ANY(user.roles)', { role: UserRole.BID_MANAGER })
+      .orderBy('user.name', 'ASC')
+      .getMany();
   }
 
   async createFromAdmin(dto: CreateUserDto): Promise<UserResponseDto> {
@@ -321,11 +333,12 @@ export class UsersService implements OnModuleInit {
         'Provide a password or use the default password.',
       );
     }
+    const roles = this.resolveIncomingRoles(dto.roles, dto.role);
     const user = await this.create({
       name: dto.name,
       email: dto.email,
       password,
-      role: dto.role,
+      roles,
     });
     return this.toPublicUser(user);
   }
@@ -367,23 +380,26 @@ export class UsersService implements OnModuleInit {
       user.name = dto.name.trim();
     }
 
-    if (dto.role !== undefined && dto.role !== user.role) {
+    if (dto.roles !== undefined || dto.role !== undefined) {
+      const nextRoles = this.resolveIncomingRoles(dto.roles, dto.role);
+      const currentRoles = userRoles(user);
       const [activeAdminCount, assignedCandidateCount] = await Promise.all([
         this.countActiveAdmins(),
         this.profiles.count({ where: { assignedBidderId: id } }),
       ]);
-      const reason = roleChangeBlockReason({
+      const reason = rolesChangeBlockReason({
         actorId: actor.id,
         targetId: user.id,
-        currentRole: user.role,
-        nextRole: dto.role,
+        currentRoles,
+        nextRoles,
         activeAdminCount,
         assignedCandidateCount,
       });
       if (reason) {
         throw new BadRequestException(reason);
       }
-      user.role = dto.role;
+      user.roles = nextRoles;
+      user.role = primaryRole(nextRoles);
     }
 
     if (dto.isActive !== undefined && dto.isActive !== (user.isActive !== false)) {
@@ -392,6 +408,7 @@ export class UsersService implements OnModuleInit {
         actorId: actor.id,
         targetId: user.id,
         targetRole: user.role,
+        targetRoles: userRoles(user),
         nextIsActive: dto.isActive,
         currentlyActive: user.isActive !== false,
         activeAdminCount,
@@ -407,6 +424,7 @@ export class UsersService implements OnModuleInit {
     this.byIdCache.set(id, { at: Date.now(), user: saved });
     await this.audit.record('user', id, 'update', actor.id, {
       role: saved.role,
+      roles: saved.roles,
       isActive: saved.isActive,
     });
     return this.toPublicUser(saved);
@@ -439,9 +457,11 @@ export class UsersService implements OnModuleInit {
   }
 
   async countActiveAdmins(): Promise<number> {
-    return this.usersRepository.count({
-      where: { role: UserRole.ADMIN, isActive: true },
-    });
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .where(':role = ANY(user.roles)', { role: UserRole.ADMIN })
+      .andWhere('user.isActive = true')
+      .getCount();
   }
 
   /** @deprecated Prefer PATCH /bidder-profiles/:id/assignment. Writes assignedBidderId only. */
@@ -486,6 +506,7 @@ export class UsersService implements OnModuleInit {
       actorId: actor.id,
       targetId: user.id,
       targetRole: user.role,
+      targetRoles: userRoles(user),
       activeAdminCount,
       hasManagerHistory,
     });
@@ -575,10 +596,14 @@ export class UsersService implements OnModuleInit {
   }
 
   private async persistPublicUser(user: User): Promise<User> {
+    const roles = normalizeRoles(user.roles, user.role);
+    user.roles = roles;
+    user.role = primaryRole(roles);
     await this.usersRepository.update(user.id, {
       name: user.name,
       email: user.email,
       role: user.role,
+      roles: user.roles,
       isActive: user.isActive,
       avatarPath: user.avatarPath,
     });
@@ -626,7 +651,7 @@ export class UsersService implements OnModuleInit {
       return DEFAULT_MEMBER_PASSWORD;
     }
     if (
-      user.role === UserRole.ADMIN &&
+      hasRole(user, UserRole.ADMIN) &&
       (await bcrypt.compare(DEFAULT_ADMIN_PASSWORD, user.password))
     ) {
       await this.rememberPlainPassword(user.id, DEFAULT_ADMIN_PASSWORD);
@@ -635,16 +660,33 @@ export class UsersService implements OnModuleInit {
     return null;
   }
 
+  private resolveIncomingRoles(
+    roles: UserRole[] | undefined,
+    role: UserRole | undefined,
+  ): UserRole[] {
+    const next = normalizeRoles(roles?.length ? roles : role ? [role] : []);
+    if (!roles?.length && !role) {
+      throw new BadRequestException(MEMBER_MESSAGES.rolesRequired);
+    }
+    return next;
+  }
+
   private assertCanEditAvatar(actor: User, targetId: number) {
     if (actor.id === targetId) {
       return;
     }
-    if (actor.role === UserRole.ADMIN) {
+    if (hasRole(actor, UserRole.ADMIN)) {
       return;
     }
     throw new ForbiddenException(
       'You can only change your own profile photo.',
     );
+  }
+
+  /** Drop the team/calendar people snapshot (e.g. after profile assignment). */
+  forgetPeopleCache() {
+    this.peopleCache = null;
+    this.peopleInflight = null;
   }
 
   private forgetUserCaches(id?: number) {
@@ -653,7 +695,7 @@ export class UsersService implements OnModuleInit {
     } else {
       this.byIdCache.clear();
     }
-    this.peopleCache = null;
+    this.forgetPeopleCache();
   }
 
   private async loadPeople(): Promise<PeopleCache> {
@@ -664,14 +706,21 @@ export class UsersService implements OnModuleInit {
       return this.peopleInflight;
     }
     this.peopleInflight = this.usersRepository
-      .find({
-        where: [
-          { role: UserRole.ADMIN },
-          { role: UserRole.BID_MANAGER },
-          { role: UserRole.BIDDER },
-        ],
-        order: { name: 'ASC' },
-      })
+      .createQueryBuilder('user')
+      .where(
+        `(
+          :admin = ANY(user.roles)
+          OR :manager = ANY(user.roles)
+          OR :bidder = ANY(user.roles)
+        )`,
+        {
+          admin: UserRole.ADMIN,
+          manager: UserRole.BID_MANAGER,
+          bidder: UserRole.BIDDER,
+        },
+      )
+      .orderBy('user.name', 'ASC')
+      .getMany()
       .then((rows) => {
         const cache: PeopleCache = {
           at: Date.now(),

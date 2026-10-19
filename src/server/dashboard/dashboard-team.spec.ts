@@ -11,6 +11,12 @@ import { UserRole } from '../users/user-role.enum';
 
 describe('dashboard team visibility', () => {
   it('lets admins, bid managers, and bidders see team dashboard data', () => {
+    expect(
+      canSeeTeamDashboard({
+        role: 'BID_MANAGER',
+        roles: ['BID_MANAGER', 'BIDDER'],
+      }),
+    ).toBe(true);
     expect(canSeeTeamDashboard(UserRole.ADMIN)).toBe(true);
     expect(canSeeTeamDashboard(UserRole.BID_MANAGER)).toBe(true);
     expect(canSeeTeamDashboard(UserRole.BIDDER)).toBe(true);

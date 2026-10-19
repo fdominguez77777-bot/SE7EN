@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react'
 
-import type { Role } from '../api/types'
+import type { Role, User } from '../api/types'
 import { homePathForRole, useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { AvatarPhotoDialog } from '../ui/AvatarPhotoDialog'
@@ -30,6 +30,7 @@ import { ChangePasswordDialog } from '../ui/ChangePasswordDialog'
 import { BrandLockup, BrandLogo } from '../ui/BrandLogo'
 import { RouteErrorBoundary } from '../ui/RouteErrorBoundary'
 import { StatusBadge } from '../ui/StatusBadge'
+import { hasMemberRole, memberRoles, ROLE_LABEL as ROLE_NAME } from '../ui/roles'
 import { useDailySubmissionInbox } from './daily-submission-inbox'
 
 type NavItem = {
@@ -134,11 +135,35 @@ const NAV: Record<Role, NavSection[]> = {
   ],
 }
 
-const ROLE_LABEL: Record<Role, string> = {
-  ADMIN: 'Admin',
-  BID_MANAGER: 'Bid Manager',
-  BIDDER: 'Bidder',
-  CALLER: 'Caller',
+function mergeNav(user: User): NavSection[] {
+  const sections: NavSection[] = []
+  const seenItem = new Set<string>()
+  for (const role of memberRoles(user)) {
+    for (const section of NAV[role]) {
+      const existing = sections.find((row) => row.label === section.label)
+      if (!existing) {
+        const items = section.items.filter((item) => {
+          if (seenItem.has(item.to)) {
+            return false
+          }
+          seenItem.add(item.to)
+          return true
+        })
+        if (items.length > 0) {
+          sections.push({ label: section.label, items })
+        }
+        continue
+      }
+      for (const item of section.items) {
+        if (seenItem.has(item.to)) {
+          continue
+        }
+        seenItem.add(item.to)
+        existing.items.push(item)
+      }
+    }
+  }
+  return sections
 }
 
 function pageTitle(pathname: string, sections: NavSection[]) {
@@ -165,9 +190,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
-  const sections = user ? NAV[user.role] : []
+  const sections = user ? mergeNav(user) : []
   const title = pageTitle(pathname, sections)
-  const unreadDaily = useDailySubmissionInbox(user?.role === 'ADMIN')
+  const unreadDaily = useDailySubmissionInbox(Boolean(user && hasMemberRole(user, 'ADMIN')))
   const badges: Partial<Record<NonNullable<NavItem['inbox']>, number>> = {
     'daily-submissions': unreadDaily,
   }
@@ -183,7 +208,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       >
         <div className="flex shrink-0 items-center border-b border-[var(--border-glass)] px-5 py-5">
           <BrandLockup
-            to={user ? homePathForRole(user.role) : '/'}
+            to={user ? homePathForRole(user) : '/'}
             onNavigate={() => setOpen(false)}
           />
         </div>
@@ -199,7 +224,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   const unread = item.inbox ? badges[item.inbox] ?? 0 : 0
                   return (
                     <NavLink
-                      key={item.to}
+                      key={`${section.label}-${item.to}`}
                       to={item.to}
                       end={item.end}
                       onClick={() => setOpen(false)}
@@ -247,9 +272,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
                   {user?.name}
                 </p>
-                {user ? (
-                  <StatusBadge muted>{ROLE_LABEL[user.role]}</StatusBadge>
-                ) : null}
+                {user
+                  ? memberRoles(user).map((role) => (
+                      <StatusBadge key={role} muted>
+                        {ROLE_NAME[role]}
+                      </StatusBadge>
+                    ))
+                  : null}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">

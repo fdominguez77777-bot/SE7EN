@@ -8,6 +8,7 @@ import { formatInterviewPrompt } from './interview-prompt'
 import { ApplicationResume } from './ApplicationResume'
 import { Button } from './chrome'
 import { jobApplicationStatusLabel, safeHttpUrl } from './job-application'
+import { hasAnyMemberRole } from './roles'
 
 const STATUSES = ['Draft', 'Applied']
 
@@ -40,7 +41,9 @@ export function ApplicationDetailModal({
   onClose: () => void
 }) {
   const { user } = useAuth()
-  const canCopyPrompt = user?.role === 'ADMIN' || user?.role === 'CALLER'
+  const canCopyPrompt = Boolean(
+    user && hasAnyMemberRole(user, ['ADMIN', 'CALLER']),
+  )
   const jobUrl = safeHttpUrl(application.jobUrl)
   const resumeUrl = safeHttpUrl(application.resumeUrl)
   const interviews = application.interviews ?? []
