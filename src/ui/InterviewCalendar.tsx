@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
 import type { CalendarBidder, CalendarEvent } from '../api/types'
+import { isExactSchedule, scheduleKindLabel, type ScheduleKindName } from '../lib/schedule-kind'
 import { InterviewEventDetails } from './InterviewEventDetails'
 import { FunLoader } from './loading/fun-loader'
 import {
@@ -34,7 +35,10 @@ type InterviewCalendarProps = {
   focusDay?: string
   board?: number
   accentPersonId?: number | null
+  exactOnly?: boolean
+  canEditKind?: boolean
   onSelectDay?: (key: string) => void
+  onKindSaved?: (eventId: string, kind: ScheduleKindName) => void
 }
 
 export function InterviewCalendar({
@@ -44,7 +48,10 @@ export function InterviewCalendar({
   focusDay = 'all',
   board = 0,
   accentPersonId = null,
+  exactOnly = false,
+  canEditKind = false,
   onSelectDay,
+  onKindSaved,
 }: InterviewCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [now, setNow] = useState(() => new Date())
@@ -244,12 +251,12 @@ export function InterviewCalendar({
                   <button
                     key={`${board}:${event.id}`}
                     type="button"
-                    className={`iv-block iv-block-allday ${settled.has(event.id) ? 'is-settled' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
+                    className={`iv-block iv-block-allday ${settled.has(event.id) ? 'is-settled' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId, exactOnly)}`}
                     style={{
                       ...blockTone(owner?.color ?? event.color),
                       ...snowMotion(event.id, board, 72),
                     }}
-                    title={`${event.title} · ${persona || event.email}`}
+                    title={`${scheduleKindLabel(event.kind)} · ${event.title} · ${persona || event.email}`}
                     onAnimationEnd={(animation) => settle(event.id, animation.animationName)}
                     onClick={() => setOpenId(event.id)}
                   >
@@ -330,7 +337,7 @@ export function InterviewCalendar({
                     <button
                       key={`${board}:${event.id}:${placed.startMin}`}
                       type="button"
-                      className={`iv-block ${compact ? 'is-compact' : ''} ${narrow ? 'is-narrow' : ''} ${settled.has(event.id) ? 'is-settled' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId)}`}
+                      className={`iv-block ${compact ? 'is-compact' : ''} ${narrow ? 'is-narrow' : ''} ${settled.has(event.id) ? 'is-settled' : ''} ${blockState(event, bidderByAccount, accentPersonId, openId, exactOnly)}`}
                       style={{
                         ...blockTone(owner?.color ?? event.color),
                         top: layout.top,
@@ -340,7 +347,7 @@ export function InterviewCalendar({
                         zIndex: 2 + placed.col,
                         ...snowMotion(event.id, board, layout.top + 36),
                       }}
-                      title={`${persona ? `${persona} · ` : ''}${event.title} · ${time}`}
+                      title={`${scheduleKindLabel(event.kind)} · ${persona ? `${persona} · ` : ''}${event.title} · ${time}`}
                       onAnimationEnd={(animation) => settle(event.id, animation.animationName)}
                       onClick={(click) => {
                         click.stopPropagation()
@@ -368,7 +375,9 @@ export function InterviewCalendar({
           key={openEvent.id}
           event={openEvent}
           owner={bidderByAccount.get(openEvent.accountId) ?? null}
+          canEditKind={canEditKind}
           onClose={() => setOpenId(null)}
+          onKindSaved={(kind) => onKindSaved?.(openEvent.id, kind)}
         />
       ) : null}
     </div>
@@ -380,15 +389,19 @@ function blockState(
   bidderByAccount: Map<number, CalendarBidder>,
   accentPersonId: number | null,
   openId: string | null,
+  exactOnly: boolean,
 ) {
+  const classes: string[] = []
   if (openId === event.id) {
-    return 'is-open'
+    classes.push('is-open')
+  } else if (accentPersonId != null) {
+    const ownerId = bidderByAccount.get(event.accountId)?.id ?? event.bidderId
+    classes.push(ownerId === accentPersonId ? 'is-hot' : 'is-dim')
   }
-  if (accentPersonId == null) {
-    return ''
+  if (exactOnly && !isExactSchedule(event.kind)) {
+    classes.push('is-weak')
   }
-  const ownerId = bidderByAccount.get(event.accountId)?.id ?? event.bidderId
-  return ownerId === accentPersonId ? 'is-hot' : 'is-dim'
+  return classes.join(' ')
 }
 
 function snowMotion(id: string, board: number, fallPx: number) {

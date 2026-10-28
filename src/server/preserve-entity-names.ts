@@ -7,6 +7,7 @@ import { Education } from './bidder-profiles/education.entity'
 import { WorkExperience } from './bidder-profiles/work-experience.entity'
 import { CalendarAccount } from './calendar/calendar-account.entity'
 import { CalendarConnectLink } from './calendar/calendar-connect-link.entity'
+import { CalendarEventMark } from './calendar/calendar-event-mark.entity'
 import { BidManagerCompensation } from './compensation/bid-manager-compensation.entity'
 import { BidManagerWeeklyPayment } from './compensation/bid-manager-weekly-payment.entity'
 import { BidderCompensationRate } from './compensation/bidder-compensation-rate.entity'
@@ -47,6 +48,7 @@ freezeName(Education, 'Education')
 freezeName(WorkExperience, 'WorkExperience')
 freezeName(CalendarAccount, 'CalendarAccount')
 freezeName(CalendarConnectLink, 'CalendarConnectLink')
+freezeName(CalendarEventMark, 'CalendarEventMark')
 freezeName(BidManagerCompensation, 'BidManagerCompensation')
 freezeName(BidManagerWeeklyPayment, 'BidManagerWeeklyPayment')
 freezeName(BidderCompensationRate, 'BidderCompensationRate')

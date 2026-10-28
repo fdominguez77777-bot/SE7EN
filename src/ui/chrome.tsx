@@ -9,6 +9,7 @@ export function Button({
   onClick,
   className = '',
   form,
+  pressed,
 }: {
   children: ReactNode
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -17,6 +18,7 @@ export function Button({
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void
   className?: string
   form?: string
+  pressed?: boolean
 }) {
   const styles = {
     primary:
@@ -33,6 +35,7 @@ export function Button({
       type={type}
       form={form}
       disabled={disabled}
+      aria-pressed={pressed}
       onClick={onClick}
       className={`inline-flex h-10 min-h-10 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold transition duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
     >

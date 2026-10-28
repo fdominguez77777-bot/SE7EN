@@ -36,6 +36,7 @@ import { TaskCompletionPerMember1772500000000 } from './migrations/1772500000000
 import { CalendarSync1772600000000 } from './migrations/1772600000000-CalendarSync';
 import { CallerProfile1772700000000 } from './migrations/1772700000000-CallerProfile';
 import { UserRoles1772800000000 } from './migrations/1772800000000-UserRoles';
+import { CalendarEventMark1772900000000 } from './migrations/1772900000000-CalendarEventMark';
 import { applyDatabaseUrl, isManagedPostgresSsl } from './config/database-url';
 
 config({ path: resolve(process.cwd(), '.env') });
@@ -90,6 +91,7 @@ export default new DataSource({
     CalendarSync1772600000000,
     CallerProfile1772700000000,
     UserRoles1772800000000,
+    CalendarEventMark1772900000000,
   ],
   migrationsTableName: 'migrations',
 });

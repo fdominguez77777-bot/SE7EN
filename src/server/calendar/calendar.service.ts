@@ -1,13 +1,14 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { EnvironmentVariables } from '../config/env.validation';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
@@ -15,10 +16,17 @@ import { calendarInCallerScope, profileScopeKeys } from '../callers/caller.rules
 import { CallersService } from '../callers/callers.service';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
+import { hasRole } from '../users/user-roles';
 import { UsersService } from '../users/users.service';
 import { singleflight, TtlCache } from '../cache/singleflight';
+import {
+  calendarEventAccountId,
+  scheduleKindOf,
+  type ScheduleKindName,
+} from '../../lib/schedule-kind';
 import { CalendarAccount } from './calendar-account.entity';
 import { CalendarConnectLink } from './calendar-connect-link.entity';
+import { CalendarEventMark } from './calendar-event-mark.entity';
 import { decryptSecret, encryptSecret } from './calendar-crypto';
 import {
   exchangeGoogleCode,
@@ -104,6 +112,7 @@ export type CalendarEventDto = {
     email: string;
     status: 'accepted' | 'declined' | 'tentative' | 'needsAction';
   }>;
+  kind: ScheduleKindName;
 };
 
 @Injectable()
@@ -124,6 +133,8 @@ export class CalendarService {
     private readonly accounts: Repository<CalendarAccount>,
     @InjectRepository(CalendarConnectLink)
     private readonly links: Repository<CalendarConnectLink>,
+    @InjectRepository(CalendarEventMark)
+    private readonly marks: Repository<CalendarEventMark>,
     @InjectRepository(BidderProfile)
     private readonly profiles: Repository<BidderProfile>,
     private readonly users: UsersService,
@@ -402,13 +413,58 @@ export class CalendarService {
         }
       }),
     );
-    const events = batches
-      .flat()
-      .sort((left, right) => left.start.localeCompare(right.start));
+    const events = await this.withKinds(
+      batches.flat().sort((left, right) => left.start.localeCompare(right.start)),
+    );
     if (events.length === 0 && syncErrors.length > 0) {
       throw new BadGatewayException(syncErrors.join(' '));
     }
     return { events, syncErrors };
+  }
+
+  async setEventKind(eventId: string, kind: ScheduleKindName, actor: User) {
+    if (!hasRole(actor, UserRole.ADMIN)) {
+      throw new ForbiddenException('Only an admin can change the interview type.');
+    }
+    const accountId = calendarEventAccountId(eventId);
+    if (accountId == null) {
+      throw new BadRequestException('That schedule is not on a connected calendar.');
+    }
+    const profiles = await this.profiles.find();
+    const accounts = await this.visibleAccounts(actor, profiles);
+    if (!accounts.some((account) => account.id === accountId)) {
+      throw new NotFoundException('Schedule not found.');
+    }
+    const existing = await this.marks.findOne({ where: { eventKey: eventId } });
+    if (existing) {
+      existing.kind = kind;
+      existing.updatedById = actor.id;
+      await this.marks.save(existing);
+    } else {
+      await this.marks.save(
+        this.marks.create({
+          eventKey: eventId,
+          kind,
+          updatedById: actor.id,
+        }),
+      );
+    }
+    this.clearEventsCache();
+    return { eventId, kind: scheduleKindOf(kind) };
+  }
+
+  private async withKinds(events: CalendarEventDto[]): Promise<CalendarEventDto[]> {
+    if (events.length === 0) {
+      return events;
+    }
+    const rows = await this.marks.find({
+      where: { eventKey: In(events.map((event) => event.id)) },
+    });
+    const kinds = new Map(rows.map((row) => [row.eventKey, row.kind]));
+    return events.map((event) => ({
+      ...event,
+      kind: scheduleKindOf(kinds.get(event.id)),
+    }));
   }
 
   connectedPageUrl() {
@@ -536,6 +592,7 @@ export class CalendarService {
       organizerName: event.organizerName,
       organizerEmail: event.organizerEmail,
       guests: event.guests,
+      kind: scheduleKindOf(null),
     };
   }
 

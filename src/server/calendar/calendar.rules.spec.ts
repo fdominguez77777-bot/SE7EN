@@ -1,3 +1,4 @@
+import { calendarEventAccountId, isExactSchedule, scheduleKindOf } from '../../lib/schedule-kind';
 import {
   calendarColor,
   calendarInitials,
@@ -142,6 +143,15 @@ describe('calendar.rules', () => {
       }),
     ).toBe('https://se7en.example.com');
     expect(originFromRequest({ host: 'bad host' })).toBe('');
+  });
+
+  it('treats an unmarked schedule as a first-round interview', () => {
+    expect(scheduleKindOf(null)).toBe('FIRST');
+    expect(scheduleKindOf('NEXT')).toBe('NEXT');
+    expect(isExactSchedule('FIRST')).toBe(true);
+    expect(isExactSchedule('OTHER')).toBe(false);
+    expect(calendarEventAccountId('12:abc_def')).toBe(12);
+    expect(calendarEventAccountId('nope')).toBeNull();
   });
 
   it('uses APP_PUBLIC_URL, then the Vercel host', () => {

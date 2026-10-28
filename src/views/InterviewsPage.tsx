@@ -16,6 +16,7 @@ import {
   startOfWeek,
   weekDays,
 } from '../ui/calendar-week'
+import { isExactSchedule } from '../lib/schedule-kind'
 import { hasAnyMemberRole, hasMemberRole } from '../ui/roles'
 
 const SELECTED_KEY = 'bp_interview_bidder'
@@ -114,6 +115,7 @@ export function InterviewsPage() {
   const [loading, setLoading] = useState(true)
   const [board, setBoard] = useState(0)
   const [showFreeSlots, setShowFreeSlots] = useState(false)
+  const [exactOnly, setExactOnly] = useState(false)
 
   const days = useMemo(() => weekDays(weekStart), [weekStart])
   const from = weekStart.toISOString()
@@ -194,6 +196,7 @@ export function InterviewsPage() {
     const haystack = `${event.title} ${event.email} ${event.profileName ?? ''}`.toLowerCase()
     return haystack.includes(query.trim().toLowerCase())
   })
+  const exactCount = visibleEvents.filter((event) => isExactSchedule(event.kind)).length
   const freeSlotsScope = showAll
     ? 'Everyone free'
     : selectedPeople.length === 1
@@ -217,6 +220,7 @@ export function InterviewsPage() {
               : selectedPeople.length > 1
                 ? ` · ${selectedPeople.length} people`
                 : ''}
+            {exactOnly ? ` · ${exactCount.toLocaleString()} first round` : ''}
             {' · 7 AM – 7 PM CT'}
           </p>
         </div>
@@ -229,6 +233,14 @@ export function InterviewsPage() {
             }}
           >
             This week
+          </Button>
+          <Button
+            variant={exactOnly ? 'primary' : 'secondary'}
+            pressed={exactOnly}
+            onClick={() => setExactOnly((on) => !on)}
+          >
+            {exactOnly ? <Check className="h-4 w-4" strokeWidth={3} /> : null}
+            Only exact interviews
           </Button>
           <Button variant="secondary" onClick={() => setShowFreeSlots(true)}>
             <CalendarSearch className="h-4 w-4" />
@@ -397,7 +409,12 @@ export function InterviewsPage() {
               focusDay={focusDay}
               board={board}
               accentPersonId={showAll ? hovered : selected.length === 1 ? selected[0] : hovered}
+              exactOnly={exactOnly}
+              canEditKind={Boolean(user && hasMemberRole(user, 'ADMIN'))}
               onSelectDay={setFocusDay}
+              onKindSaved={(eventId, kind) => {
+                setEvents((rows) => rows.map((row) => (row.id === eventId ? { ...row, kind } : row)))
+              }}
             />
           </div>
         )}

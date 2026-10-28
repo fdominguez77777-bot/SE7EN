@@ -2123,6 +2123,24 @@ label .req,
   opacity: 1;
 }
 
+.iv-block.is-weak {
+  opacity: 0.32;
+  filter: grayscale(0.75) saturate(0.25) brightness(0.82);
+  box-shadow: none;
+  transform: none;
+}
+
+.iv-block.is-weak::before {
+  opacity: 0.4;
+}
+
+.iv-block.is-weak:hover,
+.iv-block.is-weak.is-open {
+  opacity: 0.78;
+  filter: grayscale(0.2) saturate(0.65) brightness(0.95);
+  transform: none;
+}
+
 .iv-block strong,
 .iv-block em {
   position: relative;
@@ -2408,6 +2426,78 @@ label .req,
   gap: 8px;
   overflow: auto;
   padding: 0 16px 16px;
+}
+
+.iv-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.iv-kind legend {
+  margin-bottom: 4px;
+  padding: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.iv-kind label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.iv-kind.is-locked label {
+  cursor: default;
+}
+
+.iv-kind label.is-on {
+  border-color: color-mix(in srgb, var(--ev, #e8845a) 45%, transparent);
+  background: color-mix(in srgb, var(--ev, #e8845a) 12%, transparent);
+}
+
+.iv-kind input {
+  margin: 0;
+  accent-color: var(--ev, #e8845a);
+}
+
+.iv-kind strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.iv-kind small {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.iv-kind-error {
+  margin: 2px 0 0;
+  color: #f0a0b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.iv-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .iv-detail-join {

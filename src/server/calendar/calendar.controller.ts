@@ -23,7 +23,11 @@ import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { CalendarProvider, originFromRequest } from './calendar.rules';
 import { CalendarService } from './calendar.service';
-import { AssignCalendarBidderDto, CreateCalendarLinkDto } from './dto/calendar.dto';
+import {
+  AssignCalendarBidderDto,
+  CreateCalendarLinkDto,
+  SetCalendarEventKindDto,
+} from './dto/calendar.dto';
 
 @ApiTags('calendar')
 @ApiBearerAuth()
@@ -44,6 +48,13 @@ export class CalendarController {
   @ApiOperation({ summary: 'Bidders with assigned calendar accounts' })
   listBidders(@CurrentUser() user: User) {
     return this.calendar.listBidders(user);
+  }
+
+  @Patch('events/kind')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Save the interview type for one calendar schedule' })
+  setEventKind(@CurrentUser() user: User, @Body() body: SetCalendarEventKindDto) {
+    return this.calendar.setEventKind(body.eventId, body.kind, user);
   }
 
   @Get('events')

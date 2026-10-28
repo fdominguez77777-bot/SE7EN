@@ -7,13 +7,19 @@ import { CallersModule } from '../callers/callers.module';
 import { UsersModule } from '../users/users.module';
 import { CalendarAccount } from './calendar-account.entity';
 import { CalendarConnectLink } from './calendar-connect-link.entity';
+import { CalendarEventMark } from './calendar-event-mark.entity';
 import { CalendarController } from './calendar.controller';
 import { CalendarOauthController } from './calendar-oauth.controller';
 import { CalendarService } from './calendar.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CalendarAccount, CalendarConnectLink, BidderProfile]),
+    TypeOrmModule.forFeature([
+      CalendarAccount,
+      CalendarConnectLink,
+      CalendarEventMark,
+      BidderProfile,
+    ]),
     AuthModule,
     UsersModule,
     CallersModule,

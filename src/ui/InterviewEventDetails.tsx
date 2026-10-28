@@ -2,7 +2,13 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AlignLeft, CalendarDays, Clock, ExternalLink, MapPin, Users, Video, X } from 'lucide-react'
 
+import { api, getApiErrorMessage } from '../api/client'
 import type { CalendarBidder, CalendarEvent, CalendarGuest } from '../api/types'
+import {
+  SCHEDULE_KIND_OPTIONS,
+  scheduleKindOf,
+  type ScheduleKindName,
+} from '../lib/schedule-kind'
 import { EntityAvatar } from './avatar'
 import { formatEventWhen } from './calendar-week'
 import { Button } from './chrome'
@@ -26,10 +32,14 @@ export function InterviewEventDetails({
   event,
   owner,
   onClose,
+  onKindSaved,
+  canEditKind = false,
 }: {
   event: CalendarEvent
   owner: CalendarBidder | null
   onClose: () => void
+  onKindSaved?: (kind: ScheduleKindName) => void
+  canEditKind?: boolean
 }) {
   const when = formatEventWhen(event.start, event.end, event.allDay)
   const descriptionText = descriptionToPlainText(event.description)
@@ -41,6 +51,11 @@ export function InterviewEventDetails({
   const calendarEmail = owner?.calendarEmail || event.email
 
   const [leaving, setLeaving] = useState(false)
+  const [kind, setKind] = useState<ScheduleKindName>(() => scheduleKindOf(event.kind))
+  const [savedKind, setSavedKind] = useState<ScheduleKindName>(() => scheduleKindOf(event.kind))
+  const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   function close() {
     if (leaving) {
@@ -51,6 +66,24 @@ export function InterviewEventDetails({
       return
     }
     setLeaving(true)
+  }
+
+  async function saveKind() {
+    if (saving || kind === savedKind) {
+      return
+    }
+    setSaving(true)
+    setSaveError('')
+    try {
+      await api.patch('/calendar/events/kind', { eventId: event.id, kind })
+      setSavedKind(kind)
+      setSavedFlash(true)
+      onKindSaved?.(kind)
+    } catch (err) {
+      setSaveError(getApiErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   useEffect(() => {
@@ -101,6 +134,29 @@ export function InterviewEventDetails({
           </div>
         </div>
         <div className="iv-detail-body">
+          <fieldset className={`iv-kind ${canEditKind ? '' : 'is-locked'}`}>
+            <legend>Interview type</legend>
+            {SCHEDULE_KIND_OPTIONS.map((option) => (
+              <label key={option.value} className={kind === option.value ? 'is-on' : ''}>
+                <input
+                  type="radio"
+                  name={`schedule-kind-${event.id}`}
+                  value={option.value}
+                  checked={kind === option.value}
+                  disabled={saving || !canEditKind}
+                  onChange={() => {
+                    setKind(option.value)
+                    setSavedFlash(false)
+                  }}
+                />
+                <span>
+                  <strong>{option.label}</strong>
+                  <small>{option.hint}</small>
+                </span>
+              </label>
+            ))}
+            {saveError ? <p className="iv-kind-error">{saveError}</p> : null}
+          </fieldset>
           <DetailRow icon={Clock}>
             <p>{when.timeLabel}</p>
             <small>
@@ -175,9 +231,16 @@ export function InterviewEventDetails({
           ) : (
             <span />
           )}
-          <Button variant="secondary" onClick={close}>
-            Close
-          </Button>
+          <div className="iv-detail-actions">
+            {canEditKind ? (
+              <Button disabled={saving || kind === savedKind} onClick={() => void saveKind()}>
+                {saving ? 'Saving' : savedFlash && kind === savedKind ? 'Saved' : 'Save'}
+              </Button>
+            ) : null}
+            <Button variant="secondary" onClick={close}>
+              Close
+            </Button>
+          </div>
         </div>
       </div>
     </div>,
