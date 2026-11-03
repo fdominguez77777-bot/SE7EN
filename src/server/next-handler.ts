@@ -75,6 +75,9 @@ function apiErrorMessage(error: unknown) {
   if (/ECONNREFUSED/i.test(text)) {
     return 'Cannot reach Postgres on DATABASE_HOST/DATABASE_PORT. Start PostgreSQL and retry.'
   }
+  if (/connection timeout|Connection terminated|timeout expired/i.test(text)) {
+    return 'Postgres timed out. Check VPN/firewall, that Aiven is up, and that DATABASE_URL uses sslmode=require.'
+  }
   if (/database .* does not exist/i.test(text)) {
     return 'DATABASE_NAME does not exist. Create the bidder_platform database and run npm run migration:run.'
   }

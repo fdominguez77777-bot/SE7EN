@@ -54,7 +54,6 @@ export function InterviewEventDetails({
   const [kind, setKind] = useState<ScheduleKindName>(() => scheduleKindOf(event.kind))
   const [savedKind, setSavedKind] = useState<ScheduleKindName>(() => scheduleKindOf(event.kind))
   const [saving, setSaving] = useState(false)
-  const [savedFlash, setSavedFlash] = useState(false)
   const [saveError, setSaveError] = useState('')
 
   function close() {
@@ -77,11 +76,10 @@ export function InterviewEventDetails({
     try {
       await api.patch('/calendar/events/kind', { eventId: event.id, kind })
       setSavedKind(kind)
-      setSavedFlash(true)
       onKindSaved?.(kind)
+      close()
     } catch (err) {
       setSaveError(getApiErrorMessage(err))
-    } finally {
       setSaving(false)
     }
   }
@@ -144,10 +142,7 @@ export function InterviewEventDetails({
                   value={option.value}
                   checked={kind === option.value}
                   disabled={saving || !canEditKind}
-                  onChange={() => {
-                    setKind(option.value)
-                    setSavedFlash(false)
-                  }}
+                  onChange={() => setKind(option.value)}
                 />
                 <span>
                   <strong>{option.label}</strong>
@@ -234,7 +229,7 @@ export function InterviewEventDetails({
           <div className="iv-detail-actions">
             {canEditKind ? (
               <Button disabled={saving || kind === savedKind} onClick={() => void saveKind()}>
-                {saving ? 'Saving' : savedFlash && kind === savedKind ? 'Saved' : 'Save'}
+                {saving ? 'Saving' : 'Save'}
               </Button>
             ) : null}
             <Button variant="secondary" onClick={close}>

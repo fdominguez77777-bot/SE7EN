@@ -56,8 +56,9 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
           database: config.get('DATABASE_NAME', { infer: true }),
           autoLoadEntities: true,
           synchronize: config.get('DB_SYNCHRONIZE', { infer: true }),
-          retryAttempts: 1,
-          retryDelay: 1000,
+          // Aiven from a home network is often slow; one short retry crashes the whole Nest boot.
+          retryAttempts: 5,
+          retryDelay: 2_000,
           ssl: isManagedPostgresSsl(
             nodeEnv,
             config.get('DATABASE_URL', { infer: true }),
@@ -66,11 +67,12 @@ import { WeeklyInvoicesModule } from './weekly-invoices/weekly-invoices.module';
             ? { rejectUnauthorized: false }
             : false,
           extra: process.env.VERCEL
-            ? { max: 1, connectionTimeoutMillis: 8_000 }
+            ? { max: 1, connectionTimeoutMillis: 20_000 }
             : {
-                max: 8,
-                connectionTimeoutMillis: 8_000,
-                idleTimeoutMillis: 20_000,
+                // Aiven hobby caps at ~20; Next HMR can leave dead Nest pools behind.
+                max: 3,
+                connectionTimeoutMillis: 30_000,
+                idleTimeoutMillis: 30_000,
                 keepAlive: true,
                 keepAliveInitialDelayMillis: 10_000,
               },
