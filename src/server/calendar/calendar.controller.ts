@@ -54,7 +54,7 @@ export class CalendarController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Save the interview type for one calendar schedule' })
   setEventKind(@CurrentUser() user: User, @Body() body: SetCalendarEventKindDto) {
-    return this.calendar.setEventKind(body.eventId, body.kind, user);
+    return this.calendar.setEventKind(body.eventId, body.kind, user, body.otherReason);
   }
 
   @Get('events')

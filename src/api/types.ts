@@ -579,6 +579,8 @@ export type CalendarEvent = {
   guests: CalendarGuest[]
   /** FIRST is the default exact interview. NEXT and OTHER fade when exact-only is on. */
   kind?: 'FIRST' | 'NEXT' | 'OTHER'
+  /** Why this schedule is Other. Present only when kind is OTHER. */
+  otherReason?: string | null
 }
 
 export type CalendarConnectLink = {

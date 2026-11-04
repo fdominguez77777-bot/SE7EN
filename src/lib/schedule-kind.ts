@@ -43,6 +43,18 @@ export function scheduleKindLabel(kind: string | null | undefined) {
   return SCHEDULE_KIND_OPTIONS.find((option) => option.value === value)?.label ?? 'First round'
 }
 
+/** Keep a reason only when the schedule is marked Other. */
+export function otherReasonOf(
+  kind: string | null | undefined,
+  reason: string | null | undefined,
+): string | null {
+  if (scheduleKindOf(kind) !== ScheduleKind.OTHER) {
+    return null
+  }
+  const value = (reason ?? '').trim()
+  return value || null
+}
+
 /** Calendar event ids are `{accountId}:{upstreamId}`. */
 export function calendarEventAccountId(eventKey: string): number | null {
   const split = eventKey.indexOf(':')

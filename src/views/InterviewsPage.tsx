@@ -412,8 +412,10 @@ export function InterviewsPage() {
               exactOnly={exactOnly}
               canEditKind={Boolean(user && hasMemberRole(user, 'ADMIN'))}
               onSelectDay={setFocusDay}
-              onKindSaved={(eventId, kind) => {
-                setEvents((rows) => rows.map((row) => (row.id === eventId ? { ...row, kind } : row)))
+              onKindSaved={(eventId, kind, otherReason) => {
+                setEvents((rows) =>
+                  rows.map((row) => (row.id === eventId ? { ...row, kind, otherReason } : row)),
+                )
               }}
             />
           </div>

@@ -1,4 +1,9 @@
-import { calendarEventAccountId, isExactSchedule, scheduleKindOf } from '../../lib/schedule-kind';
+import {
+  calendarEventAccountId,
+  isExactSchedule,
+  otherReasonOf,
+  scheduleKindOf,
+} from '../../lib/schedule-kind';
 import {
   calendarColor,
   calendarInitials,
@@ -150,6 +155,8 @@ describe('calendar.rules', () => {
     expect(scheduleKindOf('NEXT')).toBe('NEXT');
     expect(isExactSchedule('FIRST')).toBe(true);
     expect(isExactSchedule('OTHER')).toBe(false);
+    expect(otherReasonOf('OTHER', '  Manager screen  ')).toBe('Manager screen');
+    expect(otherReasonOf('FIRST', 'Manager screen')).toBeNull();
     expect(calendarEventAccountId('12:abc_def')).toBe(12);
     expect(calendarEventAccountId('nope')).toBeNull();
   });

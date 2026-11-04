@@ -23,6 +23,13 @@ export class SetCalendarEventKindDto {
   @ApiProperty({ enum: SCHEDULE_KINDS })
   @IsIn(SCHEDULE_KINDS)
   kind: ScheduleKindName;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsString()
+  @MaxLength(280)
+  otherReason?: string | null;
 }
 
 export class CreateCalendarLinkDto {

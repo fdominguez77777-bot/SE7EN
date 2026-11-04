@@ -2487,6 +2487,64 @@ label .req,
   font-size: 12px;
 }
 
+.iv-kind-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--ev, #e8845a) 28%, transparent);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.iv-kind-reason > label,
+.iv-kind-reason-view > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.iv-kind-reason textarea {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.iv-kind-reason textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--ev, #e8845a) 55%, transparent);
+}
+
+.iv-kind-reason-view {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.iv-kind-reason-view strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
 .iv-kind-error {
   margin: 2px 0 0;
   color: #f0a0b8;

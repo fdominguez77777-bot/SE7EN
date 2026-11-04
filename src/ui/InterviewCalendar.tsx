@@ -38,7 +38,11 @@ type InterviewCalendarProps = {
   exactOnly?: boolean
   canEditKind?: boolean
   onSelectDay?: (key: string) => void
-  onKindSaved?: (eventId: string, kind: ScheduleKindName) => void
+  onKindSaved?: (
+    eventId: string,
+    kind: ScheduleKindName,
+    otherReason: string | null,
+  ) => void
 }
 
 export function InterviewCalendar({
@@ -377,7 +381,7 @@ export function InterviewCalendar({
           owner={bidderByAccount.get(openEvent.accountId) ?? null}
           canEditKind={canEditKind}
           onClose={() => setOpenId(null)}
-          onKindSaved={(kind) => onKindSaved?.(openEvent.id, kind)}
+          onKindSaved={(kind, otherReason) => onKindSaved?.(openEvent.id, kind, otherReason)}
         />
       ) : null}
     </div>

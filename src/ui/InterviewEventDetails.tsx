@@ -5,7 +5,9 @@ import { AlignLeft, CalendarDays, Clock, ExternalLink, MapPin, Users, Video, X }
 import { api, getApiErrorMessage } from '../api/client'
 import type { CalendarBidder, CalendarEvent, CalendarGuest } from '../api/types'
 import {
+  otherReasonOf,
   SCHEDULE_KIND_OPTIONS,
+  ScheduleKind,
   scheduleKindOf,
   type ScheduleKindName,
 } from '../lib/schedule-kind'
@@ -38,7 +40,7 @@ export function InterviewEventDetails({
   event: CalendarEvent
   owner: CalendarBidder | null
   onClose: () => void
-  onKindSaved?: (kind: ScheduleKindName) => void
+  onKindSaved?: (kind: ScheduleKindName, otherReason: string | null) => void
   canEditKind?: boolean
 }) {
   const when = formatEventWhen(event.start, event.end, event.allDay)
@@ -53,8 +55,18 @@ export function InterviewEventDetails({
   const [leaving, setLeaving] = useState(false)
   const [kind, setKind] = useState<ScheduleKindName>(() => scheduleKindOf(event.kind))
   const [savedKind, setSavedKind] = useState<ScheduleKindName>(() => scheduleKindOf(event.kind))
+  const [otherReason, setOtherReason] = useState(() => event.otherReason?.trim() ?? '')
+  const [savedOtherReason, setSavedOtherReason] = useState(
+    () => otherReasonOf(event.kind, event.otherReason) ?? '',
+  )
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const nextOtherReason = otherReasonOf(kind, otherReason)
+  const dirty =
+    kind !== savedKind ||
+    (kind === ScheduleKind.OTHER && (nextOtherReason ?? '') !== savedOtherReason)
+  const canSave =
+    dirty && (kind !== ScheduleKind.OTHER || Boolean(nextOtherReason))
 
   function close() {
     if (leaving) {
@@ -68,15 +80,30 @@ export function InterviewEventDetails({
   }
 
   async function saveKind() {
-    if (saving || kind === savedKind) {
+    if (saving || !canSave) {
+      return
+    }
+    if (kind === ScheduleKind.OTHER && !nextOtherReason) {
+      setSaveError('Add a short reason so others know why this is Other.')
       return
     }
     setSaving(true)
     setSaveError('')
     try {
-      await api.patch('/calendar/events/kind', { eventId: event.id, kind })
-      setSavedKind(kind)
-      onKindSaved?.(kind)
+      const { data } = await api.patch<{
+        kind: ScheduleKindName
+        otherReason: string | null
+      }>('/calendar/events/kind', {
+        eventId: event.id,
+        kind,
+        otherReason: nextOtherReason,
+      })
+      const saved = scheduleKindOf(data.kind)
+      const reason = otherReasonOf(saved, data.otherReason)
+      setSavedKind(saved)
+      setSavedOtherReason(reason ?? '')
+      setOtherReason(reason ?? '')
+      onKindSaved?.(saved, reason)
       close()
     } catch (err) {
       setSaveError(getApiErrorMessage(err))
@@ -150,6 +177,27 @@ export function InterviewEventDetails({
                 </span>
               </label>
             ))}
+            {kind === ScheduleKind.OTHER ? (
+              canEditKind ? (
+                <div className="iv-kind-reason">
+                  <label htmlFor={`schedule-other-reason-${event.id}`}>Reason</label>
+                  <textarea
+                    id={`schedule-other-reason-${event.id}`}
+                    value={otherReason}
+                    maxLength={280}
+                    rows={2}
+                    disabled={saving}
+                    placeholder="e.g. Hiring manager screen, non-tech role, recruiter chat"
+                    onChange={(change) => setOtherReason(change.target.value)}
+                  />
+                </div>
+              ) : nextOtherReason || savedOtherReason ? (
+                <div className="iv-kind-reason-view">
+                  <span>Reason</span>
+                  <strong>{nextOtherReason || savedOtherReason}</strong>
+                </div>
+              ) : null
+            ) : null}
             {saveError ? <p className="iv-kind-error">{saveError}</p> : null}
           </fieldset>
           <DetailRow icon={Clock}>
@@ -228,7 +276,7 @@ export function InterviewEventDetails({
           )}
           <div className="iv-detail-actions">
             {canEditKind ? (
-              <Button disabled={saving || kind === savedKind} onClick={() => void saveKind()}>
+              <Button disabled={saving || !canSave} onClick={() => void saveKind()}>
                 {saving ? 'Saving' : 'Save'}
               </Button>
             ) : null}

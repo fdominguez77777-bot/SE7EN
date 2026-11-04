@@ -21,7 +21,9 @@ import { UsersService } from '../users/users.service';
 import { singleflight, TtlCache } from '../cache/singleflight';
 import {
   calendarEventAccountId,
+  otherReasonOf,
   scheduleKindOf,
+  ScheduleKind,
   type ScheduleKindName,
 } from '../../lib/schedule-kind';
 import { CalendarAccount } from './calendar-account.entity';
@@ -113,6 +115,7 @@ export type CalendarEventDto = {
     status: 'accepted' | 'declined' | 'tentative' | 'needsAction';
   }>;
   kind: ScheduleKindName;
+  otherReason: string | null;
 };
 
 @Injectable()
@@ -422,13 +425,23 @@ export class CalendarService {
     return { events, syncErrors };
   }
 
-  async setEventKind(eventId: string, kind: ScheduleKindName, actor: User) {
+  async setEventKind(
+    eventId: string,
+    kind: ScheduleKindName,
+    actor: User,
+    otherReason?: string | null,
+  ) {
     if (!hasRole(actor, UserRole.ADMIN)) {
       throw new ForbiddenException('Only an admin can change the interview type.');
     }
     const accountId = calendarEventAccountId(eventId);
     if (accountId == null) {
       throw new BadRequestException('That schedule is not on a connected calendar.');
+    }
+    const nextKind = scheduleKindOf(kind);
+    const nextReason = otherReasonOf(nextKind, otherReason);
+    if (nextKind === ScheduleKind.OTHER && !nextReason) {
+      throw new BadRequestException('Add a short reason when you mark a schedule as Other.');
     }
     const profiles = await this.profiles.find();
     const accounts = await this.visibleAccounts(actor, profiles);
@@ -437,20 +450,22 @@ export class CalendarService {
     }
     const existing = await this.marks.findOne({ where: { eventKey: eventId } });
     if (existing) {
-      existing.kind = kind;
+      existing.kind = nextKind;
+      existing.otherReason = nextReason;
       existing.updatedById = actor.id;
       await this.marks.save(existing);
     } else {
       await this.marks.save(
         this.marks.create({
           eventKey: eventId,
-          kind,
+          kind: nextKind,
+          otherReason: nextReason,
           updatedById: actor.id,
         }),
       );
     }
     this.clearEventsCache();
-    return { eventId, kind: scheduleKindOf(kind) };
+    return { eventId, kind: nextKind, otherReason: nextReason };
   }
 
   private async withKinds(events: CalendarEventDto[]): Promise<CalendarEventDto[]> {
@@ -460,11 +475,18 @@ export class CalendarService {
     const rows = await this.marks.find({
       where: { eventKey: In(events.map((event) => event.id)) },
     });
-    const kinds = new Map(rows.map((row) => [row.eventKey, row.kind]));
-    return events.map((event) => ({
-      ...event,
-      kind: scheduleKindOf(kinds.get(event.id)),
-    }));
+    const marks = new Map(
+      rows.map((row) => [row.eventKey, { kind: row.kind, otherReason: row.otherReason }]),
+    );
+    return events.map((event) => {
+      const mark = marks.get(event.id);
+      const kind = scheduleKindOf(mark?.kind);
+      return {
+        ...event,
+        kind,
+        otherReason: otherReasonOf(kind, mark?.otherReason),
+      };
+    });
   }
 
   connectedPageUrl() {
@@ -593,6 +615,7 @@ export class CalendarService {
       organizerEmail: event.organizerEmail,
       guests: event.guests,
       kind: scheduleKindOf(null),
+      otherReason: null,
     };
   }
 

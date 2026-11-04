@@ -20,6 +20,10 @@ export class CalendarEventMark {
   @Column({ type: 'varchar', length: 16 })
   kind: string;
 
+  /** Why this schedule is Other. Null unless kind is OTHER. */
+  @Column({ type: 'varchar', length: 280, nullable: true })
+  otherReason: string | null;
+
   @Column({ type: 'int', nullable: true })
   updatedById: number | null;
 
