@@ -149,8 +149,8 @@ function jobFromRecord(job: WorkExperience): JobDraft {
     industry: job.industry ?? '',
     city: job.city ?? '',
     state: job.state ?? '',
-    startDate: job.startDate ?? '',
-    endDate: job.endDate ?? '',
+    startDate: toMonthYearInput(job.startDate ?? ''),
+    endDate: toMonthYearInput(job.endDate ?? ''),
     currentlyWorksHere: job.currentlyWorksHere,
   }
 }
@@ -161,8 +161,8 @@ function schoolFromRecord(school: Education): SchoolDraft {
     id: school.id,
     institutionName: school.institutionName,
     degree: school.degree ?? '',
-    fromDate: school.fromDate ?? '',
-    toDate: school.toDate ?? '',
+    fromDate: toMonthYearInput(school.fromDate ?? ''),
+    toDate: toMonthYearInput(school.toDate ?? ''),
   }
 }
 
@@ -195,18 +195,65 @@ function fullName(profile: Pick<CandidateProfile, 'firstName' | 'middleName' | '
     .join(' ')
 }
 
+/** `03/2020` or an existing `2020-03-01` becomes the first of that month. */
+function monthYearToIso(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+  const typed = /^(\d{2})\/(\d{4})$/.exec(trimmed)
+  const stored = /^(\d{4})-(\d{2})/.exec(trimmed)
+  const month = Number(typed?.[1] ?? stored?.[2])
+  const year = Number(typed?.[2] ?? stored?.[1])
+  if (!year || month < 1 || month > 12) {
+    return null
+  }
+  return `${year}-${String(month).padStart(2, '0')}-01`
+}
+
+function toMonthYearInput(value: string) {
+  const iso = monthYearToIso(value)
+  if (!iso) {
+    return value
+  }
+  const [year, month] = iso.split('-')
+  return `${month}/${year}`
+}
+
+function maskMonthYear(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 6)
+  if (digits.length <= 2) {
+    return digits
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`
+}
+
+function displayMonthYear(value: string) {
+  const iso = monthYearToIso(value)
+  if (!iso) {
+    return value
+  }
+  const [year, month] = iso.split('-').map(Number)
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
 function formatRange(
   start: string,
   end: string,
   current?: boolean,
 ) {
-  if (!start && !end && !current) {
+  const from = start ? displayMonthYear(start) : ''
+  const to = end ? displayMonthYear(end) : ''
+  if (!from && !to && !current) {
     return 'Dates not set'
   }
   if (current) {
-    return `${start || '—'} – Present`
+    return `${from || '—'} – Present`
   }
-  return `${start || '—'} – ${end || '—'}`
+  return `${from || '—'} – ${to || '—'}`
 }
 
 function withCurrentOption(options: string[], current: string) {
@@ -590,16 +637,23 @@ export function CandidateEditor({
       }
 
       for (const job of jobs) {
-        if (!job.companyName.trim() || !job.startDate) {
+        if (!job.companyName.trim() || !job.startDate.trim()) {
           continue
+        }
+        const startDate = monthYearToIso(job.startDate)
+        const endDate = job.currentlyWorksHere ? null : monthYearToIso(job.endDate)
+        if (!startDate || (!job.currentlyWorksHere && job.endDate.trim() && !endDate)) {
+          onError('Use month and year for work dates, like 03/2020.')
+          setPending(false)
+          return
         }
         const body = {
           companyName: job.companyName,
           industry: job.industry || null,
           city: job.city || null,
           state: job.state || null,
-          startDate: job.startDate,
-          endDate: job.currentlyWorksHere ? null : job.endDate || null,
+          startDate,
+          endDate,
           currentlyWorksHere: job.currentlyWorksHere,
         }
         if (job.id) {
@@ -613,11 +667,18 @@ export function CandidateEditor({
         if (!school.institutionName.trim()) {
           continue
         }
+        const fromDate = school.fromDate.trim() ? monthYearToIso(school.fromDate) : null
+        const toDate = school.toDate.trim() ? monthYearToIso(school.toDate) : null
+        if ((school.fromDate.trim() && !fromDate) || (school.toDate.trim() && !toDate)) {
+          onError('Use month and year for education dates, like 05/2018.')
+          setPending(false)
+          return
+        }
         const body = {
           institutionName: school.institutionName,
           degree: school.degree || null,
-          fromDate: school.fromDate || null,
-          toDate: school.toDate || null,
+          fromDate,
+          toDate,
         }
         if (school.id) {
           await api.patch(`/bidder-profiles/${id}/educations/${school.id}`, body)
@@ -1165,9 +1226,8 @@ export function CandidateEditor({
                       }
                       disabled={!canEdit}
                     />
-                    <Field
+                    <MonthYearField
                       label="Start date"
-                      type="date"
                       required
                       value={job.startDate}
                       onChange={(value) =>
@@ -1178,11 +1238,9 @@ export function CandidateEditor({
                         )
                       }
                       disabled={!canEdit}
-                      htmlRequired={false}
                     />
-                    <Field
+                    <MonthYearField
                       label="End date"
-                      type="date"
                       value={job.endDate}
                       onChange={(value) =>
                         setJobs((prev) =>
@@ -1308,9 +1366,8 @@ export function CandidateEditor({
                       }
                       disabled={!canEdit}
                     />
-                    <Field
+                    <MonthYearField
                       label="From"
-                      type="date"
                       value={school.fromDate}
                       onChange={(value) =>
                         setSchools((prev) =>
@@ -1323,9 +1380,8 @@ export function CandidateEditor({
                       }
                       disabled={!canEdit}
                     />
-                    <Field
+                    <MonthYearField
                       label="To"
-                      type="date"
                       value={school.toDate}
                       onChange={(value) =>
                         setSchools((prev) =>
@@ -1359,6 +1415,40 @@ export function CandidateEditor({
         ) : null}
       </form>
     </div>
+  )
+}
+
+function MonthYearField({
+  label,
+  value,
+  onChange,
+  required,
+  disabled,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  required?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <label className="block text-sm">
+      <span className="text-[var(--text-secondary)]">
+        {label}
+        {required ? <span className="text-red-600"> *</span> : null}
+      </span>
+      <input
+        className="input-field disabled:bg-white/5"
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="MM/YYYY"
+        maxLength={7}
+        value={value}
+        onChange={(event) => onChange(maskMonthYear(event.target.value))}
+        disabled={disabled}
+      />
+    </label>
   )
 }
 
