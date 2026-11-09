@@ -6,7 +6,6 @@ import {
   Camera,
   ClipboardCheck,
   CalendarClock,
-  ChartNoAxesCombined,
   Headset,
   History,
   KeyRound,
@@ -66,10 +65,6 @@ const NAV: Record<Role, NavSection[]> = {
       ],
     },
     {
-      label: 'Analytics',
-      items: [{ to: '/reports', label: 'Reports', icon: ChartNoAxesCombined }],
-    },
-    {
       label: 'Admin',
       items: [
         { to: '/admin/members', label: 'Members', icon: UsersRound },
@@ -102,10 +97,6 @@ const NAV: Record<Role, NavSection[]> = {
       items: [
         { to: '/daily-submissions', label: 'Daily Submission', icon: ClipboardCheck },
       ],
-    },
-    {
-      label: 'Analytics',
-      items: [{ to: '/reports', label: 'Reports', icon: ChartNoAxesCombined }],
     },
   ],
   BIDDER: [
