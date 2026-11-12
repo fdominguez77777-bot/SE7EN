@@ -4,7 +4,7 @@ import { api, getApiErrorMessage } from '../api/client'
 import type { DashboardSummary, DashboardTeamBidder } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { Alert, SectionCard } from '../ui/chrome'
-import { hasAnyMemberRole } from '../ui/roles'
+import { hasAnyMemberRole, hasMemberRole } from '../ui/roles'
 import { EmptyState } from '../ui/EmptyState'
 import { PageSkeleton } from '../ui/loading/page-skeletons'
 import { PeriodSelector, usePeriodFilter } from '../ui/PeriodSelector'
@@ -140,7 +140,6 @@ export function DashboardPage() {
   const weekApps = summary?.weekApplications ?? 0
   const weekInts = summary?.weekInterviews ?? 0
   const activeBidderCount = summary?.activeBidderCount ?? 0
-  const bidderCount = summary?.bidderCount ?? 0
   const appChange = percentChange(periodApps, prevApps)
   const intChange = percentChange(periodInts, prevInts)
   const weekdays = resolveRange('weekdays', '', '')
@@ -163,22 +162,13 @@ export function DashboardPage() {
   const sparkDates = weekPoints.map((point) => point.date)
 
   const performance = useMemo(() => {
-    // Rank anyone who holds Bidder/Bid Manager, or already has credited activity.
     const pool = (summary?.bidders ?? []).filter((bidder) => {
       const member = {
         role: bidder.role ?? 'BIDDER',
         roles: bidder.roles,
       }
-      if (hasAnyMemberRole(member, ['BIDDER', 'BID_MANAGER'])) {
-        return true
-      }
       return (
-        (bidder.todayApplications ?? 0) > 0 ||
-        (bidder.weekApplications ?? 0) > 0 ||
-        (bidder.applications ?? 0) > 0 ||
-        (bidder.todayInterviews ?? 0) > 0 ||
-        (bidder.weekInterviews ?? 0) > 0 ||
-        (bidder.interviews ?? 0) > 0
+        hasMemberRole(member, 'BIDDER') && !hasMemberRole(member, 'BID_MANAGER')
       )
     })
     const rows = pool.map((bidder) => {
@@ -293,15 +283,10 @@ export function DashboardPage() {
       {error ? <Alert>{error}</Alert> : null}
 
       {loading ? (
-        <PageSkeleton metrics={3} rows={6} />
+        <PageSkeleton metrics={2} rows={6} />
       ) : (
         <>
           <div className="dash-kpi-row">
-            <KpiCard
-              label="Active bidders"
-              value={activeBidderCount}
-              hint={`${bidderCount} on the team`}
-            />
             <KpiCard
               label="Applications"
               value={appsKpi}

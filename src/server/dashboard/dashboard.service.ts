@@ -14,7 +14,6 @@ import { mondaySundayWeek } from '../reporting/week-range';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import {
-  hasAnyRole,
   hasRole,
   primaryRole,
   userRoles,
@@ -319,10 +318,9 @@ export class DashboardService {
         ...row,
         interviews: weekInterviewByDay.get(row.date) ?? 0,
       })),
-      // Include multi-role members (e.g. Bid Manager + Bidder); primary role alone
-      // used to drop them from the ranking payload.
-      bidders: team.filter((row) =>
-        hasAnyRole(row, [UserRole.BIDDER, UserRole.BID_MANAGER]),
+      bidders: team.filter(
+        (row) =>
+          hasRole(row, UserRole.BIDDER) && !hasRole(row, UserRole.BID_MANAGER),
       ),
       recent,
     };
