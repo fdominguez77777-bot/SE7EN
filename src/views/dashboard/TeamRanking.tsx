@@ -135,10 +135,19 @@ export function TeamRanking({
 
                 <div className="podium-track">
                   <div
-                    className="podium-bar"
+                    className={`podium-bar podium-bar--${tone}`}
                     style={{ height: `${height}%` }}
                     title={`${row.bidder.name}: ${row.value.toLocaleString()} ${metric}`}
-                  />
+                  >
+                    <span className="podium-cylinder" aria-hidden="true">
+                      {isLeader ? (
+                        <span className="podium-sheen-clip">
+                          <span className="podium-sheen" />
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="podium-cap" aria-hidden="true" />
+                  </div>
                 </div>
               </li>
             )
