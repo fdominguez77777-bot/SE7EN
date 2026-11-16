@@ -26,6 +26,7 @@ import { homePathForRole, useAuth } from '../auth/AuthContext'
 import { EntityAvatar } from '../ui/avatar'
 import { AvatarPhotoDialog } from '../ui/AvatarPhotoDialog'
 import { ChangePasswordDialog } from '../ui/ChangePasswordDialog'
+import { AppVersion } from '../ui/AppVersion'
 import { BrandLockup, BrandLogo } from '../ui/BrandLogo'
 import { RouteErrorBoundary } from '../ui/RouteErrorBoundary'
 import { StatusBadge } from '../ui/StatusBadge'
@@ -352,8 +353,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </button>
           <BrandLogo size="sm" />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium tracking-[0.16em] text-[var(--text-muted)] uppercase">
+            <p className="flex items-baseline gap-2 text-[10px] font-medium tracking-[0.16em] text-[var(--text-muted)] uppercase">
               SE7EN
+              <AppVersion className="normal-case tracking-wide" />
             </p>
             <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</p>
           </div>

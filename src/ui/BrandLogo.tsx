@@ -1,6 +1,7 @@
 import { Link } from '@/lib/navigation'
 
 import logoSrc from '../assets/brand/deseven-logo.png'
+import { AppVersion } from './AppVersion'
 
 const SIZES = {
   sm: 'h-8 w-8',
@@ -44,11 +45,11 @@ export function BrandLockup({
     >
       <BrandLogo size="md" />
       <span className="min-w-0 text-left">
-        <span className="block text-sm font-semibold tracking-tight text-[var(--text-primary)]">
-          SE7EN
-        </span>
-        <span className="block text-[13px] text-[var(--text-muted)]">
-          Job Operations
+        <span className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+            SE7EN
+          </span>
+          <AppVersion />
         </span>
       </span>
     </Link>

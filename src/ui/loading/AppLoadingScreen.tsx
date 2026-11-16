@@ -28,7 +28,6 @@ export function AppLoadingScreen({
         <p className="mt-5 text-lg font-semibold tracking-tight text-[var(--text-primary)]">
           SE7EN
         </p>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">Job Operations</p>
         {error ? (
           <>
             <p className="app-status mt-8 text-sm font-medium text-[var(--text-primary)]">

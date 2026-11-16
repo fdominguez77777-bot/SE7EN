@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from '@/lib/navigation'
 
 import { getApiErrorMessage } from '../api/client'
 import { homePathForRole, useAuth } from '../auth/AuthContext'
+import { AppVersion } from '../ui/AppVersion'
 import { BrandLogo } from '../ui/BrandLogo'
 import { Alert, Button } from '../ui/chrome'
 import { PasswordField } from '../ui/password-field'
@@ -49,8 +50,10 @@ export function LoginPage() {
         <div className="flex items-center gap-3">
           <BrandLogo size="lg" />
           <div>
-            <p className="text-base font-semibold text-[var(--text-primary)]">SE7EN</p>
-            <p className="text-[11px] text-[var(--text-muted)]">Job Operations</p>
+            <p className="flex items-baseline gap-2">
+              <span className="text-base font-semibold text-[var(--text-primary)]">SE7EN</span>
+              <AppVersion />
+            </p>
           </div>
         </div>
         <p className="mt-8 text-xs tracking-[0.2em] text-[var(--text-muted)] uppercase">
