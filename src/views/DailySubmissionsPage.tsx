@@ -8,6 +8,7 @@ import type {
   DailySubmissionListItem,
   DailySubmissionRow,
   DailySubmissionStatus,
+  DailyWebCounts,
 } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { notifyDailySubmissionInbox } from '../layouts/daily-submission-inbox'
@@ -22,6 +23,7 @@ import { hasMemberRole } from '../ui/roles'
 import { StatusBadge } from '../ui/StatusBadge'
 
 const DAILY_FLASH_KEY = 'daily-submission-flash'
+const WEB_COUNT_REFRESH_MS = 15_000
 
 function statusLabel(status: DailySubmissionStatus, adminAuthored = false) {
   if (status === 'SUBMITTED') {
@@ -307,6 +309,90 @@ export function DailySubmissionsPage() {
       cancelled = true
     }
   }, [status, isAdmin, isManager, selectedId])
+
+  const liveWebDates = useMemo(() => {
+    if (!isAdmin) {
+      return []
+    }
+    if (selectedId != null) {
+      const day = detail?.reportingDate.slice(0, 10)
+      return day ? [day] : []
+    }
+    return dayWindow(shiftIso(mondayOf(date), 6), 7)
+  }, [isAdmin, selectedId, detail?.reportingDate, date])
+
+  useEffect(() => {
+    if (liveWebDates.length === 0) {
+      return
+    }
+    let cancelled = false
+    const dates = liveWebDates.join(',')
+
+    async function refreshWebCounts() {
+      if (document.hidden) {
+        return
+      }
+      try {
+        const { data } = await api.get<DailyWebCounts>('/daily-submissions/web-counts', {
+          params: { dates },
+          skipGetCache: true,
+        } as { params: { dates: string }; skipGetCache: boolean })
+        if (cancelled) {
+          return
+        }
+        const byDate = new Map(data.days.map((day) => [day.date, day]))
+        setList((current) =>
+          current.map((item) => {
+            const day = byDate.get(reportingDay(item))
+            if (!day || day.webApplications == null || item.webApplications === day.webApplications) {
+              return item
+            }
+            return { ...item, webApplications: day.webApplications }
+          }),
+        )
+        setDetail((current) => {
+          if (!current) {
+            return current
+          }
+          const day = byDate.get(current.reportingDate.slice(0, 10))
+          if (!day || day.webApplications == null) {
+            return current
+          }
+          const byBidder = new Map(
+            day.bidders.map((row) => [row.bidderId, row.webApplications]),
+          )
+          const rows = current.rows.map((row) => {
+            const webApplications = byBidder.get(row.bidderId) ?? 0
+            return row.webApplications === webApplications ? row : { ...row, webApplications }
+          })
+          if (
+            current.webApplications === day.webApplications &&
+            rows.every((row, index) => row === current.rows[index])
+          ) {
+            return current
+          }
+          return { ...current, webApplications: day.webApplications, rows }
+        })
+      } catch {
+        // Keep the last website counts if a refresh fails.
+      }
+    }
+
+    const timer = window.setInterval(() => {
+      void refreshWebCounts()
+    }, WEB_COUNT_REFRESH_MS)
+    const onVisible = () => {
+      if (!document.hidden) {
+        void refreshWebCounts()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [liveWebDates])
 
   function patchRow(
     bidderId: number,
@@ -839,8 +925,21 @@ function AdminList({
                         {statusLabel(item.status, isAdminAuthored(item))}
                       </StatusBadge>
                     </td>
-                    <td className="py-3 pr-3 text-right tabular-nums text-[var(--text-primary)]">
-                      {formatCount(item.gmailConfirmed)}
+                    <td className="py-3 pr-3 text-right text-xs leading-5">
+                      {item.webApplications != null ? (
+                        <div className="text-[var(--text-secondary)]">
+                          Web number:{' '}
+                          <span className="font-medium tabular-nums text-[var(--text-primary)]">
+                            {formatCount(item.webApplications)}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="text-[var(--text-secondary)]">
+                        {item.webApplications != null ? 'Verified number: ' : null}
+                        <span className="font-medium tabular-nums text-[var(--text-primary)]">
+                          {formatCount(item.gmailConfirmed)}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 pr-3 text-right tabular-nums text-[var(--text-primary)]">
                       {formatCount(item.verifiedInterviews)}
@@ -946,6 +1045,21 @@ function ReportWorkspace({
                 ? ` · ${adminAuthored ? 'Completed' : 'Submitted'} ${formatTime(detail.submittedAt)}`
                 : ''}
             </p>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              {isAdmin && detail.webApplications != null ? (
+                <>
+                  Web number:{' '}
+                  <span className="font-medium tabular-nums text-[var(--text-primary)]">
+                    {formatCount(detail.webApplications)}
+                  </span>
+                  {' · '}
+                </>
+              ) : null}
+              Verified number:{' '}
+              <span className="font-medium tabular-nums text-[var(--text-primary)]">
+                {formatCount(totals.gmail)}
+              </span>
+            </p>
           </div>
           <StatusBadge tone={statusTone(detail.status)}>
             {statusLabel(detail.status, adminAuthored)}
@@ -983,10 +1097,19 @@ function ReportWorkspace({
                           <p className="truncate font-medium text-[var(--text-primary)]">
                             {row.bidderName}
                           </p>
-                          <p className="text-xs text-[var(--text-muted)]">
-                            System {row.systemApplicationCount.toLocaleString()} apps ·{' '}
-                            {row.systemInterviewCount.toLocaleString()} interviews
-                          </p>
+                          {isAdmin && row.webApplications != null ? (
+                            <p className="text-xs text-[var(--text-muted)]">
+                              Web number:{' '}
+                              <span className="font-medium tabular-nums text-[var(--text-secondary)]">
+                                {formatCount(row.webApplications)}
+                              </span>
+                            </p>
+                          ) : (
+                            <p className="text-xs text-[var(--text-muted)]">
+                              System {row.systemApplicationCount.toLocaleString()} apps ·{' '}
+                              {row.systemInterviewCount.toLocaleString()} interviews
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>

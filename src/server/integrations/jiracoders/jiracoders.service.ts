@@ -19,6 +19,7 @@ import {
   matchesApplicationColumnFilters,
 } from './application-column-filter';
 import {
+  applicationProfileAlias,
   countsFromBidderStats,
   countsTowardApplicationTotal,
   creditApplicationBidderId,
@@ -343,6 +344,7 @@ export class JiracodersApplicationsService {
   async creditedApplications(
     from?: Date,
     to?: Date,
+    fresh = false,
   ): Promise<CreditedApplication[]> {
     const bidders = await this.loadLocalBidders();
     const mapped = await this.collectMapped(
@@ -351,6 +353,7 @@ export class JiracodersApplicationsService {
         toDate: to ? queryDate(new Date(to.getTime() - 1)) : undefined,
       },
       bidders,
+      fresh,
     );
     return mapped
       .map((row) => {
@@ -386,6 +389,7 @@ export class JiracodersApplicationsService {
       toDate?: string;
     },
     bidders: ApplicationBidderOption[],
+    fresh = false,
   ): Promise<ApplicationTableRow[]> {
     const cacheKey = JSON.stringify({
       keyword: query.keyword ?? '',
@@ -394,14 +398,14 @@ export class JiracodersApplicationsService {
       toDate: query.toDate ?? '',
     });
     const cached = this.listCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < CACHE_MS) {
+    if (!fresh && cached && Date.now() - cached.at < CACHE_MS) {
       // Re-credit with current profile assignments; cached rows can go stale
       // after a profile is moved between members.
       return cached.items.map((row) => recreditMappedRow(row, bidders));
     }
     return singleflight(this.listInflight, cacheKey, async () => {
       const again = this.listCache.get(cacheKey);
-      if (again && Date.now() - again.at < CACHE_MS) {
+      if (!fresh && again && Date.now() - again.at < CACHE_MS) {
         return again.items.map((row) => recreditMappedRow(row, bidders));
       }
 
@@ -574,9 +578,11 @@ function recreditMappedRow(
   row: ApplicationTableRow,
   bidders: ApplicationBidderOption[],
 ): ApplicationTableRow {
+  const profileName =
+    applicationProfileAlias(row.profileName)?.label ?? row.profileName;
   const bidderId = creditApplicationBidderId(
     row.bidderName,
-    row.profileName,
+    profileName,
     bidders,
   );
   const matched = bidderId != null ? bidders.find((bidder) => bidder.id === bidderId) : null;
@@ -586,6 +592,7 @@ function recreditMappedRow(
     row.bidderName != null && matchBidderIdByName(row.bidderName, bidders) != null;
   return {
     ...row,
+    profileName,
     bidderId,
     bidderName:
       bidderId != null && !localNameMatched

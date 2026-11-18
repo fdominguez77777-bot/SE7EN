@@ -50,6 +50,13 @@ export class DailySubmissionsController {
     return this.dailySubmissions.unreadCount(actor);
   }
 
+  @Get('web-counts')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Live website application counts for the given days (ADMIN)' })
+  webCounts(@CurrentUser() actor: User, @Query('dates') dates?: string) {
+    return this.dailySubmissions.liveWebCounts(actor, dates);
+  }
+
   @Get('weekly-work-status')
   @Roles(UserRole.ADMIN, UserRole.BID_MANAGER, UserRole.BIDDER)
   @ApiOperation({

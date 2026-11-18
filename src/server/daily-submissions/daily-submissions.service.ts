@@ -9,6 +9,7 @@ import { FindOperator, In, Not, Repository } from 'typeorm';
 
 import { ActivityEvent } from '../activity/activity-event.entity';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
+import { JiracodersApplicationsService } from '../integrations/jiracoders/jiracoders.service';
 import { Interview } from '../interviews/interview.entity';
 import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
@@ -62,6 +63,7 @@ export class DailySubmissionsService {
     private readonly events: Repository<ActivityEvent>,
     @InjectRepository(Interview)
     private readonly interviews: Repository<Interview>,
+    private readonly jiraApplications: JiracodersApplicationsService,
   ) {}
 
   async list(actor: User, date?: string) {
@@ -95,9 +97,57 @@ export class DailySubmissionsService {
       order: { reportingDate: 'DESC', id: 'DESC' },
     });
     const unreadById = await this.unreadBySubmission(actor, items);
-    return items.map((item) =>
-      this.toListDto(item, unreadById.get(item.id) ?? false),
-    );
+    const includeWeb = actor.role === UserRole.ADMIN;
+    const web = includeWeb
+      ? await this.webApplicationBreakdown(
+          items.map((item) => this.reportingDateString(item.reportingDate)),
+        )
+      : null;
+    return items.map((item) => {
+      const date = this.reportingDateString(item.reportingDate);
+      return this.toListDto(
+        item,
+        unreadById.get(item.id) ?? false,
+        web?.totals.has(date) ? web.totals.get(date) : undefined,
+      );
+    });
+  }
+
+  /** Fresh website counts for an admin. Other roles cannot read these numbers. */
+  async liveWebCounts(actor: User, datesRaw?: string) {
+    this.assertAdmin(actor);
+    const dates = [
+      ...new Set(
+        (datesRaw ?? '')
+          .split(',')
+          .map((part) => part.trim())
+          .filter((part) => /^\d{4}-\d{2}-\d{2}$/.test(part))
+          .flatMap((part) => {
+            try {
+              return [parseReportingDate(part)];
+            } catch {
+              return [];
+            }
+          }),
+      ),
+    ].slice(0, 14);
+    const web = await this.webApplicationBreakdown(dates, true);
+    return {
+      days: dates.map((date) => {
+        const counted = web.totals.has(date);
+        const bidders = web.byBidder.get(date);
+        return {
+          date,
+          webApplications: counted ? (web.totals.get(date) ?? 0) : null,
+          bidders: counted
+            ? [...(bidders?.entries() ?? [])].map(([bidderId, webApplications]) => ({
+                bidderId,
+                webApplications,
+              }))
+            : [],
+        };
+      }),
+    };
   }
 
   async unreadCount(actor: User) {
@@ -244,7 +294,11 @@ export class DailySubmissionsService {
     if (actor.role === UserRole.ADMIN) {
       await this.markRead(actor.id, id);
     }
-    return this.toDetailDto(await this.loadOrFail(id), false);
+    return this.toDetailDto(
+      await this.loadOrFail(id),
+      false,
+      actor.role === UserRole.ADMIN,
+    );
   }
 
   async workspace(actor: User, date?: string) {
@@ -281,10 +335,10 @@ export class DailySubmissionsService {
       if (shouldRefreshLiveSystemCounts(existing.status)) {
         await this.syncDraft(existing);
       }
-      return this.toDetailDto(await this.loadOrFail(existing.id));
+      return this.toDetailDto(await this.loadOrFail(existing.id), false, true);
     }
     await this.assertNoManagerReportFiled(reportingDate);
-    return this.toDetailDto(await this.createDraft(actor, reportingDate));
+    return this.toDetailDto(await this.createDraft(actor, reportingDate), false, true);
   }
 
   async saveDraft(id: number, dto: SaveDailySubmissionDto, actor: User) {
@@ -342,7 +396,11 @@ export class DailySubmissionsService {
     if (shouldRefreshLiveSystemCounts(submission.status)) {
       await this.syncDraft(submission);
     }
-    return this.toDetailDto(await this.loadOrFail(id));
+    return this.toDetailDto(
+      await this.loadOrFail(id),
+      false,
+      actor.role === UserRole.ADMIN,
+    );
   }
 
   async submit(id: number, actor: User) {
@@ -408,7 +466,11 @@ export class DailySubmissionsService {
     if (adminAuthored) {
       await this.removeManagerDrafts(reportingDate);
     }
-    return this.toDetailDto(await this.loadOrFail(id));
+    return this.toDetailDto(
+      await this.loadOrFail(id),
+      false,
+      actor.role === UserRole.ADMIN,
+    );
   }
 
   async reopen(id: number, actor: User) {
@@ -423,7 +485,7 @@ export class DailySubmissionsService {
     submission.reviewedByUserId = null;
     await this.submissions.save(submission);
     await this.syncDraft(submission);
-    return this.toDetailDto(await this.loadOrFail(id));
+    return this.toDetailDto(await this.loadOrFail(id), false, true);
   }
 
   async review(id: number, actor: User) {
@@ -437,7 +499,7 @@ export class DailySubmissionsService {
     submission.reviewedByUserId = actor.id;
     await this.submissions.save(submission);
     await this.markRead(actor.id, id);
-    return this.toDetailDto(await this.loadOrFail(id));
+    return this.toDetailDto(await this.loadOrFail(id), false, true);
   }
 
   async remove(id: number, actor: User) {
@@ -778,14 +840,62 @@ export class DailySubmissionsService {
     return `${value.getUTCFullYear()}-${month}-${day}`;
   }
 
-  private async toDetailDto(submission: DailySubmission, unread = false) {
-    const assigned = await this.assignedCounts();
+  /** Website application totals, and the same totals split by credited bidder. */
+  private async webApplicationBreakdown(dates: string[], fresh = false) {
+    const keys = [...new Set(dates.map((date) => parseReportingDate(date)))].sort();
+    const totals = new Map<string, number>();
+    const byBidder = new Map<string, Map<number, number>>();
+    if (keys.length === 0) {
+      return { totals, byBidder };
+    }
+    const from = calendarDayRange(keys[0]).from;
+    const to = calendarDayRange(keys[keys.length - 1]).to;
+    try {
+      const rows = await this.jiraApplications.creditedApplications(from, to, fresh);
+      for (const key of keys) {
+        totals.set(key, 0);
+        byBidder.set(key, new Map());
+      }
+      for (const row of rows) {
+        const key = toDateOnly(row.appliedAt);
+        if (!totals.has(key)) {
+          continue;
+        }
+        totals.set(key, (totals.get(key) ?? 0) + 1);
+        if (row.bidderId == null) {
+          continue;
+        }
+        const bidderCounts = byBidder.get(key) ?? new Map<number, number>();
+        bidderCounts.set(row.bidderId, (bidderCounts.get(row.bidderId) ?? 0) + 1);
+        byBidder.set(key, bidderCounts);
+      }
+    } catch {
+      return { totals, byBidder };
+    }
+    return { totals, byBidder };
+  }
+
+  private async toDetailDto(
+    submission: DailySubmission,
+    unread = false,
+    includeWeb = false,
+  ) {
+    const reportingDate = this.reportingDateString(submission.reportingDate);
+    const [assigned, web] = await Promise.all([
+      this.assignedCounts(),
+      includeWeb
+        ? this.webApplicationBreakdown([reportingDate])
+        : Promise.resolve(null),
+    ]);
+    const webCounted = web?.totals.has(reportingDate) ?? false;
+    const bidderWeb = web?.byBidder.get(reportingDate);
     const rows = bidderOnlyRows(submission.rows).sort((a, b) =>
       (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
     );
     return {
       id: submission.id,
-      reportingDate: this.reportingDateString(submission.reportingDate),
+      reportingDate,
+      webApplications: webCounted ? (web?.totals.get(reportingDate) ?? 0) : null,
       status: submission.status,
       manager: submission.manager
         ? {
@@ -827,12 +937,17 @@ export class DailySubmissionsService {
           row.verifiedInterviewCount,
           row.systemInterviewCount,
         ),
+        webApplications: webCounted ? (bidderWeb?.get(row.bidderId) ?? 0) : null,
         notes: row.notes,
       })),
     };
   }
 
-  private toListDto(submission: DailySubmission, unread = false) {
+  private toListDto(
+    submission: DailySubmission,
+    unread = false,
+    webApplications?: number,
+  ) {
     const rows = bidderOnlyRows(submission.rows);
     const systemApplications = rows.reduce(
       (sum, row) => sum + row.systemApplicationCount,
@@ -867,6 +982,7 @@ export class DailySubmissionsService {
       reviewedAt: submission.reviewedAt,
       updated_at: submission.updated_at,
       systemApplications,
+      webApplications: webApplications ?? null,
       gmailConfirmed,
       applicationDifference: gmailConfirmed - systemApplications,
       systemInterviews,

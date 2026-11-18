@@ -105,6 +105,25 @@ export function dailySeries(
   return days
 }
 
+/**
+ * Bar metal from the application count, split into three bands of the leader's total.
+ * Gold is only the leader. Counts above the bottom third are silver.
+ * Counts in the bottom third use the other metal.
+ */
+export function rankingMetal(
+  value: number,
+  leaderValue: number,
+  isLeader: boolean,
+): '1' | '2' | '3' {
+  if (isLeader) {
+    return '1'
+  }
+  if (leaderValue <= 0 || value * 3 <= leaderValue) {
+    return '3'
+  }
+  return '2'
+}
+
 export function assignDenseRanks(values: number[]) {
   if (values.length === 0) {
     return []

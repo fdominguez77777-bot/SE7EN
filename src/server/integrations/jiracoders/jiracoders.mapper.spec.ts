@@ -115,6 +115,34 @@ describe('jiracoders mapper', () => {
     expect(unknown?.bidderName).toBe('saad');
   });
 
+  it('shows Fred applications as Fabian Dominguez, credited to that profile owner', () => {
+    const bidders = [
+      {
+        id: 2,
+        name: 'admin',
+        username: null,
+        isActive: true,
+        applicationsCount: 0,
+        profileKeys: ['fabian dominguez', 'fabian', 'dominguez'],
+      },
+      {
+        id: 19,
+        name: 'Antony waithaka',
+        username: null,
+        isActive: true,
+        applicationsCount: 0,
+        profileKeys: ['fred', 'fred siika', 'siika'],
+      },
+    ];
+    const mapped = mapApplicationListItem(
+      { ...listFixture, bidder: { name: 'fred' }, profile: { name: 'Fred ' } },
+      bidders,
+    );
+    expect(mapped?.profileName).toBe('Fabian Dominguez');
+    expect(mapped?.bidderId).toBe(2);
+    expect(mapped?.bidderName).toBe('admin');
+  });
+
   it('maps details fields used by the row panel', () => {
     const mapped = mapApplicationDetails({
       ...listFixture,

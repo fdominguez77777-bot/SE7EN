@@ -3,7 +3,7 @@ import { Trophy } from 'lucide-react'
 
 import type { DashboardTeamBidder } from '../../api/types'
 import { EntityAvatar } from '../../ui/avatar'
-import { formatPlace } from './metrics'
+import { formatPlace, rankingMetal } from './metrics'
 
 export type RankingRow = {
   bidder: DashboardTeamBidder
@@ -74,8 +74,7 @@ export function TeamRanking({
             const isYou = row.bidder.id === currentUserId
             const isLeader = row.rank === 1
             const height = Math.max(14, Math.round((row.value / max) * 100))
-            const tone =
-              row.rank === 1 ? '1' : row.rank === 2 ? '2' : row.rank === 3 ? '3' : 'n'
+            const tone = rankingMetal(row.value, leader?.value ?? 0, isLeader)
             const share = leader
               ? Math.round((row.value / Math.max(leader.value, 1)) * 100)
               : 0
@@ -107,15 +106,7 @@ export function TeamRanking({
                   <EntityAvatar
                     name={row.bidder.name}
                     size="sm"
-                    tone={
-                      isLeader
-                        ? 'accent'
-                        : row.rank === 2
-                          ? 'info'
-                          : row.rank === 3
-                            ? 'warning'
-                            : 'neutral'
-                    }
+                    tone={tone === '1' ? 'accent' : tone === '2' ? 'info' : 'warning'}
                   />
                   <div className="podium-identity">{nameNode}</div>
                   <span className="podium-place">

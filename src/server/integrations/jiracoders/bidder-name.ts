@@ -117,9 +117,42 @@ export function matchBidderIdByProfile(
 }
 
 /**
+ * JiraCoders sometimes records this profile under the short name "Fred"
+ * (or "Fred Siika"). On the applications table it is Fabian Dominguez,
+ * owned by the local member who has that profile assigned.
+ */
+const APPLICATION_PROFILE_ALIASES: Record<
+  string,
+  { label: string; ownerKey: string }
+> = {
+  fred: { label: 'Fabian Dominguez', ownerKey: 'fabian dominguez' },
+  'fred siika': { label: 'Fabian Dominguez', ownerKey: 'fabian dominguez' },
+};
+
+export function applicationProfileAlias(name: string | null | undefined) {
+  const key = normalizeBidderName(name);
+  if (!key) {
+    return null;
+  }
+  return APPLICATION_PROFILE_ALIASES[key] ?? null;
+}
+
+function ownerFromProfileAlias(
+  name: string | null | undefined,
+  bidders: Array<{ id: number; profileKeys?: string[] }>,
+) {
+  const alias = applicationProfileAlias(name);
+  if (!alias) {
+    return null;
+  }
+  return matchBidderIdByProfile(alias.ownerKey, bidders);
+}
+
+/**
  * JiraCoders' bidder is often the profile identity (e.g. "Edward Ellis"), not
- * the local member name ("Vincent"). Match local users first, then treat the
- * Jira bidder name as a profile key, then the application profile name.
+ * the local member name ("Vincent"). Match local users first, then a known
+ * profile alias, then treat the Jira bidder name as a profile key, then the
+ * application profile name.
  */
 export function creditApplicationBidderId(
   bidderName: string | null | undefined,
@@ -128,6 +161,8 @@ export function creditApplicationBidderId(
 ): number | null {
   return (
     matchBidderIdByName(bidderName, bidders) ??
+    ownerFromProfileAlias(bidderName, bidders) ??
+    ownerFromProfileAlias(profileName, bidders) ??
     matchBidderIdByProfile(bidderName, bidders) ??
     matchBidderIdByProfile(profileName, bidders)
   );

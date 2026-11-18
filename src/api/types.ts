@@ -414,6 +414,7 @@ export type DailySubmissionRow = {
   systemInterviewCount: number
   verifiedInterviewCount: number | null
   interviewDifference: number | null
+  webApplications?: number | null
   notes: string | null
 }
 
@@ -434,6 +435,7 @@ export type DailySubmissionDetail = {
   updated_at: string
   created_at: string
   unread?: boolean
+  webApplications: number | null
   rows: DailySubmissionRow[]
 }
 
@@ -452,6 +454,7 @@ export type DailySubmissionListItem = {
   reviewedAt: string | null
   updated_at: string
   systemApplications: number
+  webApplications: number | null
   gmailConfirmed: number
   applicationDifference: number
   systemInterviews: number
@@ -459,6 +462,14 @@ export type DailySubmissionListItem = {
   interviewDifference: number
   bidderCount: number
   unread: boolean
+}
+
+export type DailyWebCounts = {
+  days: Array<{
+    date: string
+    webApplications: number | null
+    bidders: Array<{ bidderId: number; webApplications: number }>
+  }>
 }
 
 export type BidderWeeklyWorkDay = {

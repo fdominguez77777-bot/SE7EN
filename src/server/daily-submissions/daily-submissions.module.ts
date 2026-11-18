@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ActivityEvent } from '../activity/activity-event.entity';
 import { AuthModule } from '../auth/auth.module';
+import { JiracodersModule } from '../integrations/jiracoders/jiracoders.module';
 import { BidderProfile } from '../bidder-profiles/bidder-profile.entity';
 import { Interview } from '../interviews/interview.entity';
 import { User } from '../users/user.entity';
@@ -24,6 +25,7 @@ import { DailySubmissionsService } from './daily-submissions.service';
       Interview,
     ]),
     AuthModule,
+    JiracodersModule,
   ],
   controllers: [DailySubmissionsController],
   providers: [DailySubmissionsService],
