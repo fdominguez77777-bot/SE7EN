@@ -461,6 +461,7 @@ export type DailySubmissionListItem = {
   verifiedInterviews: number
   interviewDifference: number
   bidderCount: number
+  bidderIds: number[]
   unread: boolean
 }
 

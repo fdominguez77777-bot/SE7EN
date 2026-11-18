@@ -105,10 +105,12 @@ export class DailySubmissionsService {
       : null;
     return items.map((item) => {
       const date = this.reportingDateString(item.reportingDate);
+      const bidderIds = bidderOnlyRows(item.rows).map((row) => row.bidderId);
+      const counted = web?.totals.has(date) ?? false;
       return this.toListDto(
         item,
         unreadById.get(item.id) ?? false,
-        web?.totals.has(date) ? web.totals.get(date) : undefined,
+        counted ? sumBidderWeb(bidderIds, web?.byBidder.get(date)) : undefined,
       );
     });
   }
@@ -892,10 +894,35 @@ export class DailySubmissionsService {
     const rows = bidderOnlyRows(submission.rows).sort((a, b) =>
       (a.bidder?.name ?? '').localeCompare(b.bidder?.name ?? ''),
     );
+    const mappedRows = rows.map((row) => ({
+      id: row.id,
+      bidderId: row.bidderId,
+      bidderName: row.bidder?.name ?? 'Unknown bidder',
+      bidderEmail: row.bidder?.email ?? '',
+      bidderRole: (row.bidder?.role as UserRole) ?? UserRole.BIDDER,
+      bidderAvatarUrl: avatarPublicUrl(row.bidder?.avatarPath),
+      assignedProfileCount: assigned.get(row.bidderId) ?? 0,
+      systemApplicationCount: row.systemApplicationCount,
+      gmailConfirmedApplicationCount: row.gmailConfirmedApplicationCount,
+      applicationDifference: difference(
+        row.gmailConfirmedApplicationCount,
+        row.systemApplicationCount,
+      ),
+      systemInterviewCount: row.systemInterviewCount,
+      verifiedInterviewCount: row.verifiedInterviewCount,
+      interviewDifference: difference(
+        row.verifiedInterviewCount,
+        row.systemInterviewCount,
+      ),
+      webApplications: webCounted ? (bidderWeb?.get(row.bidderId) ?? 0) : null,
+      notes: row.notes,
+    }));
     return {
       id: submission.id,
       reportingDate,
-      webApplications: webCounted ? (web?.totals.get(reportingDate) ?? 0) : null,
+      webApplications: webCounted
+        ? mappedRows.reduce((sum, row) => sum + (row.webApplications ?? 0), 0)
+        : null,
       status: submission.status,
       manager: submission.manager
         ? {
@@ -917,29 +944,7 @@ export class DailySubmissionsService {
       updated_at: submission.updated_at,
       created_at: submission.created_at,
       unread,
-      rows: rows.map((row) => ({
-        id: row.id,
-        bidderId: row.bidderId,
-        bidderName: row.bidder?.name ?? 'Unknown bidder',
-        bidderEmail: row.bidder?.email ?? '',
-        bidderRole: (row.bidder?.role as UserRole) ?? UserRole.BIDDER,
-        bidderAvatarUrl: avatarPublicUrl(row.bidder?.avatarPath),
-        assignedProfileCount: assigned.get(row.bidderId) ?? 0,
-        systemApplicationCount: row.systemApplicationCount,
-        gmailConfirmedApplicationCount: row.gmailConfirmedApplicationCount,
-        applicationDifference: difference(
-          row.gmailConfirmedApplicationCount,
-          row.systemApplicationCount,
-        ),
-        systemInterviewCount: row.systemInterviewCount,
-        verifiedInterviewCount: row.verifiedInterviewCount,
-        interviewDifference: difference(
-          row.verifiedInterviewCount,
-          row.systemInterviewCount,
-        ),
-        webApplications: webCounted ? (bidderWeb?.get(row.bidderId) ?? 0) : null,
-        notes: row.notes,
-      })),
+      rows: mappedRows,
     };
   }
 
@@ -989,6 +994,7 @@ export class DailySubmissionsService {
       verifiedInterviews,
       interviewDifference: verifiedInterviews - systemInterviews,
       bidderCount: rows.length,
+      bidderIds: rows.map((row) => row.bidderId),
       unread,
     };
   }
@@ -1043,6 +1049,17 @@ function resolveWorkStatusPeriod(periodRaw?: string) {
 
 function isAdminAuthored(submission: DailySubmission) {
   return submission.manager?.role === UserRole.ADMIN;
+}
+
+function sumBidderWeb(
+  bidderIds: number[],
+  counts: Map<number, number> | undefined,
+) {
+  let total = 0;
+  for (const bidderId of bidderIds) {
+    total += counts?.get(bidderId) ?? 0;
+  }
+  return total;
 }
 
 function bidderOnlyRows<T extends { bidder?: { role?: string } | null }>(

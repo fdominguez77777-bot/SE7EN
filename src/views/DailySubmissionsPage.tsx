@@ -344,10 +344,19 @@ export function DailySubmissionsPage() {
         setList((current) =>
           current.map((item) => {
             const day = byDate.get(reportingDay(item))
-            if (!day || day.webApplications == null || item.webApplications === day.webApplications) {
+            if (!day || day.webApplications == null) {
               return item
             }
-            return { ...item, webApplications: day.webApplications }
+            const byBidder = new Map(
+              day.bidders.map((row) => [row.bidderId, row.webApplications]),
+            )
+            const webApplications = (item.bidderIds ?? []).reduce(
+              (sum, bidderId) => sum + (byBidder.get(bidderId) ?? 0),
+              0,
+            )
+            return item.webApplications === webApplications
+              ? item
+              : { ...item, webApplications }
           }),
         )
         setDetail((current) => {
@@ -365,13 +374,17 @@ export function DailySubmissionsPage() {
             const webApplications = byBidder.get(row.bidderId) ?? 0
             return row.webApplications === webApplications ? row : { ...row, webApplications }
           })
+          const webApplications = rows.reduce(
+            (sum, row) => sum + (row.webApplications ?? 0),
+            0,
+          )
           if (
-            current.webApplications === day.webApplications &&
+            current.webApplications === webApplications &&
             rows.every((row, index) => row === current.rows[index])
           ) {
             return current
           }
-          return { ...current, webApplications: day.webApplications, rows }
+          return { ...current, webApplications, rows }
         })
       } catch {
         // Keep the last website counts if a refresh fails.
