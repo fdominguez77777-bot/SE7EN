@@ -115,7 +115,7 @@ describe('jiracoders mapper', () => {
     expect(unknown?.bidderName).toBe('saad');
   });
 
-  it('shows Fred applications as Fabian Dominguez, credited to that profile owner', () => {
+  it('keeps the Jira profile name and credits Fred to the member who owns that profile', () => {
     const bidders = [
       {
         id: 2,
@@ -138,9 +138,9 @@ describe('jiracoders mapper', () => {
       { ...listFixture, bidder: { name: 'fred' }, profile: { name: 'Fred ' } },
       bidders,
     );
-    expect(mapped?.profileName).toBe('Fabian Dominguez');
-    expect(mapped?.bidderId).toBe(2);
-    expect(mapped?.bidderName).toBe('admin');
+    expect(mapped?.profileName).toBe('Fred');
+    expect(mapped?.bidderId).toBe(19);
+    expect(mapped?.bidderName).toBe('Antony waithaka');
   });
 
   it('maps details fields used by the row panel', () => {

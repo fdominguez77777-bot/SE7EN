@@ -1,5 +1,4 @@
 import {
-  applicationProfileAlias,
   creditApplicationBidderId,
   matchBidderIdByName,
 } from './bidder-name';
@@ -183,8 +182,7 @@ export function mapApplicationListItem(
     return null;
   }
   const jiraBidderName = text(row.bidder?.name);
-  const rawProfileName = profileDisplayName(row.profile);
-  const profileName = applicationProfileAlias(rawProfileName)?.label ?? rawProfileName;
+  const profileName = profileDisplayName(row.profile);
   const bidderId = creditApplicationBidderId(jiraBidderName, profileName, bidders);
   const bidderName =
     matchBidderIdByName(jiraBidderName, bidders) == null && bidderId != null

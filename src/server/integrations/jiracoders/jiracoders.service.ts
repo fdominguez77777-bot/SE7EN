@@ -19,7 +19,6 @@ import {
   matchesApplicationColumnFilters,
 } from './application-column-filter';
 import {
-  applicationProfileAlias,
   countsFromBidderStats,
   countsTowardApplicationTotal,
   creditApplicationBidderId,
@@ -578,8 +577,7 @@ function recreditMappedRow(
   row: ApplicationTableRow,
   bidders: ApplicationBidderOption[],
 ): ApplicationTableRow {
-  const profileName =
-    applicationProfileAlias(row.profileName)?.label ?? row.profileName;
+  const profileName = row.profileName;
   const bidderId = creditApplicationBidderId(
     row.bidderName,
     profileName,
