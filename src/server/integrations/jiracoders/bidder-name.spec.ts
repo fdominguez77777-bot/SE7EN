@@ -2,6 +2,7 @@ import {
   countApplicationsByBidderName,
   countsFromBidderStats,
   countsTowardApplicationTotal,
+  jiraBidderIdentityByLocalId,
   jiraStatsRange,
   matchBidderIdByEmail,
   creditInterviewBidderId,
@@ -174,6 +175,33 @@ describe('bidder name matching', () => {
       fromDate: '09/14/2026',
       toDate: '09/20/2026',
     });
+  });
+});
+
+describe('jira bidder identity', () => {
+  it('uses the Jira name and username for each local bidder', () => {
+    const local = [
+      { id: 19, name: 'Antony waithaka', profileKeys: ['fred', 'fred siika'] },
+      { id: 7, name: 'Maani', profileKeys: ['david barberis', 'david'] },
+      { id: 17, name: 'Muhammad', profileKeys: ['cameron hicks', 'cameron'] },
+      { id: 6, name: 'Yel', profileKeys: ['esad omerovic', 'esad'] },
+      { id: 2, name: 'admin', profileKeys: ['fabian dominguez'] },
+    ];
+    const identity = jiraBidderIdentityByLocalId(
+      [
+        { name: 'Antony', username: 'fred' },
+        { name: 'Maani', username: 'david' },
+        { name: 'Muhammad', username: 'cameron' },
+        { name: 'Yel', username: 'esad' },
+        { name: 'Admin', username: 'admin' },
+      ],
+      local,
+    );
+    expect(identity.get(19)).toEqual({ name: 'Antony', username: 'fred' });
+    expect(identity.get(7)).toEqual({ name: 'Maani', username: 'david' });
+    expect(identity.get(17)).toEqual({ name: 'Muhammad', username: 'cameron' });
+    expect(identity.get(6)).toEqual({ name: 'Yel', username: 'esad' });
+    expect(identity.get(2)).toEqual({ name: 'Admin', username: 'admin' });
   });
 });
 

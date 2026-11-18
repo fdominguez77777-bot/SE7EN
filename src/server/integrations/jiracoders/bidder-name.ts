@@ -172,6 +172,82 @@ export function jiraStatsRange(from?: Date, to?: Date) {
   };
 }
 
+export type JiraBidderIdentity = {
+  name: string;
+  username: string | null;
+};
+
+/**
+ * Pair each local member with the Jira bidder stats row that belongs to them.
+ * Exact names win, then the Jira username against an assigned profile, then a
+ * Jira name that is the first word of the local name (Antony → Antony waithaka).
+ */
+export function jiraBidderIdentityByLocalId(
+  stats: Array<{ name?: string | null; username?: string | null }>,
+  bidders: Array<{ id: number; name: string; profileKeys?: string[] }>,
+): Map<number, JiraBidderIdentity> {
+  const assigned = new Map<number, JiraBidderIdentity>();
+  const used = new Set<number>();
+
+  const claim = (
+    id: number | null,
+    stat: { name?: string | null; username?: string | null },
+  ) => {
+    const name = (stat.name ?? '').trim();
+    if (id == null || used.has(id) || !name) {
+      return;
+    }
+    used.add(id);
+    const username = (stat.username ?? '').trim();
+    assigned.set(id, { name, username: username || null });
+  };
+
+  const open = () => bidders.filter((bidder) => !used.has(bidder.id));
+
+  for (const stat of stats) {
+    const key = normalizeBidderName(stat.name);
+    if (!key) {
+      continue;
+    }
+    const exact = open().filter(
+      (bidder) => normalizeBidderName(bidder.name) === key,
+    );
+    if (exact.length === 1) {
+      claim(exact[0]?.id ?? null, stat);
+    }
+  }
+
+  for (const stat of stats) {
+    const key = normalizeBidderName(stat.username);
+    if (!key) {
+      continue;
+    }
+    const owners = open().filter((bidder) => bidder.profileKeys?.includes(key));
+    if (owners.length === 1) {
+      claim(owners[0]?.id ?? null, stat);
+    }
+  }
+
+  for (const stat of stats) {
+    const key = normalizeBidderName(stat.name);
+    if (!key) {
+      continue;
+    }
+    const prefixed = open().filter((bidder) =>
+      normalizeBidderName(bidder.name).startsWith(`${key} `),
+    );
+    if (prefixed.length === 1) {
+      claim(prefixed[0]?.id ?? null, stat);
+    }
+  }
+
+  for (const stat of stats) {
+    claim(matchBidderIdByName(stat.name, open()), stat);
+  }
+
+  return assigned;
+}
+
 export function countsFromBidderStats(
   stats: Array<{ name?: string | null; applicationsCount?: number | null }>,
   bidders: Array<{ id: number; name: string }>,

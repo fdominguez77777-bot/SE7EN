@@ -359,6 +359,8 @@ export type ApplicationBidderOption = {
   username: string | null
   isActive: boolean
   applicationsCount: number
+  jiraName?: string | null
+  jiraUsername?: string | null
 }
 
 export type BidderWeeklyPayment = {

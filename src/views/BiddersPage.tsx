@@ -3,6 +3,7 @@ import { Plus, X } from 'lucide-react'
 
 import { api, getApiErrorMessage } from '../api/client'
 import type {
+  ApplicationBidderOption,
   BidderWeeklyWorkStatusResponse,
   CandidateProfile,
   MemberDetail,
@@ -58,6 +59,17 @@ const PACE_LABEL: Record<WorkPace, string> = {
   open: 'Open',
 }
 
+function bidderLabel(
+  bidder: User,
+  jiraById: Map<number, { name: string; username: string | null }>,
+) {
+  const jira = jiraById.get(bidder.id)
+  return {
+    name: jira?.name || bidder.name,
+    handle: jira?.username || bidder.email,
+  }
+}
+
 function workPace(score: number, leader: number): WorkPace {
   if (score <= 0 || leader <= 0) {
     return 'open'
@@ -102,6 +114,9 @@ export function BiddersPage() {
     user && hasAnyMemberRole(user, ['ADMIN', 'BID_MANAGER']),
   )
   const [bidders, setBidders] = useState<User[]>([])
+  const [jiraById, setJiraById] = useState<
+    Map<number, { name: string; username: string | null }>
+  >(new Map())
   const [profiles, setProfiles] = useState<CandidateProfile[]>([])
   const [weekWork, setWeekWork] = useState<BidderWeeklyWorkStatusResponse | null>(
     null,
@@ -128,6 +143,7 @@ export function BiddersPage() {
       Promise<{ data: User[] }>,
       Promise<{ data: CandidateProfile[] } | null>,
       Promise<{ data: BidderWeeklyWorkStatusResponse }>,
+      Promise<{ data: ApplicationBidderOption[] } | null>,
     ] = [
       api.get<User[]>('/users/bidders'),
       isStaff
@@ -137,11 +153,21 @@ export function BiddersPage() {
         '/daily-submissions/weekly-work-status',
         { params: { period } },
       ),
+      api
+        .get<ApplicationBidderOption[]>('/applications/bidders')
+        .catch(() => null),
     ]
-    const [bidderRes, profileRes, workRes] = await Promise.all(requests)
+    const [bidderRes, profileRes, workRes, jiraRes] = await Promise.all(requests)
     setBidders(bidderRes.data.filter((bidder) => hasMemberRole(bidder, 'BIDDER')))
     setProfiles(profileRes?.data ?? [])
     setWeekWork(workRes.data)
+    const jira = new Map<number, { name: string; username: string | null }>()
+    for (const row of jiraRes?.data ?? []) {
+      if (row.jiraName) {
+        jira.set(row.id, { name: row.jiraName, username: row.jiraUsername ?? null })
+      }
+    }
+    setJiraById(jira)
   }
 
   useEffect(() => {
@@ -213,8 +239,10 @@ export function BiddersPage() {
         confirmedDays: 0,
         days: emptyDays,
       }
+      const label = bidderLabel(row.bidder, jiraById)
       return {
         bidder: row.bidder,
+        label,
         applications: work.applications,
         interviews: work.interviews,
         days: work.days,
@@ -222,22 +250,22 @@ export function BiddersPage() {
     })
     return list.sort((a, b) => {
       if (workSort === 'name') {
-        return a.bidder.name.localeCompare(b.bidder.name)
+        return a.label.name.localeCompare(b.label.name)
       }
       if (workSort === 'interviews') {
         return (
           b.interviews - a.interviews ||
           b.applications - a.applications ||
-          a.bidder.name.localeCompare(b.bidder.name)
+          a.label.name.localeCompare(b.label.name)
         )
       }
       return (
         b.applications - a.applications ||
         b.interviews - a.interviews ||
-        a.bidder.name.localeCompare(b.bidder.name)
+        a.label.name.localeCompare(b.label.name)
       )
     })
-  }, [rows, workByBidder, workSort, workDays])
+  }, [rows, workByBidder, workSort, workDays, jiraById])
   const trackingTotals = useMemo(
     () =>
       trackingRows.reduce(
@@ -584,14 +612,14 @@ export function BiddersPage() {
                     const identity = (
                       <>
                         <EntityAvatar
-                          name={row.bidder.name}
+                          name={row.label.name}
                           src={row.bidder.avatarUrl}
                           size="sm"
                         />
                         <span className="work-id">
                           <span className="work-id-line">
                             <span className="truncate font-medium text-[var(--text-primary)]">
-                              {row.bidder.name}
+                              {row.label.name}
                             </span>
                             <span className="work-chip">{PACE_LABEL[pace]}</span>
                           </span>
@@ -601,7 +629,7 @@ export function BiddersPage() {
                             aria-valuemin={0}
                             aria-valuemax={100}
                             aria-valuenow={share}
-                            aria-label={`${row.bidder.name} is at ${share}% of the lead`}
+                            aria-label={`${row.label.name} is at ${share}% of the lead`}
                           >
                             <span style={{ width: `${share}%` }} />
                           </span>
@@ -708,6 +736,7 @@ export function BiddersPage() {
                 <BidderCard
                   key={row.bidder.id}
                   row={row}
+                  label={bidderLabel(row.bidder, jiraById)}
                   canDelete={isAdmin}
                   deleting={deletingId === row.bidder.id}
                   onDelete={() => onDeleteBidder(row.bidder.id)}
@@ -722,6 +751,7 @@ export function BiddersPage() {
       {isStaff && selected ? (
         <BidderDetailModal
           row={selected}
+          label={bidderLabel(selected.bidder, jiraById)}
           isAdmin={isAdmin}
           unassignedProfiles={unassignedProfiles}
           assignProfileId={assignProfileId}
@@ -746,12 +776,14 @@ export function BiddersPage() {
 
 function BidderCard({
   row,
+  label,
   onSelect,
   canDelete,
   deleting,
   onDelete,
 }: {
   row: BidderReportRow
+  label: { name: string; handle: string }
   onSelect: () => void
   canDelete?: boolean
   deleting?: boolean
@@ -765,12 +797,12 @@ function BidderCard({
       onClick={onSelect}
     >
       <div className="flex items-start gap-3">
-        <EntityAvatar name={row.bidder.name} src={row.bidder.avatarUrl} />
+        <EntityAvatar name={label.name} src={row.bidder.avatarUrl} />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-[var(--text-primary)]">
-            {row.bidder.name}
+            {label.name}
           </h2>
-          <p className="truncate text-sm text-[var(--text-secondary)]">{row.bidder.email}</p>
+          <p className="truncate text-sm text-[var(--text-secondary)]">{label.handle}</p>
           <div className="mt-2">
             <StatusBadge muted={!row.bidder.isActive}>
               {row.bidder.isActive ? 'Active' : 'Inactive'}
@@ -830,6 +862,7 @@ function BidderCard({
 
 function BidderDetailModal({
   row,
+  label,
   isAdmin,
   unassignedProfiles,
   assignProfileId,
@@ -843,6 +876,7 @@ function BidderDetailModal({
   passwordRefresh = 0,
 }: {
   row: BidderReportRow
+  label: { name: string; handle: string }
   isAdmin: boolean
   unassignedProfiles: CandidateProfile[]
   assignProfileId: string
@@ -890,15 +924,15 @@ function BidderDetailModal({
       >
         <div className="apps-modal-head">
           <div className="flex min-w-0 items-start gap-3">
-            <EntityAvatar name={row.bidder.name} src={row.bidder.avatarUrl} size="lg" />
+            <EntityAvatar name={label.name} src={row.bidder.avatarUrl} size="lg" />
             <div className="min-w-0">
               <h2
                 id="bidder-detail-title"
                 className="text-[22px] font-bold tracking-tight text-[var(--text-primary)]"
               >
-                {row.bidder.name}
+                {label.name}
               </h2>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">{row.bidder.email}</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{label.handle}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <StatusBadge muted={!row.bidder.isActive}>
                   {row.bidder.isActive ? 'Active' : 'Inactive'}
@@ -917,7 +951,7 @@ function BidderDetailModal({
         <div className="min-h-0 overflow-auto px-5 py-4">
           {isAdmin ? (
             <LoginPasswordPanel
-              personName={row.bidder.name}
+              personName={label.name}
               password={signInPassword}
               onApplyDefault={onResetPassword}
             />

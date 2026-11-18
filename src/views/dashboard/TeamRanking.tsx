@@ -1,14 +1,99 @@
+import type { CSSProperties } from 'react'
 import { Link } from '@/lib/navigation'
-import { Trophy } from 'lucide-react'
 
 import type { DashboardTeamBidder } from '../../api/types'
-import { EntityAvatar } from '../../ui/avatar'
-import { formatPlace, rankingMetal } from './metrics'
+import { formatPlace } from './metrics'
 
 export type RankingRow = {
   bidder: DashboardTeamBidder
   value: number
   rank: number
+}
+
+function Runner({ lead }: { lead: boolean }) {
+  return (
+    <svg viewBox="0 0 46 36" className="race-figure" aria-hidden="true">
+      {lead ? (
+        <g className="race-streak">
+          <path d="M1.2 12.5 H7.4" />
+          <path d="M0.4 16.4 H8" />
+          <path d="M2 20.2 H7.2" />
+        </g>
+      ) : null}
+      <ellipse className="race-shadow" cx="24" cy="33.4" rx="12" ry="1.15" />
+      <circle cx="32" cy="6.8" r="3.05" />
+      <path d="M30.1 9.7 L22.6 18.2" />
+      <path d="M27.2 12.2 L18.4 16.4 L14.6 13.4" />
+      <path d="M27.2 12.2 L35.4 15.6 L40.4 12.2" />
+      <path d="M22.6 18.2 L14.4 26.6 L9.2 30.2" />
+      <path d="M22.6 18.2 L30.6 27.2 L38.8 31.6" />
+    </svg>
+  )
+}
+
+function FinishFlag() {
+  const cells = []
+  for (let row = 0; row < 3; row += 1) {
+    for (let col = 0; col < 4; col += 1) {
+      cells.push(
+        <rect
+          key={`${col}-${row}`}
+          x={3.1 + col * 2.7}
+          y={1.15 + row * 2.7}
+          width={2.7}
+          height={2.7}
+          fill={(col + row) % 2 === 0 ? '#f6f6f7' : '#15171b'}
+        />
+      )
+    }
+  }
+  return (
+    <svg viewBox="0 0 16 23" className="race-flag" aria-hidden="true">
+      <path d="M2.4 1.1 V22" />
+      <circle cx="2.4" cy="1.15" r="1" />
+      {cells}
+    </svg>
+  )
+}
+
+function Lane({
+  row,
+  ratio,
+  isStaff,
+  isYou,
+  isLeader,
+}: {
+  row: RankingRow
+  ratio: number
+  isStaff: boolean
+  isYou: boolean
+  isLeader: boolean
+}) {
+  const name = isStaff ? (
+    <Link to={`/bidders?bidderId=${row.bidder.id}`} className="race-name">
+      {row.bidder.name}
+    </Link>
+  ) : (
+    <span className="race-name">{row.bidder.name}</span>
+  )
+  const at = `${Math.round(ratio * 1000) / 10}%`
+
+  return (
+    <li
+      className={`race-lane${isLeader ? ' is-leader' : ''}${isYou ? ' is-you' : ''}`}
+    >
+      <div className="race-meta">
+        {name}
+        <span className="race-value">{row.value.toLocaleString()}</span>
+      </div>
+      <div className="race-track">
+        <span className="race-runner" style={{ left: at } as CSSProperties}>
+          <Runner lead={isLeader} />
+        </span>
+      </div>
+      <FinishFlag />
+    </li>
+  )
 }
 
 export function TeamRanking({
@@ -30,18 +115,16 @@ export function TeamRanking({
         b.value - a.value ||
         a.bidder.name.localeCompare(b.bidder.name),
     )
-  const columns = pyramidColumns(ranked)
+  const runners = ranked.filter((row) => row.value > 0)
   const leader = ranked.find((row) => row.rank === 1) ?? null
-  const second = ranked.find((row) => row.rank === 2) ?? null
-  const leadBy =
-    leader && second ? Math.max(0, leader.value - second.value) : 0
   const you = currentUserId
     ? ranked.find((row) => row.bidder.id === currentUserId)
     : undefined
-  const max = Math.max(...ranked.map((row) => row.value), 1)
   const metric = metricLabel.toLowerCase()
   const yourGap =
     you && leader ? Math.max(0, leader.value - you.value) : null
+  const max = Math.max(...runners.map((row) => row.value), 1)
+  const finish = metric === 'applications' ? 100 : max
 
   return (
     <div className="podium">
@@ -64,113 +147,23 @@ export function TeamRanking({
         </div>
       ) : null}
 
-      <div
-        className="podium-chart"
-        role="img"
-        aria-label={`${metricLabel} ranking`}
-      >
-        <ul className="podium-bars">
-          {columns.map((row, index) => {
-            const isYou = row.bidder.id === currentUserId
-            const isLeader = row.rank === 1
-            const height = Math.max(14, Math.round((row.value / max) * 100))
-            const tone = rankingMetal(row.value, leader?.value ?? 0, isLeader)
-            const share = leader
-              ? Math.round((row.value / Math.max(leader.value, 1)) * 100)
-              : 0
-            const behind =
-              leader && !isLeader ? Math.max(0, leader.value - row.value) : 0
-            const nameNode = isStaff ? (
-              <Link
-                to={`/bidders?bidderId=${row.bidder.id}`}
-                className="podium-name"
-              >
-                {row.bidder.name}
-              </Link>
-            ) : (
-              <span className="podium-name">{row.bidder.name}</span>
-            )
-
-            return (
-              <li
+      {runners.length > 0 ? (
+        <div className="race-board">
+          {finish === 100 ? <div className="race-goal">100</div> : null}
+          <ol className="race" aria-label={`${metricLabel} ranking`}>
+            {runners.map((row) => (
+              <Lane
                 key={row.bidder.id}
-                className={`podium-col podium-col--${tone}${isYou ? ' is-you' : ''}${isLeader ? ' is-leader' : ''}`}
-                style={{ ['--podium-i' as string]: String(index) }}
-              >
-                <div className="podium-head">
-                  <div className="podium-trophy-slot">
-                    {isLeader ? (
-                      <Trophy className="podium-trophy" aria-hidden="true" />
-                    ) : null}
-                  </div>
-                  <EntityAvatar
-                    name={row.bidder.name}
-                    size="sm"
-                    tone={tone === '1' ? 'accent' : tone === '2' ? 'info' : 'warning'}
-                  />
-                  <div className="podium-identity">{nameNode}</div>
-                  <span className="podium-place">
-                    {formatPlace(row.rank)}
-                    <span className="podium-share"> · {share}%</span>
-                  </span>
-                  <div className="podium-score">
-                    <span className="podium-value">{row.value.toLocaleString()}</span>
-                    {isLeader && leadBy > 0 ? (
-                      <span className="podium-lead">+{leadBy.toLocaleString()}</span>
-                    ) : null}
-                    {!isLeader && behind > 0 ? (
-                      <span className="podium-gap">−{behind.toLocaleString()}</span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="podium-track">
-                  <div
-                    className={`podium-bar podium-bar--${tone}`}
-                    style={{ height: `${height}%` }}
-                    title={`${row.bidder.name}: ${row.value.toLocaleString()} ${metric}`}
-                  >
-                    <span className="podium-cylinder" aria-hidden="true">
-                      {isLeader ? (
-                        <span className="podium-sheen-clip">
-                          <span className="podium-sheen" />
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="podium-cap" aria-hidden="true" />
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+                row={row}
+                ratio={Math.min(row.value / finish, 1)}
+                isStaff={isStaff}
+                isYou={row.bidder.id === currentUserId}
+                isLeader={row.rank === 1}
+              />
+            ))}
+          </ol>
+        </div>
+      ) : null}
     </div>
   )
-}
-
-/** Mountain order: lower ranks flank outward, 1st centered. */
-export function pyramidColumns(rows: RankingRow[]): RankingRow[] {
-  const first = rows
-    .filter((row) => row.rank === 1)
-    .sort((a, b) => a.bidder.name.localeCompare(b.bidder.name))
-  const others = rows
-    .filter((row) => row.rank !== 1)
-    .sort(
-      (a, b) =>
-        a.rank - b.rank ||
-        b.value - a.value ||
-        a.bidder.name.localeCompare(b.bidder.name),
-    )
-  const left: RankingRow[] = []
-  const right: RankingRow[] = []
-  others.forEach((row, index) => {
-    if (index % 2 === 0) {
-      left.push(row)
-    } else {
-      right.push(row)
-    }
-  })
-  left.reverse()
-  return [...left, ...first, ...right]
 }

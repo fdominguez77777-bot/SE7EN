@@ -22,6 +22,7 @@ import {
   countsFromBidderStats,
   countsTowardApplicationTotal,
   creditApplicationBidderId,
+  jiraBidderIdentityByLocalId,
   matchBidderIdByName,
   normalizeBidderName,
 } from './bidder-name';
@@ -298,25 +299,31 @@ export class JiracodersApplicationsService {
     if (actor.role === UserRole.CALLER) {
       return [];
     }
-    const bidders = (await this.loadLocalBidders()).map(
-      ({ profileKeys: _profileKeys, ...bidder }) => bidder,
-    );
+    const loaded = await this.loadLocalBidders();
     const visible =
       actor.role === UserRole.ADMIN
-        ? bidders
-        : bidders.filter((bidder) => bidder.role !== UserRole.ADMIN);
+        ? loaded
+        : loaded.filter((bidder) => bidder.role !== UserRole.ADMIN);
     try {
       const envelope = await this.client.listBidderStats();
       const stats = Array.isArray(envelope.data) ? envelope.data : [];
       const counts = countsFromBidderStats(stats, visible);
+      const identity = jiraBidderIdentityByLocalId(stats, visible);
       return visible
-        .map((bidder) => ({
-          ...bidder,
-          applicationsCount: counts.get(bidder.id) ?? 0,
-        }))
+        .map(({ profileKeys: _profileKeys, ...bidder }) => {
+          const jira = identity.get(bidder.id);
+          return {
+            ...bidder,
+            applicationsCount: counts.get(bidder.id) ?? 0,
+            jiraName: jira?.name ?? null,
+            jiraUsername: jira?.username ?? null,
+          };
+        })
         .sort((left, right) => left.name.localeCompare(right.name));
     } catch {
-      return visible.sort((left, right) => left.name.localeCompare(right.name));
+      return visible
+        .map(({ profileKeys: _profileKeys, ...bidder }) => bidder)
+        .sort((left, right) => left.name.localeCompare(right.name));
     }
   }
 

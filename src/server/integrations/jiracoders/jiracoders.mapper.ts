@@ -68,6 +68,10 @@ export type ApplicationBidderOption = {
   isActive: boolean;
   applicationsCount: number;
   role?: string | null;
+  /** Name returned by Jira bidder stats, when this member matches one. */
+  jiraName?: string | null;
+  /** Username returned by Jira bidder stats, when this member matches one. */
+  jiraUsername?: string | null;
   /** Normalized names of the local profiles assigned to this bidder. */
   profileKeys?: string[];
 };

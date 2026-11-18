@@ -3,11 +3,11 @@
 import { Suspense } from 'react'
 
 import { ApplicationsPage } from '@/views/ApplicationsPage'
-import { AppLoadingScreen } from '@/ui/loading/AppLoadingScreen'
+import { PageSkeleton } from '@/ui/loading/page-skeletons'
 
 export default function Page() {
   return (
-    <Suspense fallback={<AppLoadingScreen message="Loading applications…" />}>
+    <Suspense fallback={<PageSkeleton rows={8} />}>
       <ApplicationsPage />
     </Suspense>
   )

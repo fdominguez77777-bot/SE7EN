@@ -1,5 +1,5 @@
-import { AppLoadingScreen } from '@/ui/loading/AppLoadingScreen'
+import { PageSkeleton } from '@/ui/loading/page-skeletons'
 
 export default function Loading() {
-  return <AppLoadingScreen message="Loading workspace…" />
+  return <PageSkeleton />
 }

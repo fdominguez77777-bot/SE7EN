@@ -106,22 +106,27 @@ export function dailySeries(
 }
 
 /**
- * Bar metal from the application count, split into three bands of the leader's total.
- * Gold is only the leader. Counts above the bottom third are silver.
- * Counts in the bottom third use the other metal.
+ * Three metals from where a count sits between the lowest and highest
+ * totals on the board right now. Top third is gold, middle third is silver,
+ * bottom third is the other metal.
  */
 export function rankingMetal(
   value: number,
-  leaderValue: number,
-  isLeader: boolean,
+  minValue: number,
+  maxValue: number,
 ): '1' | '2' | '3' {
-  if (isLeader) {
+  const span = maxValue - minValue
+  if (span <= 0) {
     return '1'
   }
-  if (leaderValue <= 0 || value * 3 <= leaderValue) {
-    return '3'
+  const position = (value - minValue) / span
+  if (position >= 2 / 3) {
+    return '1'
   }
-  return '2'
+  if (position >= 1 / 3) {
+    return '2'
+  }
+  return '3'
 }
 
 export function assignDenseRanks(values: number[]) {

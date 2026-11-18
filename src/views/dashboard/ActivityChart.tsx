@@ -75,7 +75,6 @@ export function ActivityChart({
                 y1={tick.y}
                 y2={tick.y}
                 stroke="rgba(255,255,255,0.06)"
-                strokeDasharray="3 5"
               />
               <text
                 x={left - 8}
@@ -89,17 +88,28 @@ export function ActivityChart({
             </g>
           ))}
           <defs>
+            <linearGradient
+              id="activity-fill"
+              x1="0"
+              y1={top}
+              x2="0"
+              y2={baseline}
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0" stopColor="var(--accent)" stopOpacity="0.2" />
+              <stop offset="0.42" stopColor="var(--accent)" stopOpacity="0" />
+            </linearGradient>
             <clipPath id="activity-plot">
               <rect x={left} y={top} width={plotW} height={plotH} />
             </clipPath>
           </defs>
           <g clipPath="url(#activity-plot)">
-          <path d={area} fill="rgba(217, 139, 70, 0.16)" />
+          <path d={area} fill="url(#activity-fill)" />
           <path
             d={line}
             fill="none"
             stroke="var(--accent)"
-            strokeWidth="2.25"
+            strokeWidth="1.75"
             strokeLinejoin="round"
             strokeLinecap="round"
           />
@@ -147,15 +157,26 @@ export function ActivityChart({
                 x2={active.x}
                 y1={top}
                 y2={top + plotH}
-                stroke="rgba(255,255,255,0.12)"
+                stroke="rgba(255,255,255,0.14)"
               />
               <circle
                 cx={active.x}
                 cy={active.y}
-                r="4"
-                fill="var(--accent)"
+                r="3.5"
+                fill="var(--surface-1)"
+                stroke="var(--accent)"
+                strokeWidth="1.75"
               />
             </g>
+          ) : last ? (
+            <circle
+              cx={last.x}
+              cy={last.y}
+              r="3"
+              fill="var(--surface-1)"
+              stroke="var(--accent)"
+              strokeWidth="1.75"
+            />
           ) : null}
         </svg>
       )}

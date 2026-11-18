@@ -3,10 +3,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { api, getApiErrorMessage } from '../api/client'
 import type { DashboardSummary, DashboardTeamBidder } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
-import { Alert, SectionCard } from '../ui/chrome'
+import { Alert, SectionCard, Skeleton } from '../ui/chrome'
 import { hasAnyMemberRole, hasMemberRole } from '../ui/roles'
 import { EmptyState } from '../ui/EmptyState'
-import { PageSkeleton } from '../ui/loading/page-skeletons'
 import { PeriodSelector, usePeriodFilter } from '../ui/PeriodSelector'
 import { rangeQuery, resolveRange } from '../ui/reporting-period'
 import { ActivityChart } from './dashboard/ActivityChart'
@@ -281,12 +280,14 @@ export function DashboardPage() {
       />
 
       {error ? <Alert>{error}</Alert> : null}
-
-      {loading ? (
-        <PageSkeleton metrics={2} rows={6} />
-      ) : (
-        <>
-          <div className="dash-kpi-row">
+      <div className="dash-kpi-row" aria-busy={loading}>
+        {loading ? (
+          <>
+            <KpiSkeleton />
+            <KpiSkeleton />
+          </>
+        ) : (
+          <>
             <KpiCard
               label="Applications"
               value={appsKpi}
@@ -321,41 +322,54 @@ export function DashboardPage() {
               selected={rankMetric === 'interviews'}
               onSelect={selectIntsRanking}
             />
-          </div>
+          </>
+        )}
+      </div>
 
-          <div className="dash-main-grid">
-            <SectionCard
-              className="dash-panel dash-panel--chart"
-              title={
-                rankMetric === 'interviews'
-                  ? 'Interview activity'
-                  : 'Application activity'
-              }
-              description={weekdays.label}
-              action={
-                <Segmented
-                  value={chartMode}
-                  onChange={setChartMode}
-                  options={[
-                    { id: 'total', label: 'Total' },
-                    { id: 'average', label: 'Average' },
-                  ]}
-                />
-              }
-            >
-              <ActivityChart
-                series={chartSeries}
-                mode={chartMode}
-                unit={rankMetric === 'interviews' ? 'interviews' : 'applications'}
-              />
-            </SectionCard>
+      <div className="dash-main-grid">
+        <SectionCard
+          className="dash-panel dash-panel--chart"
+          title={
+            rankMetric === 'interviews'
+              ? 'Interview activity'
+              : 'Application activity'
+          }
+          description={weekdays.label}
+          action={
+            <Segmented
+              value={chartMode}
+              onChange={setChartMode}
+              options={[
+                { id: 'total', label: 'Total' },
+                { id: 'average', label: 'Average' },
+              ]}
+            />
+          }
+        >
+          {loading ? (
+            <Skeleton className="h-[280px] w-full" />
+          ) : (
+            <ActivityChart
+              series={chartSeries}
+              mode={chartMode}
+              unit={rankMetric === 'interviews' ? 'interviews' : 'applications'}
+            />
+          )}
+        </SectionCard>
 
-            <SectionCard
-              className="dash-panel dash-panel--snapshot"
-              title="Snapshot"
-              description="Quick period totals"
-            >
-              <div className="dash-snapshot">
+        <SectionCard
+          className="dash-panel dash-panel--snapshot"
+          title="Snapshot"
+          description="Quick period totals"
+        >
+          <div className="dash-snapshot" aria-busy={loading}>
+            {loading ? (
+              <>
+                <SnapshotSkeleton title="Today" rows={2} />
+                <SnapshotSkeleton title="This week" rows={4} />
+              </>
+            ) : (
+              <>
                 <SnapshotBlock
                   title="Today"
                   active={rankPeriod === 'day'}
@@ -412,63 +426,96 @@ export function DashboardPage() {
                   />
                   <SummaryRow label="Interview rate" value={formatRate(weekRate)} />
                 </SnapshotBlock>
-              </div>
-            </SectionCard>
-          </div>
-
-          <SectionCard
-            className="dash-panel"
-            title="Team ranking"
-            description={`${
-              rankMetric === 'interviews' ? 'Interviews' : 'Applications'
-            } · ${rankingScope} · ${rankingTotal} total`}
-            action={
-              <div className="dash-rank-tools">
-                <Segmented
-                  value={rankPeriod}
-                  onChange={setRankPeriod}
-                  options={[
-                    { id: 'day', label: 'Day' },
-                    { id: 'week', label: 'Week' },
-                    { id: 'custom', label: 'Custom' },
-                  ]}
-                />
-                <Segmented
-                  value={rankMetric}
-                  onChange={setRankMetric}
-                  options={[
-                    { id: 'applications', label: 'Applications' },
-                    { id: 'interviews', label: 'Interviews' },
-                  ]}
-                />
-              </div>
-            }
-          >
-            {performance.length === 0 ? (
-              <EmptyState title="No teammates to rank." />
-            ) : !rankingHasActivity ? (
-              <div className="dash-rank-idle">
-                <p className="dash-rank-idle-note">
-                  No {rankMetric === 'interviews' ? 'interviews' : 'applications'} to rank for{' '}
-                  {rankPeriod === 'day' ? 'today' : rankPeriod === 'week' ? 'this week' : 'this range'} yet. Try Week
-                  or a custom range.
-                </p>
-                <ConnectTeam />
-              </div>
-            ) : (
-              <TeamRanking
-                rows={performance}
-                metricLabel={
-                  rankMetric === 'interviews' ? 'Interviews' : 'Applications'
-                }
-                currentUserId={user?.id}
-                isStaff={isStaff}
-              />
+              </>
             )}
-          </SectionCard>
-        </>
-      )}
+          </div>
+        </SectionCard>
+      </div>
+
+      <SectionCard
+        className="dash-panel"
+        title="Team ranking"
+        description={
+          loading
+            ? `${rankMetric === 'interviews' ? 'Interviews' : 'Applications'} · ${rankingScope}`
+            : `${
+                rankMetric === 'interviews' ? 'Interviews' : 'Applications'
+              } · ${rankingScope} · ${rankingTotal} total`
+        }
+        action={
+          <div className="dash-rank-tools">
+            <Segmented
+              value={rankPeriod}
+              onChange={setRankPeriod}
+              options={[
+                { id: 'day', label: 'Day' },
+                { id: 'week', label: 'Week' },
+                { id: 'custom', label: 'Custom' },
+              ]}
+            />
+            <Segmented
+              value={rankMetric}
+              onChange={setRankMetric}
+              options={[
+                { id: 'applications', label: 'Applications' },
+                { id: 'interviews', label: 'Interviews' },
+              ]}
+            />
+          </div>
+        }
+      >
+        {loading ? (
+          <div className="flex flex-col gap-3" aria-busy="true">
+            {Array.from({ length: 4 }, (_, index) => (
+              <Skeleton key={index} className="h-9 w-full" />
+            ))}
+          </div>
+        ) : performance.length === 0 ? (
+          <EmptyState title="No teammates to rank." />
+        ) : !rankingHasActivity ? (
+          <div className="dash-rank-idle">
+            <p className="dash-rank-idle-note">
+              No {rankMetric === 'interviews' ? 'interviews' : 'applications'} to rank for{' '}
+              {rankPeriod === 'day' ? 'today' : rankPeriod === 'week' ? 'this week' : 'this range'} yet. Try Week
+              or a custom range.
+            </p>
+            <ConnectTeam />
+          </div>
+        ) : (
+          <TeamRanking
+            rows={performance}
+            metricLabel={
+              rankMetric === 'interviews' ? 'Interviews' : 'Applications'
+            }
+            currentUserId={user?.id}
+            isStaff={isStaff}
+          />
+        )}
+      </SectionCard>
     </section>
+  )
+}
+
+function KpiSkeleton() {
+  return (
+    <div className="dash-kpi" aria-hidden="true">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="mt-4 h-8 w-16" />
+      <Skeleton className="mt-auto h-3 w-20" />
+    </div>
+  )
+}
+
+function SnapshotSkeleton({ title, rows }: { title: string; rows: number }) {
+  return (
+    <div className="dash-snapshot-block" aria-hidden="true">
+      <p className="dash-snapshot-heading">{title}</p>
+      <div className="dash-snapshot-rows">
+        {Array.from({ length: rows }, (_, index) => (
+          <Skeleton key={index} className="h-8 w-full" />
+        ))}
+      </div>
+    </div>
   )
 }
 

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 
 export function FunLoader({
   compact = false,
-  overlay = true,
+  overlay = false,
   label = 'Loading',
 }: {
   compact?: boolean
