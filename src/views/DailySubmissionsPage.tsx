@@ -311,7 +311,7 @@ export function DailySubmissionsPage() {
   }, [status, isAdmin, isManager, selectedId])
 
   const liveWebDates = useMemo(() => {
-    if (!isAdmin) {
+    if (!isAdmin && !isManager) {
       return []
     }
     if (selectedId != null) {
@@ -319,7 +319,7 @@ export function DailySubmissionsPage() {
       return day ? [day] : []
     }
     return dayWindow(shiftIso(mondayOf(date), 6), 7)
-  }, [isAdmin, selectedId, detail?.reportingDate, date])
+  }, [isAdmin, isManager, selectedId, detail?.reportingDate, date])
 
   useEffect(() => {
     if (liveWebDates.length === 0) {
@@ -1059,7 +1059,7 @@ function ReportWorkspace({
                 : ''}
             </p>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              {isAdmin && detail.webApplications != null ? (
+              {detail.webApplications != null ? (
                 <>
                   Web number:{' '}
                   <span className="font-medium tabular-nums text-[var(--text-primary)]">
@@ -1110,7 +1110,7 @@ function ReportWorkspace({
                           <p className="truncate font-medium text-[var(--text-primary)]">
                             {row.bidderName}
                           </p>
-                          {isAdmin && row.webApplications != null ? (
+                          {row.webApplications != null ? (
                             <p className="text-xs text-[var(--text-muted)]">
                               Web number:{' '}
                               <span className="font-medium tabular-nums text-[var(--text-secondary)]">

@@ -51,8 +51,10 @@ export class DailySubmissionsController {
   }
 
   @Get('web-counts')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Live website application counts for the given days (ADMIN)' })
+  @Roles(UserRole.ADMIN, UserRole.BID_MANAGER)
+  @ApiOperation({
+    summary: 'Live website application counts for the given days',
+  })
   webCounts(@CurrentUser() actor: User, @Query('dates') dates?: string) {
     return this.dailySubmissions.liveWebCounts(actor, dates);
   }

@@ -97,7 +97,7 @@ export class DailySubmissionsService {
       order: { reportingDate: 'DESC', id: 'DESC' },
     });
     const unreadById = await this.unreadBySubmission(actor, items);
-    const includeWeb = actor.role === UserRole.ADMIN;
+    const includeWeb = this.seesWebCounts(actor);
     const web = includeWeb
       ? await this.webApplicationBreakdown(
           items.map((item) => this.reportingDateString(item.reportingDate)),
@@ -115,9 +115,9 @@ export class DailySubmissionsService {
     });
   }
 
-  /** Fresh website counts for an admin. Other roles cannot read these numbers. */
+  /** Fresh website counts for the admin and the bid manager. */
   async liveWebCounts(actor: User, datesRaw?: string) {
-    this.assertAdmin(actor);
+    this.assertStaff(actor);
     const dates = [
       ...new Set(
         (datesRaw ?? '')
@@ -299,7 +299,7 @@ export class DailySubmissionsService {
     return this.toDetailDto(
       await this.loadOrFail(id),
       false,
-      actor.role === UserRole.ADMIN,
+      this.seesWebCounts(actor),
     );
   }
 
@@ -313,7 +313,7 @@ export class DailySubmissionsService {
       DailySubmissionStatus.REVIEWED,
     ]);
     if (adminReport) {
-      return this.toDetailDto(adminReport);
+      return this.toDetailDto(adminReport, false, this.seesWebCounts(actor));
     }
     let submission = await this.submissions.findOne({
       where: { managerId: actor.id, reportingDate },
@@ -325,7 +325,7 @@ export class DailySubmissionsService {
       await this.syncDraft(submission);
       submission = await this.loadOrFail(submission.id);
     }
-    return this.toDetailDto(submission);
+    return this.toDetailDto(submission, false, this.seesWebCounts(actor));
   }
 
   /** Opens (or creates) the ADMIN-written report for a day. */
@@ -401,7 +401,7 @@ export class DailySubmissionsService {
     return this.toDetailDto(
       await this.loadOrFail(id),
       false,
-      actor.role === UserRole.ADMIN,
+      this.seesWebCounts(actor),
     );
   }
 
@@ -471,7 +471,7 @@ export class DailySubmissionsService {
     return this.toDetailDto(
       await this.loadOrFail(id),
       false,
-      actor.role === UserRole.ADMIN,
+      this.seesWebCounts(actor),
     );
   }
 
@@ -702,6 +702,12 @@ export class DailySubmissionsService {
     ) {
       throw new ForbiddenException('Not allowed.');
     }
+  }
+
+  private seesWebCounts(actor: User) {
+    return (
+      actor.role === UserRole.ADMIN || actor.role === UserRole.BID_MANAGER
+    );
   }
 
   private assertAdmin(actor: User) {
