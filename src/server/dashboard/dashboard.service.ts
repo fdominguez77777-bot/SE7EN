@@ -196,23 +196,36 @@ export class DashboardService {
       this.loadInterviewCredits(windowFrom, windowTo, bidderInputs, actor),
     ]);
 
-    const selectedApps = applicationRows.filter((row) =>
+    const rankedBidderIds = new Set(
+      bidderInputs
+        .filter(
+          (row) =>
+            hasRole(row, UserRole.BIDDER) && !hasRole(row, UserRole.BID_MANAGER),
+        )
+        .map((row) => row.id),
+    );
+    const onTeam = <T extends { bidderId: number | null }>(rows: T[]) =>
+      rows.filter(
+        (row) => row.bidderId != null && rankedBidderIds.has(row.bidderId),
+      );
+    const selectedAppsAll = applicationRows.filter((row) =>
       inTimeRange(row.appliedAt, start, end),
     );
+    const selectedApps = onTeam(selectedAppsAll);
     const selectedInts = interviewRows.filter((row) =>
       inTimeRange(row.startsAt, start, end),
     );
     const creditedSelectedInts = selectedInts.filter(
       (row) => row.bidderId != null,
     );
-    const todayApps = applicationRows.filter((row) =>
-      inTimeRange(row.appliedAt, today, tomorrow),
+    const todayApps = onTeam(
+      applicationRows.filter((row) => inTimeRange(row.appliedAt, today, tomorrow)),
     );
     const todayInts = interviewRows.filter((row) =>
       inTimeRange(row.startsAt, today, tomorrow),
     );
-    const weekApps = applicationRows.filter((row) =>
-      inTimeRange(row.appliedAt, weekFrom, weekTo),
+    const weekApps = onTeam(
+      applicationRows.filter((row) => inTimeRange(row.appliedAt, weekFrom, weekTo)),
     );
     const weekInts = interviewRows.filter((row) =>
       inTimeRange(row.startsAt, weekFrom, weekTo),
@@ -244,7 +257,7 @@ export class DashboardService {
       weekInterviews: weekById.get(row.id)?.interviews ?? 0,
     }));
     const recent = [
-      ...selectedApps.slice(0, 8).map((row) => ({
+      ...selectedAppsAll.slice(0, 8).map((row) => ({
         id: `app-${row.id}`,
         at: row.appliedAt.toISOString(),
         title: 'Applications recorded',
@@ -287,7 +300,7 @@ export class DashboardService {
       applications: selectedApps.length,
       interviews: selectedInts.length,
       previousApplications: countInRange(
-        applicationRows.map((row) => row.appliedAt),
+        onTeam(applicationRows).map((row) => row.appliedAt),
         previous.from,
         previous.to,
       ),
@@ -309,7 +322,7 @@ export class DashboardService {
         interviews: interviewByDay.get(row.date) ?? 0,
       })),
       weekDaily: dailyCounts(
-        applicationRows
+        onTeam(applicationRows)
           .filter((row) => inTimeRange(row.appliedAt, weekFrom, weekdayEnd))
           .map((row) => row.appliedAt),
         weekFrom,

@@ -15,6 +15,7 @@ import { User } from '../users/user.entity';
 import { UserRole } from '../users/user-role.enum';
 import { hasRole } from '../users/user-roles';
 import { avatarPublicUrl } from '../storage/image-kind';
+import { reportingDayKey, reportingDayRange } from '../reporting/chicago-day';
 import { mondaySundayWeek } from '../reporting/week-range';
 import { DailySubmissionBidder } from './daily-submission-bidder.entity';
 import { DailySubmissionRead } from './daily-submission-read.entity';
@@ -856,8 +857,8 @@ export class DailySubmissionsService {
     if (keys.length === 0) {
       return { totals, byBidder };
     }
-    const from = calendarDayRange(keys[0]).from;
-    const to = calendarDayRange(keys[keys.length - 1]).to;
+    const from = reportingDayRange(keys[0]).from;
+    const to = reportingDayRange(keys[keys.length - 1]).to;
     try {
       const rows = await this.jiraApplications.creditedApplications(from, to, fresh);
       for (const key of keys) {
@@ -865,7 +866,7 @@ export class DailySubmissionsService {
         byBidder.set(key, new Map());
       }
       for (const row of rows) {
-        const key = toDateOnly(row.appliedAt);
+        const key = reportingDayKey(row.appliedAt);
         if (!totals.has(key)) {
           continue;
         }
@@ -1068,10 +1069,17 @@ function sumBidderWeb(
   return total;
 }
 
-function bidderOnlyRows<T extends { bidder?: { role?: string } | null }>(
-  rows: T[] | null | undefined,
-) {
-  return (rows ?? []).filter((row) => row.bidder?.role === UserRole.BIDDER);
+function bidderOnlyRows<
+  T extends { bidder?: { role?: string; roles?: string[] | null } | null },
+>(rows: T[] | null | undefined) {
+  return (rows ?? []).filter((row) => {
+    const bidder = row.bidder;
+    return (
+      bidder != null &&
+      hasRole(bidder, UserRole.BIDDER) &&
+      !hasRole(bidder, UserRole.BID_MANAGER)
+    );
+  });
 }
 
 function startOfLocalDay(reference = new Date()) {
